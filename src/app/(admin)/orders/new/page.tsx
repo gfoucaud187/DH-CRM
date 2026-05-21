@@ -4,10 +4,25 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ShoppingCart, Package } from 'lucide-react'
+import { Plus, Trash2, ShoppingCart, FileText, Gift, Package } from 'lucide-react'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
-const DOC_TYPES = ['proforma', 'so', 'invoice']
+
+type OrderMode = 'so' | 'proforma' | 'foc' | 'sample'
+
+const MODE_CONFIG = {
+  so:       { label: 'SO — Sales Order',        docType: 'so',        isFoc: false, isSample: false, btnLabel: 'Create SO',         activeClass: 'bg-blue-50 text-blue-800 border-blue-400 font-medium' },
+  proforma: { label: 'Proforma',                docType: 'proforma',  isFoc: false, isSample: false, btnLabel: 'Create Proforma',    activeClass: 'bg-amber-50 text-amber-800 border-amber-400 font-medium' },
+  foc:      { label: 'SO(DO) — Free of charge', docType: 'so',        isFoc: true,  isSample: false, btnLabel: 'Create SO(DO)',      activeClass: 'bg-green-50 text-green-800 border-green-400 font-medium' },
+  sample:   { label: 'SO(SAMPLE) — Samples, value 0', docType: 'so_sample', isFoc: false, isSample: true, btnLabel: 'Create SO(SAMPLE)', activeClass: 'bg-orange-50 text-orange-800 border-orange-400 font-medium' },
+}
+
+const MODE_ICONS = {
+  so:       FileText,
+  proforma: FileText,
+  foc:      Gift,
+  sample:   Package,
+}
 
 interface OrderLine {
   sku: string
@@ -24,8 +39,7 @@ export default function NewOrderPage() {
   const supabase = createClient()
   const router = useRouter()
 
-  const [isFoc, setIsFoc] = useState(false)
-  const [docType, setDocType] = useState('so')
+  const [mode, setMode] = useState<OrderMode>('so')
   const [customerId, setCustomerId] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [warehouse, setWarehouse] = useState('T1')
@@ -37,6 +51,11 @@ export default function NewOrderPage() {
   const [lines, setLines] = useState<OrderLine[]>([])
   const [saving, setSaving] = useState(false)
   const [productSearch, setProductSearch] = useState('')
+
+  const cfg = MODE_CONFIG[mode]
+  const isFoc = cfg.isFoc
+  const isSample = cfg.isSample
+  const priceIsZero = isFoc || isSample
 
   const { data: customers = [] } = useQuery({
     queryKey: ['customers-simple'],
@@ -89,7 +108,7 @@ export default function NewOrderPage() {
   }
 
   const getPrice = (sku: string) => {
-    if (isFoc) return 0
+    if (priceIsZero) return 0
     const entry = (priceEntries as any[]).find(
       (e: any) => e.sku === sku && e.price_list === getCustomerPriceList()
     )
@@ -133,29 +152,33 @@ export default function NewOrderPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           order: {
-            document_type: docType,
-            is_foc: isFoc,
-            customer_id: customerId,
-            customer_name: customerName,
-            currency, warehouse, incoterms,
-            payment_terms: paymentTerms,
-            notes, shipment_date: shipmentDate || null,
-            price_list: isFoc ? null : getCustomerPriceList(),
-            total_amount: isFoc ? 0 : total,
-            total_units: totalUnits,
-            total_packs: totalPacks,
+            document_type:  cfg.docType,
+            is_foc:         isFoc,
+            is_sample:      isSample,
+            customer_id:    customerId,
+            customer_name:  customerName,
+            currency,
+            warehouse:      isSample ? 'Sample' : warehouse,
+            incoterms,
+            payment_terms:  paymentTerms,
+            notes,
+            shipment_date:  shipmentDate || null,
+            price_list:     priceIsZero ? null : getCustomerPriceList(),
+            total_amount:   priceIsZero ? 0 : total,
+            total_units:    totalUnits,
+            total_packs:    totalPacks,
           },
           commercial_lines: lines.map(l => ({
             ...l,
-            line_type: isFoc ? 'foc' : 'commercial',
-            price_per_unit: isFoc ? 0 : l.price_per_unit,
-            line_total: isFoc ? 0 : l.line_total,
+            line_type:      isFoc ? 'foc' : 'commercial',
+            price_per_unit: priceIsZero ? 0 : l.price_per_unit,
+            line_total:     priceIsZero ? 0 : l.line_total,
           })),
           foc_lines: [],
         }),
       })
       const data = await res.json()
-      if (data.success) router.push(`/orders/${data.order.id}`)
+      if (data.success) router.push('/orders/' + data.order.id)
       else alert('Error: ' + data.error)
     } catch { alert('Error creating order') }
     setSaving(false)
@@ -170,40 +193,35 @@ export default function NewOrderPage() {
 
   return (
     <div className="max-w-6xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">New Order</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Create a sales order</p>
+          <h1 className="text-2xl font-bold text-gray-900">New Sales Document</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Select document type below</p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* FOC Toggle */}
-          <button
-            onClick={() => { setIsFoc(!isFoc); setLines([]) }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-              isFoc
-                ? 'bg-green-700 text-white border-green-700'
-                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <Package className="h-4 w-4" />
-            {isFoc ? 'SO(DO) — FOC Mode' : 'FOC Order'}
-          </button>
-
-          <button
-            onClick={handleSubmit}
-            disabled={saving || !customerId || lines.length === 0}
-            className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors"
-          >
-            <ShoppingCart className="h-4 w-4" />
-            {saving ? 'Creating...' : isFoc ? 'Create SO(DO)' : 'Create SO'}
-          </button>
-        </div>
+        <button onClick={handleSubmit} disabled={saving || !customerId || lines.length === 0}
+          className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
+          <ShoppingCart className="h-4 w-4" />
+          {saving ? 'Creating...' : cfg.btnLabel}
+        </button>
       </div>
 
-      {/* FOC banner */}
-      {isFoc && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
-          <strong>FOC Mode</strong> — This will create a standalone SO(DO) with all products at price 0. Use for samples or gifts without a linked commercial order.
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {(Object.entries(MODE_CONFIG) as [OrderMode, typeof MODE_CONFIG[OrderMode]][]).map(([key, c]) => {
+          const Icon = MODE_ICONS[key]
+          return (
+            <button key={key}
+              onClick={() => { setMode(key); setLines([]) }}
+              className={'flex items-center gap-2 px-4 py-2 rounded-lg text-sm border transition-colors ' + (mode === key ? c.activeClass : 'border-gray-200 text-gray-600 hover:bg-gray-50 font-normal')}>
+              <Icon className="h-4 w-4" />
+              {c.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {isSample && (
+        <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
+          Stock deducted from <strong>Sample</strong> warehouse. Can be promoted to Invoice at 0 later.
         </div>
       )}
 
@@ -211,16 +229,6 @@ export default function NewOrderPage() {
         <div className="col-span-1 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
             <h2 className="font-semibold text-gray-900">Order Details</h2>
-
-            {!isFoc && (
-              <div>
-                <label className="text-xs font-medium text-gray-500 uppercase">Document Type</label>
-                <select value={docType} onChange={e => setDocType(e.target.value)}
-                  className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-                  {DOC_TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-                </select>
-              </div>
-            )}
 
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Customer *</label>
@@ -235,8 +243,9 @@ export default function NewOrderPage() {
 
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Warehouse</label>
-              <select value={warehouse} onChange={e => setWarehouse(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+              <select value={isSample ? 'Sample' : warehouse} onChange={e => setWarehouse(e.target.value)}
+                disabled={isSample}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none disabled:bg-gray-50 disabled:text-gray-400">
                 {WAREHOUSES.map(w => <option key={w} value={w}>{w}</option>)}
               </select>
             </div>
@@ -278,14 +287,14 @@ export default function NewOrderPage() {
           </div>
 
           {lines.length > 0 && (
-            <div className={`rounded-xl p-4 text-white ${isFoc ? 'bg-green-800' : 'bg-gray-900'}`}>
+            <div className="bg-gray-900 rounded-xl p-4 text-white">
               <h3 className="font-semibold mb-3">Summary</h3>
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between"><span className="opacity-70">Packs</span><span>{totalPacks}</span></div>
-                <div className="flex justify-between"><span className="opacity-70">Units</span><span>{totalUnits}</span></div>
-                <div className={`border-t pt-2 mt-2 flex justify-between font-semibold text-lg ${isFoc ? 'border-green-700' : 'border-gray-700'}`}>
+                <div className="flex justify-between"><span className="text-gray-400">Packs</span><span>{totalPacks}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Units</span><span>{totalUnits}</span></div>
+                <div className="border-t border-gray-700 pt-2 mt-2 flex justify-between font-semibold text-lg">
                   <span>Total</span>
-                  <span>{isFoc ? 'FOC' : `${currency} ${total.toFixed(2)}`}</span>
+                  <span>{priceIsZero ? 'FOC' : currency + ' ' + total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -296,7 +305,7 @@ export default function NewOrderPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="font-medium text-gray-900 mb-3">
               Add Product — {(products as any[]).length} available
-              {isFoc && <span className="ml-2 text-xs text-green-600 font-normal">All at price 0</span>}
+              {priceIsZero && <span className="ml-2 text-xs text-gray-400 font-normal">All at price 0</span>}
             </h3>
             <input type="text" placeholder="Search products..."
               value={productSearch} onChange={e => setProductSearch(e.target.value)}
@@ -313,8 +322,8 @@ export default function NewOrderPage() {
                       <span className="ml-2 text-xs text-gray-400 font-mono">{p.sku}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      {isFoc
-                        ? <span className="text-xs font-medium text-green-600">FOC</span>
+                      {priceIsZero
+                        ? <span className="text-xs text-gray-400">0.00</span>
                         : price > 0 && <span className="text-xs text-gray-500">{price.toFixed(2)} {currency}</span>
                       }
                       {alreadyAdded ? <span className="text-xs text-gray-400">Added</span> : <Plus className="h-4 w-4 text-gray-400" />}
@@ -333,7 +342,7 @@ export default function NewOrderPage() {
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
                     <th className="text-center px-3 py-3 font-medium text-gray-600">Packs</th>
                     <th className="text-center px-3 py-3 font-medium text-gray-600">Units</th>
-                    {!isFoc && (
+                    {!priceIsZero && (
                       <>
                         <th className="text-right px-3 py-3 font-medium text-gray-600">Price/Unit</th>
                         <th className="text-right px-3 py-3 font-medium text-gray-600">Total</th>
@@ -355,7 +364,7 @@ export default function NewOrderPage() {
                           className="w-20 h-8 rounded border border-gray-200 px-2 text-center text-sm" />
                       </td>
                       <td className="px-3 py-3 text-center text-gray-600">{line.quantity_units}</td>
-                      {!isFoc && (
+                      {!priceIsZero && (
                         <>
                           <td className="px-3 py-3 text-right text-gray-600">{line.price_per_unit.toFixed(2)}</td>
                           <td className="px-3 py-3 text-right font-medium">{line.line_total.toFixed(2)}</td>

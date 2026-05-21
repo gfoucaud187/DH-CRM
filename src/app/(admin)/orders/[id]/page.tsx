@@ -93,11 +93,11 @@ export default function OrderDetailPage() {
   })
 
   const { mutate: updateStatus } = useMutation({
-    mutationFn: async (status) => {
+    mutationFn: async (status: any) => {
       const { error } = await supabase
         .from('sales_orders')
         .update({ status })
-        .eq('id', id)
+        .eq('id', id as string)
       if (error) throw error
     },
     onSuccess: () => {
@@ -124,7 +124,7 @@ export default function OrderDetailPage() {
       body: JSON.stringify({ so_id: id }),
     })
     const data = await res.json()
-    if (data.success) router.push('/orders/' + data.foc_order.id)
+    if (data.success) router.push('/orders/' + data.foc_order.id + '/edit')
     else if (data.existing_id) router.push('/orders/' + data.existing_id)
     else alert('Error: ' + data.error)
   }
@@ -136,8 +136,8 @@ export default function OrderDetailPage() {
   const isSO = order.document_type === 'so'
   const isDraft = order.status === 'draft'
   const statuses = isInvoice ? INVOICE_STATUSES : SO_STATUSES
-  const currentStatus = statuses.find(s => s.value === order.status) ?? statuses[0]
-  const commercialLines = (order.lines ?? []).filter((l) => l.line_type === 'commercial')
+  const currentStatus = statuses.find((s: any) => s.value === order.status) ?? statuses[0]
+  const commercialLines = (order.lines ?? []).filter((l: any) => l.line_type === 'commercial')
   const alreadyHasInvoice = isSO && !!linkedDoc && linkedDoc.document_type === 'invoice'
   const alreadyHasFoc = isSO && !!focOrder
 
@@ -150,7 +150,7 @@ export default function OrderDetailPage() {
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900">{order.order_number ?? 'Draft'}</h1>
-            <span className={"px-3 py-1 rounded-full text-xs font-medium " + currentStatus.color}>
+            <span className={'px-3 py-1 rounded-full text-xs font-medium ' + currentStatus.color}>
               {currentStatus.label}
             </span>
             <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 uppercase font-mono">
@@ -160,10 +160,10 @@ export default function OrderDetailPage() {
             {order.is_foc && <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">FOC</span>}
             {order.is_sample && <span className="px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-700">SAMPLE</span>}
           </div>
-          <p className="text-gray-500 text-sm mt-0.5">{order.customer_name} + ' · ' + {order.warehouse}</p>
+          <p className="text-gray-500 text-sm mt-0.5">{order.customer_name} · {order.warehouse}</p>
         </div>
         {isDraft && (
-          <Link href={"/orders/" + id + "/edit"}
+          <Link href={'/orders/' + id + '/edit'}
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
             <Edit className="h-4 w-4" />
             Edit
@@ -173,13 +173,14 @@ export default function OrderDetailPage() {
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-1 space-y-4">
+
           {(sourceDoc || linkedDoc) && (
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-2">
               <h2 className="font-semibold text-blue-800 text-sm">Linked Documents</h2>
               {sourceDoc && (
                 <button onClick={() => router.push('/orders/' + sourceDoc.id)}
                   className="w-full text-left text-sm text-blue-700 hover:underline">
-                  From: {sourceDoc.order_number}
+                  From: {sourceDoc.document_type.toUpperCase()} {sourceDoc.order_number}
                 </button>
               )}
               {linkedDoc && linkedDoc.document_type === 'invoice' && (
@@ -206,7 +207,7 @@ export default function OrderDetailPage() {
           {isSO && !order.is_foc && !alreadyHasFoc && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-1">Create FOC Document</h2>
-              <p className="text-xs text-gray-500 mb-3">Creates SO(DO) linked to {order.order_number}.</p>
+              <p className="text-xs text-gray-500 mb-3">Creates SO(DO) linked to {order.order_number}. Opens editor directly.</p>
               <button onClick={handleCreateFoc}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
                 <Package className="h-4 w-4" />
@@ -243,10 +244,10 @@ export default function OrderDetailPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h2 className="font-semibold text-gray-900 mb-3">Change Status</h2>
             <div className="space-y-1">
-              {statuses.map(s => (
+              {statuses.map((s: any) => (
                 <button key={s.value} onClick={() => updateStatus(s.value)}
                   disabled={s.value === order.status}
-                  className={"w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors " + (s.value === order.status ? s.color + ' font-medium' : 'text-gray-600 hover:bg-gray-50')}>
+                  className={'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ' + (s.value === order.status ? s.color + ' font-medium' : 'text-gray-600 hover:bg-gray-50')}>
                   <s.icon className="h-4 w-4" />
                   {s.label}
                   {s.value === order.status && <span className="ml-auto text-xs">Current</span>}
@@ -311,7 +312,7 @@ export default function OrderDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {commercialLines.map((line) => (
+                {commercialLines.map((line: any) => (
                   <tr key={line.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <p className="font-medium">{line.product_name}</p>
@@ -355,7 +356,7 @@ export default function OrderDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {focOrder.lines.map((line) => (
+                  {focOrder.lines.map((line: any) => (
                     <tr key={line.id}>
                       <td className="px-4 py-3">
                         <p className="font-medium">{line.product_name}</p>
