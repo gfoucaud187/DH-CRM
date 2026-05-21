@@ -73,7 +73,7 @@ export default function NewOrderPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('products')
-        .select('sku, full_name, brand, units_per_pack')
+        .select('sku, full_name, brand, units_per_pack, fixmer_reference')
         .eq('product_role', 'original').eq('status', 'active')
         .order('brand').limit(500)
       return data ?? []
@@ -118,7 +118,7 @@ export default function NewOrderPage() {
   const addLine = (product: any) => {
     if (lines.some(l => l.sku === product.sku)) return
     setLines(l => [...l, {
-      sku: product.sku,
+      fixmer_reference: product.fixmer_reference ?? null,sku: product.sku,
       product_name: product.full_name,
       brand: product.brand,
       units_per_pack: product.units_per_pack ?? 1,

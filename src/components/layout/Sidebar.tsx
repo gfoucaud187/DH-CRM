@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation'
 const nav = [
   { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
   { label: 'Products',     href: '/products',     icon: Package },
-  { label: 'Customers',    href: '/customers',    icon: Users },
+  { label: 'Distributors', href: '/distributors', icon: Users },
   { label: 'Partners',     href: '/partners',     icon: Handshake },
   { label: 'Price Lists',  href: '/price-lists',  icon: DollarSign },
   { label: 'Orders',       href: '/orders',       icon: ShoppingCart },

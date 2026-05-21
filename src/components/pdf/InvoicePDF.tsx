@@ -61,6 +61,16 @@ Beneficiary bank and address: DBS Bank Ltd / 12 Marina Boulevard / DBS Asia Cent
 Bank fees: Please make sure to tick 'OUR' in the payment bank fees details.
 Amounts received need to coincide with amounts invoiced.`
 
+  const COLS = [
+    { label: 'PRODUCT',       align: 'left'  },
+    { label: 'SKU (DH)',      align: 'left'  },
+    { label: 'REF. FIXMER',   align: 'left'  },
+    { label: 'PRICE/UNIT',    align: 'right' },
+    { label: 'PACKS',         align: 'right' },
+    { label: 'UNITS',         align: 'right' },
+    { label: 'TOTAL',         align: 'right' },
+  ]
+
   return (
     <div>
       <button onClick={handleDownload}
@@ -127,20 +137,34 @@ Amounts received need to coincide with amounts invoiced.`
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-              {['PRODUCT', 'SKU', 'PRICE/UNIT', 'PACKS', 'UNITS', 'TOTAL'].map((h, i) => (
-                <th key={h} style={{ textAlign: i < 2 ? 'left' : 'right', padding: '8px 4px', fontSize: '10px', color: '#999', fontWeight: 'normal' }}>{h}</th>
+              {COLS.map(col => (
+                <th key={col.label} style={{
+                  textAlign: col.align as any,
+                  padding: '8px 4px',
+                  fontSize: '9px',
+                  color: '#999',
+                  fontWeight: 'normal',
+                  letterSpacing: '0.5px'
+                }}>
+                  {col.label}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {lines.map((line, idx) => (
               <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '12px 4px', fontWeight: '500' }}>{line.product_name}</td>
-                <td style={{ padding: '12px 4px', color: '#666', fontFamily: 'monospace', fontSize: '11px' }}>{line.sku}</td>
-                <td style={{ padding: '12px 4px', textAlign: 'right' }}>{isFoc || isSample ? '—' : Number(line.price_per_unit).toFixed(2)}</td>
+                <td style={{ padding: '12px 4px', fontWeight: '500', maxWidth: '180px' }}>{line.product_name}</td>
+                <td style={{ padding: '12px 4px', color: '#666', fontFamily: 'monospace', fontSize: '10px' }}>{line.sku}</td>
+                <td style={{ padding: '12px 4px', color: '#666', fontFamily: 'monospace', fontSize: '10px' }}>{line.fixmer_reference ?? '—'}</td>
+                <td style={{ padding: '12px 4px', textAlign: 'right' }}>
+                  {isFoc || isSample ? '—' : Number(line.price_per_unit).toFixed(2)}
+                </td>
                 <td style={{ padding: '12px 4px', textAlign: 'right' }}>{line.quantity_packs}</td>
                 <td style={{ padding: '12px 4px', textAlign: 'right' }}>{line.quantity_units}</td>
-                <td style={{ padding: '12px 4px', textAlign: 'right', fontWeight: '500' }}>{isFoc || isSample ? '—' : Number(line.line_total).toFixed(2)}</td>
+                <td style={{ padding: '12px 4px', textAlign: 'right', fontWeight: '500' }}>
+                  {isFoc || isSample ? '—' : Number(line.line_total).toFixed(2)}
+                </td>
               </tr>
             ))}
           </tbody>

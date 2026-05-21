@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
           quantity_packs: l.quantity_packs,
           quantity_units: l.quantity_units,
           price_per_unit: l.price_per_unit,
+          fixmer_reference  : l.fixmer_reference,
           line_total:     l.line_total,
         })))
 
