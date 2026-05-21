@@ -14,6 +14,15 @@ const STATUS_COLORS: Record<string, string> = {
   shipped:              'bg-green-100 text-green-700',
   completed:            'bg-green-200 text-green-800',
   cancelled:            'bg-red-100 text-red-600',
+  sent_to_customer:     'bg-blue-100 text-blue-700',
+}
+
+const DOC_TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  proforma:  { label: 'PF',         color: 'bg-gray-100 text-gray-600' },
+  so:        { label: 'SO',         color: 'bg-blue-100 text-blue-700' },
+  invoice:   { label: 'INV',        color: 'bg-purple-100 text-purple-700' },
+  so_sample: { label: 'SO(SAMPLE)', color: 'bg-amber-100 text-amber-700' },
+  so_int:    { label: 'SO(INT)',     color: 'bg-green-100 text-green-700' },
 }
 
 export default function OrdersPage() {
@@ -70,23 +79,26 @@ export default function OrdersPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {orders.map((o: any) => (
-                <tr
-                  key={o.id}
+                <tr key={o.id}
                   onClick={() => router.push(`/orders/${o.id}`)}
-                  className="hover:bg-gray-50 cursor-pointer transition-colors"
-                >
+                  className="hover:bg-gray-50 cursor-pointer transition-colors">
                   <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-900">
                     {o.order_number ?? 'Draft'}
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900">{o.customer_name}</td>
                   <td className="px-4 py-3">
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-mono uppercase">
-                      {o.document_type}
+                    <span className={`text-xs px-2 py-0.5 rounded font-mono font-medium ${
+                      DOC_TYPE_LABELS[o.document_type]?.color ?? 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {o.is_foc
+                        ? o.document_type === 'invoice' ? 'INV(DO)' : 'SO(DO)'
+                        : DOC_TYPE_LABELS[o.document_type]?.label ?? o.document_type.toUpperCase()
+                      }
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{o.warehouse}</td>
                   <td className="px-4 py-3 text-right font-medium text-gray-900">
-                    {o.currency} {Number(o.total_amount).toFixed(2)}
+                    {o.is_foc || o.is_sample ? 'FOC' : `${o.currency} ${Number(o.total_amount).toFixed(2)}`}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[o.status] ?? 'bg-gray-100 text-gray-500'}`}>
