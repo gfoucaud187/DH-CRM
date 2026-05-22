@@ -135,7 +135,8 @@ export default function OrderDetailPage() {
   const isInvoice = order.document_type === 'invoice'
   const isSO = order.document_type === 'so'
   const isDraft = order.status === 'draft'
-  const statuses = isInvoice ? INVOICE_STATUSES : SO_STATUSES
+  const isProforma = order.document_type === 'proforma'
+  const statuses = isInvoice ? INVOICE_STATUSES : isProforma ? [{ value: 'draft', label: 'Draft', icon: FileText, color: 'bg-gray-100 text-gray-600' }] : SO_STATUSES
   const currentStatus = statuses.find((s: any) => s.value === order.status) ?? statuses[0]
   const commercialLines = (order.lines ?? []).filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')
   const alreadyHasInvoice = isSO && !!linkedDoc && linkedDoc.document_type === 'invoice'
@@ -191,7 +192,26 @@ export default function OrderDetailPage() {
               )}
             </div>
           )}
-
+          {isProforma && !alreadyHasInvoice && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h2 className="font-semibold text-gray-900 mb-1">Convert to Sales Order</h2>
+              <p className="text-xs text-gray-500 mb-3">Creates a SO from this proforma.</p>
+              <button onClick={async () => {
+                const res = await fetch('/api/orders/promote', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ order_id: id, target_type: 'so' }),
+                })
+                const data = await res.json()
+                if (data.success) router.push('/orders/' + data.invoice.id)
+                else alert('Error: ' + data.error)
+              }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
+                <FileText className="h-4 w-4" />
+                Convert to SO
+              </button>
+            </div>
+          )}
           {isSO && !alreadyHasInvoice && !order.is_foc && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-1">Generate Invoice</h2>

@@ -11,10 +11,10 @@ const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 type OrderMode = 'so' | 'proforma' | 'foc' | 'sample'
 
 const MODE_CONFIG = {
-  so:       { label: 'SO — Sales Order',        docType: 'so',        isFoc: false, isSample: false, btnLabel: 'Create SO',         activeClass: 'bg-blue-50 text-blue-800 border-blue-400 font-medium' },
-  proforma: { label: 'Proforma',                docType: 'proforma',  isFoc: false, isSample: false, btnLabel: 'Create Proforma',    activeClass: 'bg-amber-50 text-amber-800 border-amber-400 font-medium' },
-  foc:      { label: 'SO(DO) — Free of charge', docType: 'so',        isFoc: true,  isSample: false, btnLabel: 'Create SO(DO)',      activeClass: 'bg-green-50 text-green-800 border-green-400 font-medium' },
-  sample:   { label: 'SO(SAMPLE) — Samples, value 0', docType: 'so_sample', isFoc: false, isSample: true, btnLabel: 'Create SO(SAMPLE)', activeClass: 'bg-orange-50 text-orange-800 border-orange-400 font-medium' },
+  so:       { label: 'SO — Sales Order',              docType: 'so',        isFoc: false, isSample: false, btnLabel: 'Create SO',         activeClass: 'bg-blue-50 text-blue-800 border-blue-400 font-medium' },
+  proforma: { label: 'Proforma',                      docType: 'proforma',  isFoc: false, isSample: false, btnLabel: 'Create Proforma',    activeClass: 'bg-amber-50 text-amber-800 border-amber-400 font-medium' },
+  foc:      { label: 'SO(DO) — Free of charge',       docType: 'so',        isFoc: true,  isSample: false, btnLabel: 'Create SO(DO)',      activeClass: 'bg-green-50 text-green-800 border-green-400 font-medium' },
+  sample:   { label: 'SO(SAMPLE) — Samples, value 0', docType: 'so_sample', isFoc: false, isSample: true,  btnLabel: 'Create SO(SAMPLE)',  activeClass: 'bg-orange-50 text-orange-800 border-orange-400 font-medium' },
 }
 
 const MODE_ICONS = {
@@ -33,6 +33,7 @@ interface OrderLine {
   quantity_units: number
   price_per_unit: number
   line_total: number
+  fixmer_reference?: string | null
 }
 
 export default function NewOrderPage() {
@@ -62,7 +63,7 @@ export default function NewOrderPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('customers')
-        .select('id, legal_name, assigned_price_list, currency, incoterms, payment_terms, eu_compliance_type, is_european')
+        .select('id, legal_name, assigned_price_list, currency, incoterms, payment_terms, eu_compliance_type, is_european, track_trace_enabled')
         .eq('status', 'active').order('legal_name')
       return data ?? []
     }
@@ -98,7 +99,7 @@ export default function NewOrderPage() {
     setCurrency(c.currency ?? 'USD')
     setIncoterms(c.incoterms ?? 'EXW')
     setPaymentTerms(c.payment_terms ?? 'Net 30')
-    if (c.is_european && c.eu_compliance_type === 'TT') setWarehouse('Central')
+    if (c.track_trace_enabled || (c.is_european && c.eu_compliance_type === 'TT')) setWarehouse('Central')
     else if (c.is_european && c.eu_compliance_type === 'PR') setWarehouse('T1')
   }
 
@@ -118,7 +119,7 @@ export default function NewOrderPage() {
   const addLine = (product: any) => {
     if (lines.some(l => l.sku === product.sku)) return
     setLines(l => [...l, {
-      fixmer_reference: product.fixmer_reference ?? null,sku: product.sku,
+      sku: product.sku,
       product_name: product.full_name,
       brand: product.brand,
       units_per_pack: product.units_per_pack ?? 1,
@@ -126,6 +127,7 @@ export default function NewOrderPage() {
       quantity_units: 0,
       price_per_unit: getPrice(product.sku),
       line_total: 0,
+      fixmer_reference: product.fixmer_reference ?? null,
     }])
   }
 
@@ -232,13 +234,21 @@ export default function NewOrderPage() {
 
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Customer *</label>
-              <select value={customerId} onChange={e => handleCustomerChange(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-                <option value="">Select customer...</option>
-                {(customers as any[]).map((c: any) => (
-                  <option key={c.id} value={c.id}>{c.legal_name}</option>
-                ))}
-              </select>
+              <div className="flex gap-2 mt-1 items-center">
+                <select value={customerId} onChange={e => handleCustomerChange(e.target.value)}
+                  className="flex-1 h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                  <option value="">Select customer...</option>
+                  {(customers as any[]).map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.legal_name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => router.push('/customers/new?returnTo=/orders/new')}
+                  title="Add new distributor"
+                  className="h-9 w-9 flex items-center justify-center border border-gray-200 rounded-md text-gray-600 hover:bg-gray-50 flex-shrink-0">
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div>

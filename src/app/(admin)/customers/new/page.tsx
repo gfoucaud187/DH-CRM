@@ -62,7 +62,11 @@ export default function NewCustomerPage() {
       contact_type: 'Distributor',
     })
     setSaving(false)
-    if (!error) router.push('/customers')
+    if (!error) {
+  const params = new URLSearchParams(window.location.search)
+  const returnTo = params.get('returnTo')
+  router.push(returnTo ?? '/customers')
+}
     else alert('Error: ' + error.message)
   }
 
