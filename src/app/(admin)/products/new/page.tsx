@@ -26,6 +26,7 @@ export default function NewProductPage() {
   const [unitsPerPack, setUnitsPerPack] = useState('')
   const [packType, setPackType] = useState('Box')
   const [fixmerReference, setFixmerReference] = useState('')
+  const [euCegId, setEuCegId] = useState('')
   const [status, setStatus] = useState('active')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
@@ -47,6 +48,7 @@ export default function NewProductPage() {
       units_per_pack: unitsPerPack ? parseInt(unitsPerPack) : null,
       pack_type: packType || null,
       fixmer_reference: fixmerReference || null,
+      eu_ceg_id: euCegId || null,
       status,
       notes: notes || null,
       product_role: 'original',
@@ -78,7 +80,7 @@ export default function NewProductPage() {
           <h2 className="font-semibold text-gray-900 mb-4">Product Information</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">SKU *</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">SKU (Ref. DH) *</label>
               <input value={sku} onChange={e => setSku(e.target.value.toUpperCase())}
                 placeholder="e.g. NI-ROBUS-B10"
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
@@ -145,7 +147,7 @@ export default function NewProductPage() {
 
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="font-semibold text-gray-900 mb-4">Packaging & References</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Units per Pack</label>
               <input type="number" min="1" value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)}
@@ -159,8 +161,13 @@ export default function NewProductPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Fixmer Reference</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">Ref. Fixmer</label>
               <input value={fixmerReference} onChange={e => setFixmerReference(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">EU-CEG ID</label>
+              <input value={euCegId} onChange={e => setEuCegId(e.target.value)}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
             </div>
           </div>

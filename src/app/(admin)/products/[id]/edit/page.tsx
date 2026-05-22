@@ -29,6 +29,7 @@ export default function EditProductPage() {
   const [unitsPerPack, setUnitsPerPack] = useState('')
   const [packType, setPackType] = useState('Box')
   const [fixmerReference, setFixmerReference] = useState('')
+  const [euCegId, setEuCegId] = useState('')
   const [status, setStatus] = useState('active')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
@@ -55,6 +56,7 @@ export default function EditProductPage() {
     setUnitsPerPack(product.units_per_pack?.toString() ?? '')
     setPackType(product.pack_type ?? 'Box')
     setFixmerReference(product.fixmer_reference ?? '')
+    setEuCegId(product.eu_ceg_id ?? '')
     setStatus(product.status ?? 'active')
     setNotes(product.notes ?? '')
   }, [product])
@@ -74,6 +76,7 @@ export default function EditProductPage() {
       units_per_pack: unitsPerPack ? parseInt(unitsPerPack) : null,
       pack_type: packType || null,
       fixmer_reference: fixmerReference || null,
+      eu_ceg_id: euCegId || null,
       status,
       notes: notes || null,
     }).eq('id', id as string)
@@ -111,7 +114,7 @@ export default function EditProductPage() {
           <h2 className="font-semibold text-gray-900 mb-4">Product Information</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">SKU</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">SKU (Ref. DH)</label>
               <input value={sku} disabled
                 className="mt-1 w-full h-9 rounded-md border border-gray-100 bg-gray-50 px-3 text-sm text-gray-400 font-mono cursor-not-allowed" />
             </div>
@@ -176,7 +179,7 @@ export default function EditProductPage() {
 
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="font-semibold text-gray-900 mb-4">Packaging & References</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Units per Pack</label>
               <input type="number" min="1" value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)}
@@ -190,8 +193,13 @@ export default function EditProductPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Fixmer Reference</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">Ref. Fixmer</label>
               <input value={fixmerReference} onChange={e => setFixmerReference(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">EU-CEG ID</label>
+              <input value={euCegId} onChange={e => setEuCegId(e.target.value)}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
             </div>
           </div>
