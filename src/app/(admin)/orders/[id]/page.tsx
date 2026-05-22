@@ -137,7 +137,7 @@ export default function OrderDetailPage() {
   const isDraft = order.status === 'draft'
   const statuses = isInvoice ? INVOICE_STATUSES : SO_STATUSES
   const currentStatus = statuses.find((s: any) => s.value === order.status) ?? statuses[0]
-  const commercialLines = (order.lines ?? []).filter((l: any) => l.line_type === 'commercial')
+  const commercialLines = (order.lines ?? []).filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')
   const alreadyHasInvoice = isSO && !!linkedDoc && linkedDoc.document_type === 'invoice'
   const alreadyHasFoc = isSO && !!focOrder
 
