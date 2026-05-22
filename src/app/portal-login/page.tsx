@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export default function PortalLoginPage() {
   const supabase = createClient()
@@ -26,17 +27,13 @@ export default function PortalLoginPage() {
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles').select('role').eq('id', user.id).single()
 
-    if (profileError) {
-      setError('Profile error: ' + profileError.message)
-      setLoading(false)
-      return
-    }
+    if (profileError) { setError('Profile error: ' + profileError.message); setLoading(false); return }
 
     if (profile?.role === 'client') {
       router.push('/portal/dashboard')
     } else {
       await supabase.auth.signOut()
-      setError('Access denied — role: ' + (profile?.role ?? 'null'))
+      setError('This portal is for distributors only.')
       setLoading(false)
     }
   }
@@ -72,9 +69,12 @@ export default function PortalLoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-gray-600 text-xs mt-6">
-          DH Signature · Trade Portal · Confidential
-        </p>
+        <div className="text-center mt-4 space-y-2">
+          <p className="text-gray-600 text-xs">DH Signature · Trade Portal · Confidential</p>
+          <Link href="/login" className="text-gray-500 text-xs hover:text-gray-300 underline block">
+            Admin login →
+          </Link>
+        </div>
       </div>
     </div>
   )
