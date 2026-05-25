@@ -1,515 +1,541 @@
 'use client'
 
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { useState, useMemo, useRef } from 'react'
-import { TrendingUp, Package, Users, Clock, AlertCircle, Warehouse, Download, ArrowRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-
-type Period = 'ytd' | 'q1' | 'q2' | 'q3' | 'q4' | 'last12' | 'custom'
+import { BarChart3, Globe, Package, Users, Target, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, Clock, XCircle } from 'lucide-react'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-const WH = ['T1','Central','Aged','Sample','Private']
-const WH_COLORS: Record<string,string> = {
-  T1:'#185FA5', Central:'#0F6E56', Aged:'#854F0B', Sample:'#534AB7', Private:'#993556'
-}
-const BRANDS = ['Nicarao', 'Furia', 'La Ley', 'La Preferida']
-const BRAND_COLORS: Record<string,string> = {
-  'Nicarao': '#185FA5',
-  'Furia': '#0F6E56',
-  'La Ley': '#854F0B',
-  'La Preferida': '#534AB7',
-}
-
-const AGING_BUCKETS = [
-  { label: '0–30 days', key: 'd30', color: '#3B6D11', bg: '#EAF3DE' },
-  { label: '31–60 days', key: 'd60', color: '#854F0B', bg: '#FAEEDA' },
-  { label: '61–90 days', key: 'd90', color: '#A32D2D', bg: '#FCEBEB' },
-  { label: '+90 days', key: 'd90plus', color: '#791F1F', bg: '#FCEBEB' },
+const TABS = [
+  { id: 'overview',   label: 'Overview',   icon: BarChart3 },
+  { id: 'geography',  label: 'Geography',  icon: Globe },
+  { id: 'products',   label: 'Products',   icon: Package },
+  { id: 'clients',    label: 'Clients',    icon: Users },
+  { id: 'activity',   label: 'Activity',   icon: Target },
 ]
 
-function fmt(n: number) { return n >= 1000 ? `$${(n/1000).toFixed(1)}K` : `$${n.toFixed(0)}` }
+function fmt(n: number, currency = 'USD') {
+  if (n >= 1000000) return `$${(n/1000000).toFixed(1)}M`
+  if (n >= 1000) return `$${(n/1000).toFixed(1)}K`
+  return `$${n.toFixed(0)}`
+}
+
+function getHealthScore(lastOrderDays: number, freqPerMonth: number) {
+  if (lastOrderDays > 365) return { label: 'Lost',    color: 'bg-gray-100 text-gray-500',   dot: 'bg-gray-400',   priority: 4 }
+  if (lastOrderDays > 120) return { label: 'Dormant', color: 'bg-red-100 text-red-600',     dot: 'bg-red-500',    priority: 3 }
+  if (lastOrderDays > 60 || freqPerMonth < 0.5) return { label: 'At risk', color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500', priority: 2 }
+  return { label: 'Active',   color: 'bg-green-100 text-green-700', dot: 'bg-green-500',  priority: 1 }
+}
+
+function Delta({ curr, prev }: { curr: number; prev: number }) {
+  if (!prev) return <span className="text-gray-400 text-xs">—</span>
+  const p = ((curr - prev) / prev * 100)
+  if (Math.abs(p) < 1) return <span className="text-gray-400 text-xs flex items-center gap-0.5"><Minus className="h-3 w-3" />0%</span>
+  return p > 0
+    ? <span className="text-green-600 text-xs flex items-center gap-0.5"><TrendingUp className="h-3 w-3" />{p.toFixed(0)}%</span>
+    : <span className="text-red-500 text-xs flex items-center gap-0.5"><TrendingDown className="h-3 w-3" />{Math.abs(p).toFixed(0)}%</span>
+}
 
 export default function ReportsPage() {
   const supabase = createClient()
   const router = useRouter()
-  const reportRef = useRef<HTMLDivElement>(null)
-  const currentYear = new Date().getFullYear()
+  const [tab, setTab] = useState('overview')
+  const [activityFilter, setActivityFilter] = useState<'all'|'active'|'at_risk'|'dormant'|'lost'>('all')
+  const [expandedRegion, setExpandedRegion] = useState<string | null>(null)
 
-  const [period, setPeriod] = useState<Period>('ytd')
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
-  const [selectedClientId, setSelectedClientId] = useState('')
-  const [selectedProductSku, setSelectedProductSku] = useState('')
-
-  const { data: orders = [] } = useQuery({
-    queryKey: ['reports-orders'],
+  const { data: customers = [] } = useQuery({
+    queryKey: ['report-customers'],
     queryFn: async () => {
-      const { data } = await supabase.from('sales_orders').select('*').neq('status','cancelled')
+      const { data } = await supabase.from('customers').select('id, legal_name, country, region, assigned_price_list, currency, status, is_european, eu_compliance_type, internal_owner').eq('status', 'active')
       return data ?? []
     }
   })
 
-  const { data: allLines = [] } = useQuery({
-    queryKey: ['reports-lines'],
+  const { data: orders = [] } = useQuery({
+    queryKey: ['report-orders'],
+    queryFn: async () => {
+      const { data } = await supabase.from('sales_orders')
+        .select('id, customer_id, customer_name, document_type, status, total_amount, total_units, order_date, created_at, currency, is_foc')
+        .neq('status', 'cancelled')
+        .order('order_date', { ascending: false })
+      return data ?? []
+    }
+  })
+
+  const { data: lines = [] } = useQuery({
+    queryKey: ['report-lines'],
     queryFn: async () => {
       const { data } = await supabase.from('sales_order_lines')
         .select('order_id, sku, product_name, brand, quantity_units, quantity_packs, line_total, line_type')
+        .eq('line_type', 'commercial')
       return data ?? []
     }
   })
 
-  const { data: customers = [] } = useQuery({
-    queryKey: ['customers-simple'],
-    queryFn: async () => {
-      const { data } = await supabase.from('customers').select('id, legal_name').eq('status','active').order('legal_name')
-      return data ?? []
-    }
+  const invoices = orders.filter((o: any) => o.document_type === 'invoice' && !o.is_foc)
+  const now = new Date()
+
+  // ── OVERVIEW ──
+  const ytdInvoices = invoices.filter((o: any) => new Date(o.order_date ?? o.created_at).getFullYear() === now.getFullYear())
+  const lastYearInvoices = invoices.filter((o: any) => new Date(o.order_date ?? o.created_at).getFullYear() === now.getFullYear() - 1)
+  const ytdRevenue = ytdInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  const lyRevenue = lastYearInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  const ytdUnits = ytdInvoices.reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+  const lyUnits = lastYearInvoices.reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+  const activeClients = new Set(ytdInvoices.map((o: any) => o.customer_id)).size
+  const lyActiveClients = new Set(lastYearInvoices.map((o: any) => o.customer_id)).size
+
+  const monthlyRevenue = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(); d.setMonth(d.getMonth() - 11 + i)
+    const key = `${d.getFullYear()}-${d.getMonth()}`
+    const val = invoices.filter((o: any) => {
+      const od = new Date(o.order_date ?? o.created_at)
+      return `${od.getFullYear()}-${od.getMonth()}` === key
+    }).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    return { label: MONTHS[d.getMonth()], value: val }
   })
-
-  const { data: products = [] } = useQuery({
-    queryKey: ['products-simple'],
-    queryFn: async () => {
-      const { data } = await supabase.from('products').select('id, sku, full_name, brand').eq('status','active').eq('product_role','original').order('full_name')
-      return data ?? []
-    }
-  })
-
-  const { data: inventoryRecords = [] } = useQuery({
-    queryKey: ['inventory-records-detail'],
-    queryFn: async () => {
-      const { data } = await supabase.from('inventory_records')
-        .select('sku, product_name, brand, warehouse, quantity_packs, quantity_units, category')
-        .eq('category','available')
-      return data ?? []
-    }
-  })
-
-  const filterByPeriod = (o: any) => {
-    const d = new Date(o.order_date ?? o.created_at)
-    const y = d.getFullYear(), m = d.getMonth()
-    if (period === 'ytd') return y === currentYear
-    if (period === 'q1') return y === currentYear && m < 3
-    if (period === 'q2') return y === currentYear && m >= 3 && m < 6
-    if (period === 'q3') return y === currentYear && m >= 6 && m < 9
-    if (period === 'q4') return y === currentYear && m >= 9
-    if (period === 'last12') { const c = new Date(); c.setMonth(c.getMonth()-12); return d >= c }
-    if (period === 'custom' && customStart && customEnd)
-      return d >= new Date(customStart) && d <= new Date(customEnd)
-    return true
-  }
-
-  const filtered   = useMemo(() => orders.filter(filterByPeriod), [orders, period, customStart, customEnd])
-  const invoices   = filtered.filter((o: any) => o.document_type === 'invoice' && !o.is_foc)
-  const shipped    = filtered.filter((o: any) => ['shipped','completed'].includes(o.status))
-  const filteredIds = new Set(filtered.map((o: any) => o.id))
-
-  const revenue      = invoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-  const totalUnits   = shipped.reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
-  const totalPacks   = shipped.reduce((s: number, o: any) => s + (o.total_packs ?? 0), 0)
-  const activeOrders = orders.filter((o: any) => !['completed','cancelled','shipped'].includes(o.status)).length
-  const readyToShip  = orders.filter((o: any) => o.status === 'ready_for_shipment').length
-  const focUnits     = filtered.filter((o:any) => o.is_foc).reduce((s:number,o:any) => s+(o.total_units??0),0)
-  const focRatio     = totalUnits > 0 ? ((focUnits/(totalUnits+focUnits))*100).toFixed(1) : '0'
-
-  const pendingInvoices = orders.filter((o: any) =>
-    o.document_type === 'invoice' && !o.is_foc && ['draft','sent_to_customer'].includes(o.status)
-  )
-  const pendingTotal = pendingInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-
-  const now = Date.now()
-  const aging: Record<string,number> = { d30:0, d60:0, d90:0, d90plus:0 }
-  pendingInvoices.forEach((o: any) => {
-    const days = Math.floor((now - new Date(o.order_date ?? o.created_at).getTime()) / 86400000)
-    const amt = o.total_amount ?? 0
-    if (days <= 30) aging.d30 += amt
-    else if (days <= 60) aging.d60 += amt
-    else if (days <= 90) aging.d90 += amt
-    else aging.d90plus += amt
-  })
-
-  const shipTimes = shipped.map((o: any) => {
-    if (!o.order_date || !o.shipment_date) return null
-    return Math.floor((new Date(o.shipment_date).getTime() - new Date(o.order_date).getTime()) / 86400000)
-  }).filter((d): d is number => d !== null && d >= 0)
-  const avgShip = shipTimes.length ? (shipTimes.reduce((a,b)=>a+b,0)/shipTimes.length).toFixed(1) : '—'
-  const maxShip = shipTimes.length ? Math.max(...shipTimes) : 0
-
-  const monthlyRevenue = useMemo(() => {
-    const map: Record<string,number> = {}
-    invoices.forEach((o: any) => {
-      const d = new Date(o.order_date ?? o.created_at)
-      const key = `${d.getFullYear()}-${d.getMonth()}`
-      map[key] = (map[key] ?? 0) + (o.total_amount ?? 0)
-    })
-    const result = []
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(); d.setMonth(d.getMonth()-i)
-      const key = `${d.getFullYear()}-${d.getMonth()}`
-      result.push({ label: MONTHS[d.getMonth()], value: map[key] ?? 0 })
-    }
-    return result
-  }, [invoices])
   const maxMonthly = Math.max(...monthlyRevenue.map(m => m.value), 1)
 
-  const clientRevenue = useMemo(() => {
-    const map: Record<string, { revenue: number; id: string }> = {}
-    invoices.forEach((o: any) => {
-      if (!o.customer_name) return
-      if (!map[o.customer_name]) map[o.customer_name] = { revenue: 0, id: o.customer_id ?? '' }
-      map[o.customer_name].revenue += o.total_amount ?? 0
-    })
-    return Object.entries(map)
-      .sort(([,a],[,b]) => b.revenue - a.revenue)
-      .slice(0,7)
-      .map(([name, data]) => ({ name, revenue: data.revenue, id: data.id }))
-  }, [invoices])
-  const maxClient = Math.max(...clientRevenue.map(c => c.revenue), 1)
+  // ── GEOGRAPHY ──
+  const regionMap: Record<string, { clients: any[], revenue: number, units: number, prevRevenue: number }> = {}
+  customers.forEach((c: any) => {
+    const region = c.region ?? c.country ?? 'Unknown'
+    if (!regionMap[region]) regionMap[region] = { clients: [], revenue: 0, units: 0, prevRevenue: 0 }
+    regionMap[region].clients.push(c)
+    const cInvoices = ytdInvoices.filter((o: any) => o.customer_id === c.id)
+    const cPrevInvoices = lastYearInvoices.filter((o: any) => o.customer_id === c.id)
+    regionMap[region].revenue += cInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    regionMap[region].units += cInvoices.reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+    regionMap[region].prevRevenue += cPrevInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  })
+  const regionList = Object.entries(regionMap).sort(([,a],[,b]) => b.revenue - a.revenue)
+  const maxRegionRevenue = Math.max(...regionList.map(([,v]) => v.revenue), 1)
 
-  const productUnits = useMemo(() => {
-    const map: Record<string, { units: number; sku: string }> = {}
-    ;(allLines as any[]).forEach((l: any) => {
-      if (!filteredIds.has(l.order_id) || l.line_type !== 'commercial') return
-      if (!map[l.product_name]) map[l.product_name] = { units: 0, sku: l.sku }
-      map[l.product_name].units += l.quantity_units ?? 0
-    })
-    return Object.entries(map)
-      .sort(([,a],[,b]) => b.units - a.units)
-      .slice(0,6)
-      .map(([name, data]) => ({ name, units: data.units, sku: data.sku }))
-  }, [allLines, filteredIds])
-  const maxProduct = Math.max(...productUnits.map(p => p.units), 1)
+  // ── PRODUCTS ──
+  const brandMap: Record<string, { units: number, revenue: number }> = {}
+  const productMap: Record<string, { units: number, revenue: number, brand: string }> = {}
+  lines.forEach((l: any) => {
+    const o = invoices.find((o: any) => o.id === l.order_id)
+    if (!o || new Date(o.order_date ?? o.created_at).getFullYear() !== now.getFullYear()) return
+    const brand = l.brand ?? 'Unknown'
+    if (!brandMap[brand]) brandMap[brand] = { units: 0, revenue: 0 }
+    brandMap[brand].units += l.quantity_units ?? 0
+    brandMap[brand].revenue += l.line_total ?? 0
+    if (!productMap[l.product_name]) productMap[l.product_name] = { units: 0, revenue: 0, brand }
+    productMap[l.product_name].units += l.quantity_units ?? 0
+    productMap[l.product_name].revenue += l.line_total ?? 0
+  })
+  const brandList = Object.entries(brandMap).sort(([,a],[,b]) => b.revenue - a.revenue)
+  const productList = Object.entries(productMap).sort(([,a],[,b]) => b.units - a.units).slice(0, 15)
+  const maxBrand = Math.max(...brandList.map(([,v]) => v.revenue), 1)
+  const maxProduct = Math.max(...productList.map(([,v]) => v.units), 1)
 
-  // Brand stats
-  const brandStats = useMemo(() => {
-    return BRANDS.map(brand => {
-      const brandLines = (allLines as any[]).filter((l: any) =>
-        filteredIds.has(l.order_id) && l.line_type === 'commercial' &&
-        l.brand?.toLowerCase().includes(brand.toLowerCase())
-      )
-      const units = brandLines.reduce((s: number, l: any) => s + (l.quantity_units ?? 0), 0)
-      const rev = brandLines.reduce((s: number, l: any) => s + (l.line_total ?? 0), 0)
-      const stockPacks = (inventoryRecords as any[])
-        .filter((r: any) => r.brand?.toLowerCase().includes(brand.toLowerCase()))
-        .reduce((s: number, r: any) => s + (r.quantity_packs ?? 0), 0)
-      return { brand, units, revenue: rev, stockPacks }
-    })
-  }, [allLines, filteredIds, inventoryRecords])
-  const maxBrandUnits = Math.max(...brandStats.map(b => b.units), 1)
+  // ── CLIENTS ──
+  const clientRevenue = customers.map((c: any) => {
+    const cInv = ytdInvoices.filter((o: any) => o.customer_id === c.id)
+    const cPrev = lastYearInvoices.filter((o: any) => o.customer_id === c.id)
+    const rev = cInv.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    const prevRev = cPrev.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    const units = cInv.reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+    return { ...c, revenue: rev, prevRevenue: prevRev, units, orders: cInv.length }
+  }).filter((c: any) => c.revenue > 0).sort((a: any, b: any) => b.revenue - a.revenue)
+  const maxClientRev = Math.max(...clientRevenue.map((c: any) => c.revenue), 1)
 
-  const stockByWH = useMemo(() => {
-    const map: Record<string,number> = {}
-    ;(inventoryRecords as any[]).forEach((r: any) => {
-      WH.forEach(w => { if (r.warehouse === w) map[w] = (map[w] ?? 0) + (r.quantity_packs ?? 0) })
-    })
-    return map
-  }, [inventoryRecords])
-
-  const handleExportPDF = async () => {
-    if (!reportRef.current) return
-    const jsPDF = (await import('jspdf')).default
-    const html2canvas = (await import('html2canvas')).default
-    const canvas = await html2canvas(reportRef.current, { scale: 1.5, backgroundColor: '#ffffff' })
-    const imgData = canvas.toDataURL('image/png')
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-    const w = pdf.internal.pageSize.getWidth()
-    const pageH = pdf.internal.pageSize.getHeight()
-    const h = (canvas.height * w) / canvas.width
-    const pages = Math.ceil(h / pageH)
-    for (let i = 0; i < pages; i++) {
-      if (i > 0) pdf.addPage()
-      pdf.addImage(imgData, 'PNG', 0, -(i * pageH), w, h)
+  // ── ACTIVITY ──
+  const activityData = customers.map((c: any) => {
+    const cOrders = invoices.filter((o: any) => o.customer_id === c.id)
+    if (cOrders.length === 0) {
+      return { ...c, lastOrderDate: null, lastOrderDays: 9999, freqPerMonth: 0, revenue12m: 0, prevRevenue12m: 0, orderCount12m: 0, health: getHealthScore(9999, 0) }
     }
-    pdf.save(`DH-Report-${period}-${new Date().toISOString().split('T')[0]}.pdf`)
-  }
+    const sorted = cOrders.sort((a: any, b: any) => new Date(b.order_date ?? b.created_at).getTime() - new Date(a.order_date ?? a.created_at).getTime())
+    const lastDate = new Date(sorted[0].order_date ?? sorted[0].created_at)
+    const lastOrderDays = Math.floor((now.getTime() - lastDate.getTime()) / 86400000)
+    const cutoff12m = new Date(); cutoff12m.setFullYear(cutoff12m.getFullYear() - 1)
+    const cutoff24m = new Date(); cutoff24m.setFullYear(cutoff24m.getFullYear() - 2)
+    const orders12m = cOrders.filter((o: any) => new Date(o.order_date ?? o.created_at) > cutoff12m)
+    const orders12m24m = cOrders.filter((o: any) => { const d = new Date(o.order_date ?? o.created_at); return d > cutoff24m && d <= cutoff12m })
+    const revenue12m = orders12m.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    const prevRevenue12m = orders12m24m.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    const freqPerMonth = orders12m.length / 12
+    // Heatmap: last 12 months order count
+    const heatmap = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(); d.setMonth(d.getMonth() - 11 + i)
+      return cOrders.filter((o: any) => {
+        const od = new Date(o.order_date ?? o.created_at)
+        return od.getFullYear() === d.getFullYear() && od.getMonth() === d.getMonth()
+      }).length
+    })
+    return { ...c, lastOrderDate: lastDate, lastOrderDays, freqPerMonth, revenue12m, prevRevenue12m, orderCount12m: orders12m.length, health: getHealthScore(lastOrderDays, freqPerMonth), heatmap }
+  }).sort((a: any, b: any) => a.health.priority - b.health.priority || b.lastOrderDays - a.lastOrderDays)
 
-  const handleClientReport = () => {
-    if (!selectedClientId) return
-    router.push('/reports/client/' + selectedClientId)
-  }
+  const filteredActivity = activityData.filter((c: any) => {
+    if (activityFilter === 'all') return true
+    return c.health.label.toLowerCase().replace(' ', '_') === activityFilter
+  })
 
-  const handleProductReport = () => {
-    if (!selectedProductSku) return
-    router.push('/reports/product/' + encodeURIComponent(selectedProductSku))
+  const healthCounts = {
+    active:  activityData.filter((c: any) => c.health.label === 'Active').length,
+    at_risk: activityData.filter((c: any) => c.health.label === 'At risk').length,
+    dormant: activityData.filter((c: any) => c.health.label === 'Dormant').length,
+    lost:    activityData.filter((c: any) => c.health.label === 'Lost').length,
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Business intelligence & KPIs</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1">
-            {([['ytd','YTD'],['q1','Q1'],['q2','Q2'],['q3','Q3'],['q4','Q4'],['last12','Last 12m'],['custom','Custom']] as [Period,string][]).map(([v,l]) => (
-              <button key={v} onClick={() => setPeriod(v)}
-                className={'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ' + (period === v ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50')}>
-                {l}
-              </button>
-            ))}
-          </div>
-          <button onClick={handleExportPDF}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
-            <Download className="h-3.5 w-3.5" /> PDF
-          </button>
-        </div>
+    <div className="max-w-6xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+        <p className="text-gray-500 text-sm mt-0.5">Business intelligence & analytics</p>
       </div>
 
-      {period === 'custom' && (
-        <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <span className="text-sm text-gray-500">From</span>
-          <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
-            className="h-8 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-          <span className="text-sm text-gray-500">to</span>
-          <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
-            className="h-8 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+      {/* Tab navigation */}
+      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+        {TABS.map(t => {
+          const Icon = t.icon
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              <Icon className="h-4 w-4" />
+              {t.label}
+              {t.id === 'activity' && (healthCounts.dormant + healthCounts.at_risk) > 0 && (
+                <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
+                  {healthCounts.dormant + healthCounts.at_risk}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ── OVERVIEW TAB ── */}
+      {tab === 'overview' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'Revenue YTD',    value: fmt(ytdRevenue),              prev: lyRevenue,       sub: `${ytdInvoices.length} invoices` },
+              { label: 'Units YTD',      value: ytdUnits.toLocaleString(),    prev: lyUnits,         sub: 'units shipped' },
+              { label: 'Active clients', value: activeClients.toString(),     prev: lyActiveClients, sub: 'ordered this year' },
+            ].map(({ label, value, prev, sub }) => (
+              <div key={label} className="bg-white rounded-xl border border-gray-200 p-5">
+                <p className="text-sm text-gray-500 mb-1">{label}</p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-3xl font-bold text-gray-900">{value}</p>
+                  <Delta curr={typeof value === 'string' ? parseFloat(value.replace(/[^0-9.]/g,'')) : value as any} prev={prev} />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="font-semibold text-gray-900 mb-4">Revenue trend — last 12 months</h2>
+            <div className="flex items-end gap-2" style={{ height: '120px' }}>
+              {monthlyRevenue.map((m, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                  {m.value > 0 && <span style={{ fontSize: '9px' }} className="text-gray-400">{fmt(m.value)}</span>}
+                  <div className="w-full rounded-t" style={{ height: `${Math.max((m.value/maxMonthly)*95, m.value > 0 ? 4 : 0)}px`, background: m.value > 0 ? '#185FA5' : '#F3F4F6' }} />
+                  <span style={{ fontSize: '9px' }} className="text-gray-400">{m.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h2 className="font-semibold text-gray-900 mb-3">Top regions YTD</h2>
+              {regionList.slice(0,6).map(([region, data]) => (
+                <div key={region} className="flex items-center gap-3 mb-2.5">
+                  <span className="text-sm text-gray-600 w-28 truncate">{region}</span>
+                  <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxRegionRevenue)*100}%`, background: '#185FA5' }} />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-900 w-16 text-right">{fmt(data.revenue)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h2 className="font-semibold text-gray-900 mb-3">Top brands YTD</h2>
+              {brandList.slice(0,6).map(([brand, data]) => (
+                <div key={brand} className="flex items-center gap-3 mb-2.5">
+                  <span className="text-sm text-gray-600 w-28 truncate">{brand}</span>
+                  <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxBrand)*100}%`, background: '#0F6E56' }} />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-900 w-16 text-right">{fmt(data.revenue)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Quick access to detailed reports */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <Users className="h-4 w-4 text-blue-500" /> Client Report
-          </h2>
-          <div className="flex gap-2">
-            <select value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)}
-              className="flex-1 h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-              <option value="">Select a client...</option>
-              {(customers as any[]).map((c: any) => (
-                <option key={c.id} value={c.id}>{c.legal_name}</option>
-              ))}
-            </select>
-            <button onClick={handleClientReport} disabled={!selectedClientId}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-40 transition-colors">
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <Package className="h-4 w-4 text-green-500" /> Product Report
-          </h2>
-          <div className="flex gap-2">
-            <select value={selectedProductSku} onChange={e => setSelectedProductSku(e.target.value)}
-              className="flex-1 h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-              <option value="">Select a product...</option>
-              {(products as any[]).map((p: any) => (
-                <option key={p.sku} value={p.sku}>{p.full_name}</option>
-              ))}
-            </select>
-            <button onClick={handleProductReport} disabled={!selectedProductSku}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-40 transition-colors">
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div ref={reportRef}>
-        {/* KPI Cards */}
-        <div className="grid grid-cols-4 gap-3 mb-4">
-          {[
-            { icon: TrendingUp, label: 'Revenue', value: fmt(revenue), sub: `${invoices.length} invoices`, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { icon: Package,    label: 'Units shipped', value: totalUnits.toLocaleString(), sub: `${totalPacks} packs`, color: 'text-green-600', bg: 'bg-green-50' },
-            { icon: Users,      label: 'Active orders', value: activeOrders.toString(), sub: `${readyToShip} ready to ship`, color: 'text-purple-600', bg: 'bg-purple-50' },
-            { icon: AlertCircle,label: 'Pending payment', value: fmt(pendingTotal), sub: `${pendingInvoices.length} invoices`, color: 'text-amber-600', bg: 'bg-amber-50' },
-          ].map(({ icon: Icon, label, value, sub, color, bg }) => (
-            <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-500">{label}</span>
-                <div className={'p-1.5 rounded-lg ' + bg}><Icon className={'h-4 w-4 ' + color} /></div>
-              </div>
-              <p className="text-2xl font-bold text-gray-900">{value}</p>
-              <p className="text-xs text-gray-400 mt-1">{sub}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="h-4 w-4 text-gray-400" />
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Order → Shipment</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-gray-900">{avgShip}</span>
-              <span className="text-sm text-gray-400">days avg · {maxShip}d max</span>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Package className="h-4 w-4 text-gray-400" />
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">FOC ratio</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-gray-900">{focRatio}%</span>
-              <span className="text-sm text-gray-400">of total units</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Monthly revenue */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-4">
-          <h2 className="font-semibold text-gray-900 mb-4">Monthly revenue</h2>
-          <div className="flex items-end gap-3" style={{ height: '120px' }}>
-            {monthlyRevenue.map((m, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <span className="text-xs text-gray-400">{m.value > 0 ? fmt(m.value) : ''}</span>
-                <div className="w-full rounded-t transition-all" style={{
-                  height: `${Math.max((m.value/maxMonthly)*90, m.value > 0 ? 4 : 0)}px`,
-                  background: i === monthlyRevenue.length-1 ? '#185FA5' : '#B5D4F4',
-                }} />
-                <span className="text-xs text-gray-400">{m.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {/* Top clients — click goes to full report */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-900 mb-1">Top clients by revenue</h2>
-            <p className="text-xs text-gray-400 mb-4">Click to open full client report</p>
-            {clientRevenue.length === 0 ? (
-              <p className="text-sm text-gray-400">No data for this period</p>
-            ) : clientRevenue.map((c, i) => (
-              <div key={c.name} className="flex items-center gap-3 mb-2.5">
-                <span className="text-xs text-gray-400 w-4">{i+1}</span>
-                <button
-                  onClick={() => c.id && router.push('/reports/client/' + c.id)}
-                  className="text-xs text-blue-700 w-28 truncate text-left hover:underline font-medium"
-                  title={c.name}
-                >
-                  {c.name}
-                </button>
-                <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden cursor-pointer"
-                  onClick={() => c.id && router.push('/reports/client/' + c.id)}>
-                  <div className="h-full rounded-full flex items-center px-2"
-                    style={{ width: `${(c.revenue/maxClient)*100}%`, background:'#185FA5', minWidth:'50px' }}>
-                    <span className="text-white text-xs font-medium">{fmt(c.revenue)}</span>
-                  </div>
-                </div>
+      {/* ── GEOGRAPHY TAB ── */}
+      {tab === 'geography' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-4 gap-3 mb-2">
+            {[
+              { label: 'Regions',         value: regionList.length },
+              { label: 'Active clients',  value: customers.length },
+              { label: 'Revenue YTD',     value: fmt(ytdRevenue) },
+              { label: 'Avg per region',  value: fmt(ytdRevenue / Math.max(regionList.length, 1)) },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
+                <p className="text-xs text-gray-500 mb-1">{label}</p>
+                <p className="text-2xl font-bold text-gray-900">{value}</p>
               </div>
             ))}
           </div>
 
-          {/* Top products — click goes to full report */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-900 mb-1">Top products by units</h2>
-            <p className="text-xs text-gray-400 mb-4">Click to open full product report</p>
-            {productUnits.length === 0 ? (
-              <p className="text-sm text-gray-400">No data for this period</p>
-            ) : productUnits.map((p, i) => (
-              <div key={p.sku} className="flex items-center gap-3 mb-2.5">
-                <span className="text-xs text-gray-400 w-4">{i+1}</span>
-                <button
-                  onClick={() => router.push('/reports/product/' + encodeURIComponent(p.sku))}
-                  className="text-xs text-green-700 w-28 truncate text-left hover:underline font-medium"
-                  title={p.name}
-                >
-                  {p.name}
-                </button>
-                <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden cursor-pointer"
-                  onClick={() => router.push('/reports/product/' + encodeURIComponent(p.sku))}>
-                  <div className="h-full rounded-full flex items-center px-2"
-                    style={{ width: `${(p.units/maxProduct)*100}%`, background:'#0F6E56', minWidth:'50px' }}>
-                    <span className="text-white text-xs font-medium">{p.units.toLocaleString()}u</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Region</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Clients</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue YTD</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">vs LY</th>
+                  <th className="px-4 py-3 w-40" />
+                </tr>
+              </thead>
+              <tbody>
+                {regionList.map(([region, data]) => (
+                  <>
+                    <tr key={region}
+                      onClick={() => setExpandedRegion(expandedRegion === region ? null : region)}
+                      className="cursor-pointer hover:bg-gray-50 border-b border-gray-100">
+                      <td className="px-5 py-3 font-semibold text-gray-900">
+                        <div className="flex items-center gap-2">
+                          <span className={`transition-transform ${expandedRegion === region ? 'rotate-90' : ''}`}>›</span>
+                          {region}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600">{data.clients.length}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-gray-900">{fmt(data.revenue)}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{data.units.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right"><Delta curr={data.revenue} prev={data.prevRevenue} /></td>
+                      <td className="px-4 py-3">
+                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxRegionRevenue)*100}%`, background: '#185FA5' }} />
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedRegion === region && data.clients.map((c: any) => {
+                      const cRev = ytdInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+                      const cPrev = lastYearInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+                      const cUnits = ytdInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+                      return (
+                        <tr key={c.id} className="bg-blue-50 border-b border-blue-100 hover:bg-blue-100 cursor-pointer"
+                          onClick={e => { e.stopPropagation(); router.push('/reports/client/' + c.id) }}>
+                          <td className="px-5 py-2.5 pl-10 text-sm text-gray-700">{c.legal_name}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${c.eu_compliance_type === 'TT' ? 'bg-blue-100 text-blue-700' : c.eu_compliance_type === 'PR' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {c.eu_compliance_type ?? 'EXP'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-sm font-medium text-gray-900">{cRev > 0 ? fmt(cRev) : '—'}</td>
+                          <td className="px-4 py-2.5 text-right text-sm text-gray-600">{cUnits > 0 ? cUnits.toLocaleString() : '—'}</td>
+                          <td className="px-4 py-2.5 text-right"><Delta curr={cRev} prev={cPrev} /></td>
+                          <td className="px-4 py-2.5 text-right text-xs text-blue-600">View report →</td>
+                        </tr>
+                      )
+                    })}
+                  </>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
+      )}
 
-        {/* Brand stats */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-4">
-          <h2 className="font-semibold text-gray-900 mb-4">Performance by brand</h2>
-          <div className="grid grid-cols-4 gap-4 mb-4">
-            {brandStats.map(b => (
-              <div key={b.brand} className="p-3 rounded-xl border border-gray-100 bg-gray-50">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 rounded-full" style={{ background: BRAND_COLORS[b.brand] ?? '#888' }} />
-                  <span className="text-xs font-semibold text-gray-700">{b.brand}</span>
-                </div>
-                <p className="text-xl font-bold text-gray-900">{b.units.toLocaleString()}</p>
-                <p className="text-xs text-gray-400">units shipped</p>
-                <p className="text-sm font-semibold text-gray-700 mt-1">{fmt(b.revenue)}</p>
-                <p className="text-xs text-gray-400">revenue</p>
-                <p className="text-xs text-gray-400 mt-1">{b.stockPacks} packs in stock</p>
-              </div>
-            ))}
-          </div>
-          <div className="space-y-2">
-            {brandStats.map(b => (
-              <div key={b.brand} className="flex items-center gap-3">
-                <span className="text-xs text-gray-600 w-28">{b.brand}</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
-                  <div className="h-full rounded-full flex items-center px-2"
-                    style={{ width: `${Math.max((b.units/maxBrandUnits)*100, b.units > 0 ? 5 : 0)}%`, background: BRAND_COLORS[b.brand] ?? '#888', minWidth: b.units > 0 ? '40px' : '0' }}>
-                    {b.units > 0 && <span className="text-white text-xs">{b.units.toLocaleString()}u</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {/* AR Aging */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">Pending payments (AR aging)</h2>
-            {AGING_BUCKETS.map(({ label, key, color, bg }) => (
-              <div key={key} className="flex justify-between items-center py-2.5 border-b border-gray-50 last:border-0">
-                <span className="text-sm text-gray-600">{label}</span>
-                <span className="text-sm font-semibold px-2 py-0.5 rounded" style={{ color, background: bg }}>
-                  {fmt(aging[key])}
-                </span>
-              </div>
-            ))}
-            <div className="flex justify-between items-center pt-3 mt-1 border-t border-gray-200">
-              <span className="text-sm font-semibold text-gray-900">Total outstanding</span>
-              <span className="text-sm font-bold text-gray-900">{fmt(pendingTotal)}</span>
-            </div>
-          </div>
-
-          {/* Stock by warehouse */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Warehouse className="h-4 w-4 text-gray-400" />
-              <h2 className="font-semibold text-gray-900">Stock by warehouse</h2>
-            </div>
-            <div className="space-y-3">
-              {WH.map(w => {
-                const packs = stockByWH[w] ?? 0
-                const maxPacks = Math.max(...WH.map(wh => stockByWH[wh] ?? 0), 1)
-                return (
-                  <button key={w}
-                    onClick={() => router.push('/inventory')}
-                    className="w-full flex items-center gap-3 hover:opacity-80 transition-opacity">
-                    <span className="text-xs text-gray-600 w-16 text-left font-medium">{w}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
-                      <div className="h-full rounded-full flex items-center px-2"
-                        style={{ width: `${Math.max((packs/maxPacks)*100, packs>0?5:0)}%`, background: WH_COLORS[w], minWidth: packs>0?'50px':'0' }}>
-                        {packs > 0 && <span className="text-white text-xs font-medium">{packs} pk</span>}
-                      </div>
+      {/* ── PRODUCTS TAB ── */}
+      {tab === 'products' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-5">
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h2 className="font-semibold text-gray-900 mb-4">Revenue by brand YTD</h2>
+              {brandList.map(([brand, data]) => (
+                <div key={brand} className="flex items-center gap-3 mb-3">
+                  <span className="text-sm text-gray-700 w-32 truncate">{brand}</span>
+                  <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full flex items-center px-2"
+                      style={{ width: `${Math.max((data.revenue/maxBrand)*100, 8)}%`, background: '#0F6E56' }}>
+                      <span className="text-white" style={{ fontSize: '9px' }}>{fmt(data.revenue)}</span>
                     </div>
-                    {packs === 0 && <span className="text-xs text-gray-300">empty</span>}
-                  </button>
-                )
-              })}
+                  </div>
+                  <span className="text-xs text-gray-400 w-16 text-right">{data.units.toLocaleString()} u</span>
+                </div>
+              ))}
             </div>
-            <div className="flex justify-between items-center pt-3 mt-3 border-t border-gray-100">
-              <span className="text-xs text-gray-500">Total</span>
-              <span className="text-sm font-semibold text-gray-900">
-                {WH.reduce((s,w) => s+(stockByWH[w]??0),0).toLocaleString()} packs
-              </span>
+
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <h2 className="font-semibold text-gray-900 mb-4">Top products by units YTD</h2>
+              {productList.map(([name, data], i) => (
+                <div key={name} className="flex items-center gap-2 mb-2.5">
+                  <span className="text-xs text-gray-400 w-4 text-right">{i+1}</span>
+                  <button onClick={() => router.push('/reports/product/' + encodeURIComponent(Object.keys(productMap).find(k => k === name) ?? name))}
+                    className="text-xs text-gray-700 w-40 truncate text-left hover:text-blue-600" title={name}>{name}</button>
+                  <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${(data.units/maxProduct)*100}%`, background: '#185FA5' }} />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-900 w-12 text-right">{data.units.toLocaleString()}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── CLIENTS TAB ── */}
+      {tab === 'clients' && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-5 py-3 font-medium text-gray-600">#</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Region</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue YTD</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Orders</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">vs LY</th>
+                <th className="px-4 py-3 w-32" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {clientRevenue.map((c: any, i: number) => (
+                <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push('/reports/client/' + c.id)}>
+                  <td className="px-5 py-3 text-gray-400 text-xs">{i+1}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">{c.legal_name}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{c.region ?? c.country ?? '—'}</td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-blue-500" style={{ width: `${(c.revenue/maxClientRev)*100}%` }} />
+                      </div>
+                      <span className="font-semibold text-gray-900">{fmt(c.revenue)}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-600">{c.units.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right text-gray-600">{c.orders}</td>
+                  <td className="px-4 py-3 text-right"><Delta curr={c.revenue} prev={c.prevRevenue} /></td>
+                  <td className="px-4 py-3 text-right text-xs text-blue-600">View →</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── ACTIVITY TAB ── */}
+      {tab === 'activity' && (
+        <div className="space-y-4">
+          {/* Health summary */}
+          <div className="grid grid-cols-4 gap-3">
+            {[
+              { key: 'active',  label: 'Active',   count: healthCounts.active,  icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' },
+              { key: 'at_risk', label: 'At risk',  count: healthCounts.at_risk, icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
+              { key: 'dormant', label: 'Dormant',  count: healthCounts.dormant, icon: Clock, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
+              { key: 'lost',    label: 'Lost',     count: healthCounts.lost,    icon: XCircle, color: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-200' },
+            ].map(({ key, label, count, icon: Icon, color, bg, border }) => (
+              <button key={key}
+                onClick={() => setActivityFilter(activityFilter === key as any ? 'all' : key as any)}
+                className={`rounded-xl border-2 p-4 text-left transition-all ${activityFilter === key ? border + ' ' + bg : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <Icon className={`h-5 w-5 ${color}`} />
+                  <span className="text-2xl font-bold text-gray-900">{count}</span>
+                </div>
+                <p className={`text-sm font-medium ${color}`}>{label}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {key === 'active'  && '< 60 days, regular'}
+                  {key === 'at_risk' && '60–120 days or low freq'}
+                  {key === 'dormant' && '120–365 days'}
+                  {key === 'lost'    && '> 365 days'}
+                </p>
+              </button>
+            ))}
+          </div>
+
+          {/* Activity table */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900">
+                Customer Activity Tracker
+                <span className="ml-2 text-sm font-normal text-gray-400">{filteredActivity.length} clients</span>
+              </h2>
+              <div className="text-xs text-gray-400 flex items-center gap-4">
+                <span>Heatmap = orders/month (12 months)</span>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 rounded bg-gray-100" /> 0
+                  <div className="w-3 h-3 rounded bg-blue-200 ml-1" /> 1
+                  <div className="w-3 h-3 rounded bg-blue-400 ml-1" /> 2
+                  <div className="w-3 h-3 rounded bg-blue-600 ml-1" /> 3+
+                </div>
+              </div>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">Client</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Region</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Last order</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Freq/mo</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">12M value</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">vs prev</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Activity (12mo)</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Score</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filteredActivity.map((c: any) => (
+                  <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push('/reports/client/' + c.id)}>
+                    <td className="px-5 py-3 font-medium text-gray-900">{c.legal_name}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{c.region ?? c.country ?? '—'}</td>
+                    <td className="px-4 py-3 text-center">
+                      {c.lastOrderDate ? (
+                        <div>
+                          <p className="text-xs font-medium text-gray-700">{c.lastOrderDate.toLocaleDateString('en-GB')}</p>
+                          <p className={`text-xs ${c.lastOrderDays > 120 ? 'text-red-500 font-semibold' : c.lastOrderDays > 60 ? 'text-amber-600' : 'text-gray-400'}`}>
+                            {c.lastOrderDays}d ago
+                          </p>
+                        </div>
+                      ) : <span className="text-xs text-gray-300">Never</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-xs font-medium ${c.freqPerMonth === 0 ? 'text-gray-300' : c.freqPerMonth < 0.5 ? 'text-amber-600' : 'text-green-600'}`}>
+                        {c.freqPerMonth === 0 ? '—' : c.freqPerMonth.toFixed(1)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-900">
+                      {c.revenue12m > 0 ? fmt(c.revenue12m) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right"><Delta curr={c.revenue12m} prev={c.prevRevenue12m} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-0.5 justify-center">
+                        {(c.heatmap ?? []).map((count: number, i: number) => (
+                          <div key={i} title={`${MONTHS[new Date(new Date().setMonth(new Date().getMonth()-11+i)).getMonth()]}: ${count} orders`}
+                            className="w-3.5 h-3.5 rounded-sm flex-shrink-0"
+                            style={{ background: count === 0 ? '#F3F4F6' : count === 1 ? '#BFDBFE' : count === 2 ? '#60A5FA' : '#1D4ED8' }} />
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <div className={`w-2 h-2 rounded-full ${c.health.dot}`} />
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.health.color}`}>
+                          {c.health.label}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs text-blue-600">View →</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

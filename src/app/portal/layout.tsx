@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { ShoppingCart, Package, User, LogOut, LayoutDashboard, FileText } from 'lucide-react'
+import { ShoppingCart, Package, User, LogOut, LayoutDashboard, FileText, BarChart3 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -36,6 +36,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     { label: 'Dashboard', href: '/portal/dashboard', icon: LayoutDashboard },
     { label: 'My Orders',  href: '/portal/orders',    icon: ShoppingCart },
     { label: 'Invoices',   href: '/portal/invoices',  icon: FileText },
+    { label: 'Analytics',  href: '/portal/analytics', icon: BarChart3 },
     { label: 'New Order',  href: '/portal/orders/new',icon: Package },
     { label: 'My Profile', href: '/portal/profile',   icon: User },
   ]
