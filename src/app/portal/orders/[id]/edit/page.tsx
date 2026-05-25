@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
-import { Plus, Trash2, ShoppingCart, AlertTriangle, ArrowLeft } from 'lucide-react'
+import { Plus, Trash2, ShoppingCart, AlertTriangle, ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
 
 interface POLine {
@@ -29,8 +29,9 @@ export default function PortalEditOrderPage() {
   const [lines, setLines] = useState<POLine[]>([])
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
-  const [productSearch, setProductSearch] = useState('')
+  const [savingDraft, setSavingDraft] = useState(false)
   const [initialized, setInitialized] = useState(false)
+  const [productSearch, setProductSearch] = useState('')
 
   const { data: profile } = useQuery({
     queryKey: ['portal-profile'],
@@ -52,7 +53,9 @@ export default function PortalEditOrderPage() {
         .eq('id', id)
         .single()
       return data
-    }
+    },
+    refetchOnMount: true,
+    staleTime: 0,
   })
 
   const { data: customer } = useQuery({
@@ -103,29 +106,25 @@ export default function PortalEditOrderPage() {
     }
   })
 
-  // Pre-fill lines from existing order
   useEffect(() => {
-    if (order && products.length > 0 && priceEntries.length > 0 && !initialized) {
+    if (order && products.length > 0 && !initialized) {
       setNotes(order.notes ?? '')
-      const existingLines = (order.lines ?? []).map((l: any) => {
-        const stock = getStock(l.sku)
-        return {
-          sku: l.sku,
-          product_name: l.product_name,
-          brand: l.brand,
-          units_per_pack: l.units_per_pack ?? 1,
-          quantity_packs: l.quantity_packs,
-          quantity_units: l.quantity_units,
-          price_per_unit: l.price_per_unit,
-          line_total: l.line_total,
-          stock_available: stock,
-          fixmer_reference: l.fixmer_reference ?? null,
-        }
-      })
+      const existingLines = (order.lines ?? []).map((l: any) => ({
+        sku: l.sku,
+        product_name: l.product_name,
+        brand: l.brand,
+        units_per_pack: l.units_per_pack ?? 1,
+        quantity_packs: l.quantity_packs,
+        quantity_units: l.quantity_units,
+        price_per_unit: l.price_per_unit,
+        line_total: l.line_total,
+        stock_available: getStock(l.sku),
+        fixmer_reference: l.fixmer_reference ?? null,
+      }))
       setLines(existingLines)
       setInitialized(true)
     }
-  }, [order, products, priceEntries, initialized])
+  }, [order, products, initialized])
 
   const getPrice = (sku: string) => {
     const entry = (priceEntries as any[]).find((e: any) => e.sku === sku)
@@ -140,8 +139,6 @@ export default function PortalEditOrderPage() {
 
   const addLine = (product: any) => {
     if (lines.some(l => l.sku === product.sku)) return
-    const price = getPrice(product.sku)
-    const stock = getStock(product.sku)
     setLines(l => [...l, {
       sku: product.sku,
       product_name: product.full_name,
@@ -149,9 +146,9 @@ export default function PortalEditOrderPage() {
       units_per_pack: product.units_per_pack ?? 1,
       quantity_packs: 0,
       quantity_units: 0,
-      price_per_unit: price,
+      price_per_unit: getPrice(product.sku),
       line_total: 0,
-      stock_available: stock,
+      stock_available: getStock(product.sku),
       fixmer_reference: product.fixmer_reference ?? null,
     }])
   }
@@ -166,51 +163,57 @@ export default function PortalEditOrderPage() {
 
   const removeLine = (idx: number) => setLines(l => l.filter((_, i) => i !== idx))
 
-  const hasStockWarning = lines.some(l => l.quantity_packs > l.stock_available && l.quantity_packs > 0)
   const total      = lines.reduce((s, l) => s + l.line_total, 0)
   const totalUnits = lines.reduce((s, l) => s + l.quantity_units, 0)
   const totalPacks = lines.reduce((s, l) => s + l.quantity_packs, 0)
+  const hasLines   = lines.length > 0 && lines.some(l => l.quantity_packs > 0)
+  const hasStockWarning = lines.some(l => l.quantity_packs > l.stock_available && l.quantity_packs > 0)
 
-  const handleResubmit = async () => {
-    if (lines.length === 0) return
+  const saveLines = async () => {
+    await supabase.from('sales_order_lines').delete().eq('order_id', id as string)
+    if (lines.length > 0) {
+      await supabase.from('sales_order_lines').insert(
+        lines.map(l => ({
+          order_id: id, line_type: 'commercial',
+          sku: l.sku, product_name: l.product_name, brand: l.brand,
+          units_per_pack: l.units_per_pack, quantity_packs: l.quantity_packs,
+          quantity_units: l.quantity_units, price_per_unit: l.price_per_unit,
+          line_total: l.line_total, fixmer_reference: l.fixmer_reference ?? null,
+        }))
+      )
+    }
+  }
+
+  const handleSaveDraft = async () => {
+    setSavingDraft(true)
+    try {
+      await supabase.from('sales_orders').update({
+        notes, total_amount: total, total_units: totalUnits, total_packs: totalPacks,
+        status: 'draft',
+      }).eq('id', id as string)
+      await saveLines()
+      queryClient.invalidateQueries({ queryKey: ['portal-order', id] })
+      setInitialized(false)
+      router.push('/portal/orders')
+    } catch { alert('Error saving draft') }
+    setSavingDraft(false)
+  }
+
+  const handleSubmit = async () => {
     setSaving(true)
     try {
       const requiresStockReview = lines.some(l => l.quantity_packs > l.stock_available)
-
-      // Update order
       await supabase.from('sales_orders').update({
         status: 'pending_approval',
-        notes,
-        total_amount: total,
-        total_units: totalUnits,
-        total_packs: totalPacks,
+        notes, total_amount: total, total_units: totalUnits, total_packs: totalPacks,
         rejection_comment: null,
         requires_stock_review: requiresStockReview,
       }).eq('id', id as string)
-
-      // Replace lines
-      await supabase.from('sales_order_lines').delete().eq('order_id', id as string)
-      if (lines.length > 0) {
-        await supabase.from('sales_order_lines').insert(
-          lines.map(l => ({
-            order_id: id,
-            line_type: 'commercial',
-            sku: l.sku,
-            product_name: l.product_name,
-            brand: l.brand,
-            units_per_pack: l.units_per_pack,
-            quantity_packs: l.quantity_packs,
-            quantity_units: l.quantity_units,
-            price_per_unit: l.price_per_unit,
-            line_total: l.line_total,
-            fixmer_reference: l.fixmer_reference ?? null,
-          }))
-        )
-      }
-
+      await saveLines()
       queryClient.invalidateQueries({ queryKey: ['portal-order', id] })
+      setInitialized(false)
       router.push('/portal/orders')
-    } catch { alert('Error resubmitting order') }
+    } catch { alert('Error submitting order') }
     setSaving(false)
   }
 
@@ -223,6 +226,9 @@ export default function PortalEditOrderPage() {
 
   if (!order) return <div className="flex items-center justify-center h-48 text-gray-400">Loading...</div>
 
+  const isDraft    = order.status === 'draft'
+  const isRejected = order.status === 'rejected'
+
   return (
     <div className="max-w-5xl">
       <div className="flex items-center gap-4 mb-4">
@@ -230,21 +236,31 @@ export default function PortalEditOrderPage() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">Edit & Resubmit {order.order_number}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isDraft ? 'Continue Order' : 'Edit & Resubmit'} — {order.order_number}
+          </h1>
           <p className="text-gray-500 text-sm mt-0.5">
             {customer?.legal_name} · {customer?.assigned_price_list} price list · {customer?.currency}
           </p>
         </div>
-        <button onClick={handleResubmit}
-          disabled={saving || lines.length === 0 || lines.every(l => l.quantity_packs === 0)}
-          className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
-          <ShoppingCart className="h-4 w-4" />
-          {saving ? 'Resubmitting...' : 'Resubmit Order'}
-        </button>
+        <div className="flex gap-2">
+          {isDraft && (
+            <button onClick={handleSaveDraft} disabled={savingDraft}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+              <Save className="h-4 w-4" />
+              {savingDraft ? 'Saving...' : 'Save draft'}
+            </button>
+          )}
+          <button onClick={handleSubmit}
+            disabled={saving || !hasLines}
+            className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
+            <ShoppingCart className="h-4 w-4" />
+            {saving ? 'Submitting...' : isDraft ? 'Submit Order' : 'Resubmit Order'}
+          </button>
+        </div>
       </div>
 
-      {/* Rejection reason */}
-      {order.rejection_comment && (
+      {isRejected && order.rejection_comment && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
           <p className="text-sm font-semibold text-red-800 mb-1">Rejected — reason from DH Signature:</p>
           <p className="text-sm text-red-700">{order.rejection_comment}</p>
@@ -303,7 +319,7 @@ export default function PortalEditOrderPage() {
             <input type="text" placeholder="Search products..."
               value={productSearch} onChange={e => setProductSearch(e.target.value)}
               className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none mb-3" />
-            <div className="max-h-40 overflow-y-auto divide-y divide-gray-100 border border-gray-100 rounded-lg">
+            <div className="max-h-48 overflow-y-auto divide-y divide-gray-100 border border-gray-100 rounded-lg">
               {filteredProducts.map((p: any) => {
                 const price = getPrice(p.sku)
                 const stock = getStock(p.sku)
@@ -320,7 +336,7 @@ export default function PortalEditOrderPage() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stock === 0 ? 'bg-red-100 text-red-600' : stock < 5 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
                         {stock === 0 ? 'Out' : `${stock} pk`}
                       </span>
-                      {added ? <span className="text-xs text-gray-400 w-10 text-right">Added</span> : <Plus className="h-4 w-4 text-gray-400" />}
+                      {added ? <span className="text-xs text-gray-400">Added</span> : <Plus className="h-4 w-4 text-gray-400" />}
                     </div>
                   </button>
                 )
@@ -362,7 +378,7 @@ export default function PortalEditOrderPage() {
                         <td className="px-3 py-3 text-center">
                           {overStock ? (
                             <span className="text-xs text-amber-600 flex items-center justify-center gap-1">
-                              <AlertTriangle className="h-3 w-3" />{line.stock_available} avail.
+                              <AlertTriangle className="h-3 w-3" />{line.stock_available}pk
                             </span>
                           ) : (
                             <span className="text-xs text-green-600">{line.stock_available} pk</span>

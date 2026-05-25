@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ShoppingCart, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Plus, Trash2, ShoppingCart, AlertTriangle, CheckCircle, Save } from 'lucide-react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
@@ -28,8 +28,9 @@ export default function PortalNewOrderPage() {
   const [lines, setLines] = useState<POLine[]>([])
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
-  const [productSearch, setProductSearch] = useState('')
+  const [savingDraft, setSavingDraft] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [productSearch, setProductSearch] = useState('')
 
   const { data: profile } = useQuery({
     queryKey: ['portal-profile'],
@@ -37,7 +38,7 @@ export default function PortalNewOrderPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return null
       const { data } = await supabase
-        .from('user_profiles').select('customer_id, role').eq('id', user.id).single()
+        .from('user_profiles').select('customer_id').eq('id', user.id).single()
       return data
     }
   })
@@ -60,11 +61,9 @@ export default function PortalNewOrderPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('products')
-        .select('id, sku, full_name, brand, units_per_pack, fixmer_reference')
-        .eq('product_role', 'original')
-        .eq('status', 'active')
-        .order('brand')
-        .limit(500)
+        .select('sku, full_name, brand, units_per_pack, fixmer_reference')
+        .eq('product_role', 'original').eq('status', 'active')
+        .order('brand').limit(500)
       return data ?? []
     }
   })
@@ -105,8 +104,6 @@ export default function PortalNewOrderPage() {
 
   const addLine = (product: any) => {
     if (lines.some(l => l.sku === product.sku)) return
-    const price = getPrice(product.sku)
-    const stock = getStock(product.sku)
     setLines(l => [...l, {
       sku: product.sku,
       product_name: product.full_name,
@@ -114,9 +111,9 @@ export default function PortalNewOrderPage() {
       units_per_pack: product.units_per_pack ?? 1,
       quantity_packs: 0,
       quantity_units: 0,
-      price_per_unit: price,
+      price_per_unit: getPrice(product.sku),
       line_total: 0,
-      stock_available: stock,
+      stock_available: getStock(product.sku),
       fixmer_reference: product.fixmer_reference ?? null,
     }])
   }
@@ -131,50 +128,56 @@ export default function PortalNewOrderPage() {
 
   const removeLine = (idx: number) => setLines(l => l.filter((_, i) => i !== idx))
 
-  const hasStockWarning = lines.some(l => l.quantity_packs > l.stock_available && l.stock_available >= 0)
-  const total = lines.reduce((s, l) => s + l.line_total, 0)
-  const totalUnits = lines.reduce((s, l) => s + l.quantity_units, 0)
-  const totalPacks = lines.reduce((s, l) => s + l.quantity_packs, 0)
+  const buildPayload = (status: 'draft' | 'pending_approval') => ({
+    order: {
+      document_type: 'po',
+      status,
+      customer_id: customer?.id,
+      customer_name: customer?.legal_name,
+      currency: customer?.currency ?? 'USD',
+      warehouse: 'T1',
+      incoterms: customer?.incoterms ?? 'EXW',
+      payment_terms: customer?.payment_terms ?? 'Net 30',
+      price_list: customer?.assigned_price_list,
+      notes,
+      total_amount: lines.reduce((s, l) => s + l.line_total, 0),
+      total_units: lines.reduce((s, l) => s + l.quantity_units, 0),
+      total_packs: lines.reduce((s, l) => s + l.quantity_packs, 0),
+      requires_stock_review: lines.some(l => l.quantity_packs > l.stock_available),
+    },
+    lines: lines.map(l => ({
+      sku: l.sku, product_name: l.product_name, brand: l.brand,
+      units_per_pack: l.units_per_pack, quantity_packs: l.quantity_packs,
+      quantity_units: l.quantity_units, price_per_unit: l.price_per_unit,
+      line_total: l.line_total, line_type: 'commercial',
+      fixmer_reference: l.fixmer_reference ?? null,
+    }))
+  })
 
-  const handleSubmit = async () => {
-    if (!customer || lines.length === 0) return
-    setSaving(true)
+  const handleSaveDraft = async () => {
+    if (lines.length === 0) return
+    setSavingDraft(true)
     try {
-      const requiresStockReview = lines.some(l => l.quantity_packs > l.stock_available)
-
       const res = await fetch('/api/portal/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order: {
-            document_type: 'po',
-            status: 'pending_approval',
-            customer_id: customer.id,
-            customer_name: customer.legal_name,
-            currency: customer.currency ?? 'USD',
-            warehouse: 'T1',
-            incoterms: customer.incoterms ?? 'EXW',
-            payment_terms: customer.payment_terms ?? 'Net 30',
-            price_list: customer.assigned_price_list,
-            notes,
-            total_amount: total,
-            total_units: totalUnits,
-            total_packs: totalPacks,
-            requires_stock_review: requiresStockReview,
-          },
-          lines: lines.map(l => ({
-            sku: l.sku,
-            product_name: l.product_name,
-            brand: l.brand,
-            units_per_pack: l.units_per_pack,
-            quantity_packs: l.quantity_packs,
-            quantity_units: l.quantity_units,
-            price_per_unit: l.price_per_unit,
-            line_total: l.line_total,
-            line_type: 'commercial',
-            fixmer_reference: l.fixmer_reference ?? null,
-          }))
-        })
+        body: JSON.stringify(buildPayload('draft'))
+      })
+      const data = await res.json()
+      if (data.success) router.push('/portal/orders')
+      else alert('Error: ' + data.error)
+    } catch { alert('Error saving draft') }
+    setSavingDraft(false)
+  }
+
+  const handleSubmit = async () => {
+    if (lines.length === 0) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/portal/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildPayload('pending_approval'))
       })
       const data = await res.json()
       if (data.success) setSubmitted(true)
@@ -182,6 +185,12 @@ export default function PortalNewOrderPage() {
     } catch { alert('Error submitting order') }
     setSaving(false)
   }
+
+  const hasStockWarning = lines.some(l => l.quantity_packs > l.stock_available && l.quantity_packs > 0)
+  const total = lines.reduce((s, l) => s + l.line_total, 0)
+  const totalUnits = lines.reduce((s, l) => s + l.quantity_units, 0)
+  const totalPacks = lines.reduce((s, l) => s + l.quantity_packs, 0)
+  const hasLines = lines.length > 0 && lines.some(l => l.quantity_packs > 0)
 
   const filteredProducts = (products as any[]).filter((p: any) =>
     !productSearch ||
@@ -200,7 +209,7 @@ export default function PortalNewOrderPage() {
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Order Submitted!</h1>
         <p className="text-gray-500 mb-2">Your purchase order has been sent to DH Signature for review.</p>
-        <p className="text-sm text-gray-400 mb-8">You will be notified once your order is approved or if further information is needed.</p>
+        <p className="text-sm text-gray-400 mb-8">You will be notified once approved.</p>
         <div className="flex gap-3 justify-center">
           <Link href="/portal/orders"
             className="px-6 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
@@ -227,21 +236,26 @@ export default function PortalNewOrderPage() {
             {customer?.legal_name} · {customer?.assigned_price_list} price list · {customer?.currency}
           </p>
         </div>
-        <button onClick={handleSubmit}
-          disabled={saving || lines.length === 0 || lines.every(l => l.quantity_packs === 0)}
-          className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
-          <ShoppingCart className="h-4 w-4" />
-          {saving ? 'Submitting...' : 'Submit Order'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleSaveDraft}
+            disabled={savingDraft || !hasLines}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+            <Save className="h-4 w-4" />
+            {savingDraft ? 'Saving...' : 'Save draft'}
+          </button>
+          <button onClick={handleSubmit}
+            disabled={saving || !hasLines}
+            className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
+            <ShoppingCart className="h-4 w-4" />
+            {saving ? 'Submitting...' : 'Submit Order'}
+          </button>
+        </div>
       </div>
 
       {hasStockWarning && (
         <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium text-amber-800">Stock availability notice</p>
-            <p className="text-sm text-amber-700 mt-0.5">Some quantities exceed current stock. Your order will be submitted for review — our team will confirm availability and arrange stock transfers if needed.</p>
-          </div>
+          <p className="text-sm text-amber-700">Some quantities exceed current stock. Your order will be submitted for review.</p>
         </div>
       )}
 
@@ -263,7 +277,7 @@ export default function PortalNewOrderPage() {
               ))}
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Notes / Special instructions</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">Notes</label>
               <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
                 placeholder="Delivery preferences, references..."
                 className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none resize-none" />
@@ -272,11 +286,11 @@ export default function PortalNewOrderPage() {
 
           {lines.length > 0 && (
             <div className="bg-gray-900 rounded-xl p-4 text-white">
-              <h3 className="font-semibold mb-3">Order Summary</h3>
+              <h3 className="font-semibold mb-3">Summary</h3>
               <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between"><span className="text-gray-400">Lines</span><span>{lines.length}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Total packs</span><span>{totalPacks}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Total units</span><span>{totalUnits.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Packs</span><span>{totalPacks}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Units</span><span>{totalUnits.toLocaleString()}</span></div>
                 <div className="border-t border-gray-700 pt-2 mt-2 flex justify-between font-semibold text-lg">
                   <span>Total</span>
                   <span>{customer?.currency} {total.toFixed(2)}</span>
@@ -287,11 +301,9 @@ export default function PortalNewOrderPage() {
         </div>
 
         <div className="col-span-2 space-y-4">
-          {/* Product search */}
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="font-medium text-gray-900 mb-3">
-              Add Products
-              <span className="ml-2 text-xs text-gray-400 font-normal">{(products as any[]).length} available</span>
+              Add Products <span className="text-xs text-gray-400 font-normal">{(products as any[]).length} available</span>
             </h3>
             <input type="text" placeholder="Search by name, SKU or brand..."
               value={productSearch} onChange={e => setProductSearch(e.target.value)}
@@ -309,20 +321,11 @@ export default function PortalNewOrderPage() {
                       <p className="text-xs text-gray-400 font-mono">{p.sku}</p>
                     </div>
                     <div className="flex items-center gap-4 flex-shrink-0">
-                      {price > 0 && (
-                        <span className="text-sm font-semibold text-gray-900">{price.toFixed(2)} {customer?.currency}</span>
-                      )}
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        stock === 0 ? 'bg-red-100 text-red-600' :
-                        stock < 5 ? 'bg-amber-100 text-amber-700' :
-                        'bg-green-100 text-green-700'
-                      }`}>
+                      {price > 0 && <span className="text-sm font-semibold text-gray-900">{price.toFixed(2)} {customer?.currency}</span>}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stock === 0 ? 'bg-red-100 text-red-600' : stock < 5 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
                         {stock === 0 ? 'Out of stock' : `${stock} pk`}
                       </span>
-                      {added
-                        ? <span className="text-xs text-gray-400 w-12 text-right">Added</span>
-                        : <Plus className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                      }
+                      {added ? <span className="text-xs text-gray-400 w-12 text-right">Added</span> : <Plus className="h-4 w-4 text-gray-400" />}
                     </div>
                   </button>
                 )
@@ -330,7 +333,6 @@ export default function PortalNewOrderPage() {
             </div>
           </div>
 
-          {/* Order lines */}
           {lines.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <table className="w-full text-sm">
@@ -364,12 +366,11 @@ export default function PortalNewOrderPage() {
                         <td className="px-3 py-3 text-right font-semibold text-gray-900">{line.line_total.toFixed(2)}</td>
                         <td className="px-3 py-3 text-center">
                           {overStock ? (
-                            <div className="flex items-center justify-center gap-1 text-amber-600">
-                              <AlertTriangle className="h-3.5 w-3.5" />
-                              <span className="text-xs">{line.stock_available} avail.</span>
-                            </div>
+                            <span className="text-xs text-amber-600 flex items-center justify-center gap-1">
+                              <AlertTriangle className="h-3 w-3" />{line.stock_available} avail.
+                            </span>
                           ) : (
-                            <span className="text-xs text-green-600 font-medium">{line.stock_available} pk</span>
+                            <span className="text-xs text-green-600">{line.stock_available} pk</span>
                           )}
                         </td>
                         <td className="px-3 py-3">
