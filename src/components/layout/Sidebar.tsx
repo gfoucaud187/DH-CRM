@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Package, Users, Handshake, DollarSign,
   ShoppingCart, Warehouse, BarChart3, FolderOpen, Settings,
-  ListChecks, LogOut
+  ListChecks, LogOut, ExternalLink
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -23,6 +23,7 @@ const nav = [
   { label: 'Reports',      href: '/reports',      icon: BarChart3 },
   { label: 'Tracking Log', href: '/tracking',     icon: ListChecks },
   { label: 'Settings',     href: '/settings',     icon: Settings },
+  { label: 'Client Portal', href: '/portal-login', icon: ExternalLink },
 ]
 
 export default function Sidebar() {

@@ -2,124 +2,158 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { ShoppingCart, Users, Package, Warehouse, TrendingUp, Clock } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { TrendingUp, Package, ShoppingCart, AlertCircle, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 
-export default function Dashboard() {
-  const supabase = createClient()
+const STATUS_COLORS: Record<string, string> = {
+  draft:                'bg-gray-100 text-gray-500',
+  submitted_to_client:  'bg-blue-100 text-blue-700',
+  in_preparation:       'bg-amber-100 text-amber-700',
+  ready_for_shipment:   'bg-purple-100 text-purple-700',
+  shipped:              'bg-green-100 text-green-700',
+  completed:            'bg-green-200 text-green-800',
+  cancelled:            'bg-red-100 text-red-600',
+  sent_to_customer:     'bg-blue-100 text-blue-700',
+  pending_approval:     'bg-orange-100 text-orange-700',
+  rejected:             'bg-red-100 text-red-600',
+}
 
-  const { data: stats } = useQuery({
-    queryKey: ['dashboard-stats'],
+const getDocLabel = (o: any) => {
+  if (o.document_type === 'po') return 'PO'
+  if (o.is_foc && o.document_type === 'invoice') return 'INV(DO)'
+  if (o.is_foc) return 'SO(DO)'
+  if (o.document_type === 'so') return 'SO'
+  if (o.document_type === 'invoice') return 'INV'
+  if (o.document_type === 'proforma') return 'PF'
+  if (o.document_type === 'so_sample') return 'SO(SAMPLE)'
+  return o.document_type?.toUpperCase()
+}
+
+const getDocColor = (o: any) => {
+  if (o.document_type === 'po') return 'bg-orange-100 text-orange-700'
+  if (o.is_foc) return 'bg-green-100 text-green-700'
+  if (o.document_type === 'invoice') return 'bg-purple-100 text-purple-700'
+  if (o.document_type === 'so') return 'bg-blue-100 text-blue-700'
+  if (o.document_type === 'proforma') return 'bg-gray-100 text-gray-600'
+  if (o.document_type === 'so_sample') return 'bg-amber-100 text-amber-700'
+  return 'bg-gray-100 text-gray-600'
+}
+
+export default function DashboardPage() {
+  const supabase = createClient()
+  const router = useRouter()
+
+  const { data: orders = [] } = useQuery({
+    queryKey: ['dashboard-orders'],
     queryFn: async () => {
-      const [orders, customers, products, inventory] = await Promise.all([
-        supabase.from('sales_orders').select('id, total_amount, status, currency, created_at').eq('is_foc', false),
-        supabase.from('customers').select('id, status'),
-        supabase.from('products').select('id, status').eq('product_role', 'original'),
-        supabase.from('v_inventory_by_warehouse').select('packs_total, units_total'),
-      ])
-      const allOrders = orders.data ?? []
-      const activeOrders = allOrders.filter(o => !['completed','cancelled','deleted'].includes(o.status))
-      const totalRevenue = allOrders.filter(o => o.status === 'completed').reduce((s, o) => s + (o.total_amount ?? 0), 0)
-      const totalPacks = (inventory.data ?? []).reduce((s, r) => s + (r.packs_total ?? 0), 0)
-      const totalUnits = (inventory.data ?? []).reduce((s, r) => s + (r.units_total ?? 0), 0)
-      return {
-        totalOrders: allOrders.length,
-        activeOrders: activeOrders.length,
-        totalCustomers: (customers.data ?? []).length,
-        activeCustomers: (customers.data ?? []).filter(c => c.status === 'active').length,
-        totalProducts: (products.data ?? []).length,
-        totalPacks,
-        totalUnits,
-        totalRevenue,
-        recentOrders: allOrders.slice(0, 5),
-      }
+      const { data } = await supabase
+        .from('sales_orders')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      return data ?? []
     }
   })
 
-  const statCards = [
-    { label: 'Active Orders', value: stats?.activeOrders ?? 0, sub: `${stats?.totalOrders ?? 0} total`, icon: ShoppingCart, color: 'text-blue-600', bg: 'bg-blue-50', href: '/orders' },
-    { label: 'Customers', value: stats?.activeCustomers ?? 0, sub: 'active', icon: Users, color: 'text-green-600', bg: 'bg-green-50', href: '/customers' },
-    { label: 'Products', value: stats?.totalProducts ?? 0, sub: 'in catalogue', icon: Package, color: 'text-purple-600', bg: 'bg-purple-50', href: '/products' },
-    { label: 'Total Stock', value: stats?.totalPacks ?? 0, sub: `${stats?.totalUnits ?? 0} units`, icon: Warehouse, color: 'text-amber-600', bg: 'bg-amber-50', href: '/inventory' },
-  ]
+  const activeOrders   = orders.filter((o: any) => !['completed','cancelled'].includes(o.status) && o.document_type !== 'po')
+  const pendingPOs     = orders.filter((o: any) => o.document_type === 'po' && o.status === 'pending_approval')
+  const invoices       = orders.filter((o: any) => o.document_type === 'invoice' && !o.is_foc)
+  const revenueYTD     = invoices.filter((o: any) => new Date(o.created_at).getFullYear() === new Date().getFullYear())
+                                 .reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  const pendingPayment = invoices.filter((o: any) => ['draft','sent_to_customer'].includes(o.status))
+                                 .reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  const readyToShip    = orders.filter((o: any) => o.status === 'ready_for_shipment').length
+
+  const last5 = orders.slice(0, 5)
+
+  const fmt = (n: number) => n >= 1000 ? `$${(n/1000).toFixed(1)}K` : `$${n.toFixed(0)}`
 
   return (
     <div>
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Welcome to DH Signature Trade Cockpit</p>
+        <p className="text-gray-500 text-sm mt-0.5">Welcome back — here's what's happening</p>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
-        {statCards.map(card => (
-          <Link key={card.label} href={card.href}
-            className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-sm transition-shadow">
+      {/* KPIs */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        {[
+          { icon: TrendingUp,   label: 'Revenue YTD',      value: fmt(revenueYTD),          sub: `${invoices.length} invoices`,    color: 'text-blue-600',   bg: 'bg-blue-50' },
+          { icon: ShoppingCart, label: 'Active orders',    value: activeOrders.length,       sub: `${readyToShip} ready to ship`,   color: 'text-purple-600', bg: 'bg-purple-50' },
+          { icon: AlertCircle,  label: 'Pending payment',  value: fmt(pendingPayment),       sub: 'outstanding invoices',           color: 'text-amber-600',  bg: 'bg-amber-50' },
+          { icon: Package,      label: 'POs awaiting',     value: pendingPOs.length,         sub: 'purchase orders to review',      color: 'text-orange-600', bg: 'bg-orange-50' },
+        ].map(({ icon: Icon, label, value, sub, color, bg }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-gray-500">{card.label}</span>
-              <div className={`p-2 rounded-lg ${card.bg}`}>
-                <card.icon className={`h-4 w-4 ${card.color}`} />
-              </div>
+              <span className="text-sm text-gray-500">{label}</span>
+              <div className={'p-1.5 rounded-lg ' + bg}><Icon className={'h-4 w-4 ' + color} /></div>
             </div>
-            <p className="text-3xl font-bold text-gray-900">{card.value.toLocaleString()}</p>
-            <p className="text-xs text-gray-400 mt-1">{card.sub}</p>
-          </Link>
+            <p className="text-2xl font-bold text-gray-900">{value}</p>
+            <p className="text-xs text-gray-400 mt-1">{sub}</p>
+          </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Recent orders */}
-        <div className="col-span-2 bg-white rounded-xl border border-gray-200">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Recent Orders</h2>
-            <Link href="/orders" className="text-sm text-gray-500 hover:text-gray-900">View all →</Link>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {(stats?.recentOrders ?? []).length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-                <ShoppingCart className="h-8 w-8 mb-2" />
-                <p className="text-sm">No orders yet</p>
-                <Link href="/orders/new" className="mt-2 text-sm text-gray-900 underline">Create first order</Link>
-              </div>
-            ) : (stats?.recentOrders ?? []).map((o: any) => (
-              <div key={o.id} className="flex items-center justify-between px-5 py-3">
-                <div>
-                  <p className="font-medium text-sm text-gray-900">{o.order_number ?? 'Draft'}</p>
-                  <p className="text-xs text-gray-400">{new Date(o.created_at).toLocaleDateString()}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium text-sm">{o.currency} {Number(o.total_amount).toFixed(2)}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    o.status === 'completed' ? 'bg-green-100 text-green-700' :
-                    o.status === 'draft' ? 'bg-gray-100 text-gray-500' :
-                    'bg-amber-100 text-amber-700'
-                  }`}>{o.status}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Last 5 orders */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900">Recent Orders</h2>
+          <Link href="/orders" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 transition-colors">
+            View all <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
-
-        {/* Quick actions */}
-        <div className="bg-white rounded-xl border border-gray-200">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Quick Actions</h2>
-          </div>
-          <div className="p-4 space-y-2">
-            {[
-              { label: 'New Order', href: '/orders/new', icon: ShoppingCart },
-              { label: 'View Inventory', href: '/inventory', icon: Warehouse },
-              { label: 'Price Lists', href: '/price-lists', icon: TrendingUp },
-              { label: 'Tracking Log', href: '/tracking', icon: Clock },
-            ].map(action => (
-              <Link key={action.label} href={action.href}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                <action.icon className="h-4 w-4 text-gray-400" />
-                {action.label}
-              </Link>
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th className="text-left px-5 py-3 font-medium text-gray-600">Order #</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Warehouse</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">Amount</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {last5.map((o: any) => (
+              <tr key={o.id}
+                onClick={() => router.push('/orders/' + o.id)}
+                className="hover:bg-gray-50 cursor-pointer transition-colors">
+                <td className="px-5 py-3 font-mono text-xs font-semibold text-gray-900">
+                  {o.order_number ?? 'Draft'}
+                </td>
+                <td className="px-4 py-3 font-medium text-gray-900">{o.customer_name}</td>
+                <td className="px-4 py-3">
+                  <span className={'text-xs px-2 py-0.5 rounded font-mono font-medium ' + getDocColor(o)}>
+                    {getDocLabel(o)}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-gray-600">{o.warehouse ?? '—'}</td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex flex-col items-end">
+                    <span className="font-medium text-gray-900">{(o.total_units ?? 0).toLocaleString()} u</span>
+                    <span className="text-xs text-gray-400">{o.total_packs ?? 0} pk</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-right font-medium text-gray-900">
+                  {o.is_foc || o.is_sample
+                    ? <span className="text-green-600 text-xs">FOC</span>
+                    : `${o.currency} ${Number(o.total_amount).toFixed(2)}`}
+                </td>
+                <td className="px-4 py-3">
+                  <span className={'inline-flex px-2 py-0.5 rounded-full text-xs font-medium ' + (STATUS_COLORS[o.status] ?? 'bg-gray-100 text-gray-500')}>
+                    {o.status?.replace(/_/g, ' ')}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-gray-400 text-xs">
+                  {new Date(o.created_at).toLocaleDateString()}
+                </td>
+              </tr>
             ))}
-          </div>
-        </div>
+          </tbody>
+        </table>
       </div>
     </div>
   )
