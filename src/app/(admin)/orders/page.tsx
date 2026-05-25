@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { ShoppingCart, Plus, Search, RotateCcw, X, CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react'
+import { ShoppingCart, Plus, Search, RotateCcw, X, AlertTriangle, Info } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -54,37 +54,6 @@ const DOC_FILTER_OPTIONS = [
   { label: 'Proforma',   value: 'proforma' },
 ]
 
-function RejectModal({ po, onClose, onReject }: { po: any; onClose: () => void; onReject: (comment: string) => void }) {
-  const [comment, setComment] = useState('')
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <h2 className="font-bold text-lg text-gray-900 mb-1">Reject Purchase Order</h2>
-        <p className="text-sm text-gray-500 mb-4">{po.order_number} — {po.customer_name}</p>
-        <label className="text-xs font-medium text-gray-500 uppercase">Reason / Requested changes</label>
-        <textarea
-          value={comment}
-          onChange={e => setComment(e.target.value)}
-          rows={4}
-          placeholder="Explain why the order is rejected and what needs to be changed..."
-          className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none resize-none"
-          autoFocus
-        />
-        <div className="flex gap-3 mt-4">
-          <button onClick={onClose}
-            className="flex-1 h-9 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-            Cancel
-          </button>
-          <button onClick={() => onReject(comment)} disabled={!comment.trim()}
-            className="flex-1 h-9 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50">
-            Reject Order
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function OrdersPage() {
   const supabase = createClient()
   const router = useRouter()
@@ -92,8 +61,6 @@ export default function OrdersPage() {
   const [docFilter, setDocFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [showCancelled, setShowCancelled] = useState(false)
-  const [approvingId, setApprovingId] = useState<string | null>(null)
-  const [rejectingPO, setRejectingPO] = useState<any>(null)
   const [hoveredComment, setHoveredComment] = useState<string | null>(null)
 
   const { data: allOrders = [], isLoading } = useQuery({
@@ -140,34 +107,6 @@ export default function OrdersPage() {
     e.stopPropagation()
     await supabase.from('sales_orders').update({ status: 'draft' }).eq('id', id)
     queryClient.invalidateQueries({ queryKey: ['orders'] })
-  }
-
-  const handleApprovePO = async (po: any) => {
-    setApprovingId(po.id)
-    const res = await fetch('/api/orders/promote', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_id: po.id, target_type: 'so' }),
-    })
-    const data = await res.json()
-    if (data.success) {
-      await supabase.from('sales_orders').update({ status: 'approved' }).eq('id', po.id)
-      queryClient.invalidateQueries({ queryKey: ['orders'] })
-      router.push('/orders/' + data.invoice.id)
-    } else {
-      alert('Error: ' + data.error)
-    }
-    setApprovingId(null)
-  }
-
-  const handleRejectPO = async (comment: string) => {
-    if (!rejectingPO) return
-    await supabase.from('sales_orders').update({
-      status: 'rejected',
-      rejection_comment: comment,
-    }).eq('id', rejectingPO.id)
-    queryClient.invalidateQueries({ queryKey: ['orders'] })
-    setRejectingPO(null)
   }
 
   const OrderRow = ({ o, cancelled = false }: { o: any; cancelled?: boolean }) => (
@@ -270,11 +209,7 @@ export default function OrdersPage() {
               <tbody className="divide-y divide-orange-50">
                 {allPOs.map((po: any) => (
                   <tr key={po.id} className="hover:bg-orange-50 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs font-semibold">
-                      <button onClick={() => router.push('/orders/' + po.id)} className="hover:underline text-blue-600">
-                        {po.order_number}
-                      </button>
-                    </td>
+                    <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-900">{po.order_number}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{po.customer_name}</td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{new Date(po.created_at).toLocaleDateString()}</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900">{po.total_units ?? 0} u</td>
@@ -308,20 +243,11 @@ export default function OrdersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {po.status === 'pending_approval' && (
-                        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => handleApprovePO(po)}
-                            disabled={approvingId === po.id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 transition-colors">
-                            <CheckCircle className="h-3.5 w-3.5" />
-                            {approvingId === po.id ? 'Creating...' : 'Approve → SO'}
-                          </button>
-                          <button onClick={() => setRejectingPO(po)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50 transition-colors">
-                            <XCircle className="h-3.5 w-3.5" /> Reject
-                          </button>
-                        </div>
-                      )}
+                      <button
+                        onClick={() => router.push('/orders/' + po.id)}
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-700 transition-colors">
+                        Open →
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -391,15 +317,6 @@ export default function OrdersPage() {
             </div>
           )}
         </div>
-      )}
-
-      {/* Reject modal */}
-      {rejectingPO && (
-        <RejectModal
-          po={rejectingPO}
-          onClose={() => setRejectingPO(null)}
-          onReject={handleRejectPO}
-        />
       )}
     </div>
   )

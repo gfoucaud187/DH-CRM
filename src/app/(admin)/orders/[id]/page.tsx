@@ -22,6 +22,12 @@ const INVOICE_STATUSES = [
   { value: 'sent_to_customer', label: 'Sent to Customer', icon: Send,     color: 'bg-blue-100 text-blue-700' },
 ]
 
+const PO_STATUSES = [
+  { value: 'pending_approval', label: 'Pending Approval', icon: FileText, color: 'bg-orange-100 text-orange-700' },
+  { value: 'approved',         label: 'Approved',         icon: CheckCircle, color: 'bg-green-100 text-green-700' },
+  { value: 'rejected',         label: 'Rejected',         icon: XCircle, color: 'bg-red-100 text-red-600' },
+]
+
 export default function OrderDetailPage() {
   const { id } = useParams()
   const router = useRouter()
@@ -129,14 +135,45 @@ export default function OrderDetailPage() {
     else alert('Error: ' + data.error)
   }
 
+  const handleApprovePO = async () => {
+    const res = await fetch('/api/orders/promote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: id, target_type: 'so' }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      await supabase.from('sales_orders').update({ status: 'approved' }).eq('id', id as string)
+      router.push('/orders/' + data.invoice.id)
+    } else alert('Error: ' + data.error)
+  }
+
+  const handleRejectPO = async () => {
+    const comment = (document.getElementById('reject-comment') as HTMLTextAreaElement)?.value
+    if (!comment?.trim()) return alert('Please add a reason for rejection')
+    await supabase.from('sales_orders').update({
+      status: 'rejected',
+      rejection_comment: comment,
+    }).eq('id', id as string)
+    queryClient.invalidateQueries({ queryKey: ['order', id] })
+    queryClient.invalidateQueries({ queryKey: ['orders'] })
+    router.push('/orders')
+  }
+
   if (isLoading) return <div className="flex items-center justify-center h-48 text-gray-400">Loading...</div>
   if (!order) return <div className="text-center py-12 text-gray-400">Order not found</div>
 
-  const isInvoice = order.document_type === 'invoice'
-  const isSO = order.document_type === 'so'
-  const isDraft = order.status === 'draft'
+  const isInvoice  = order.document_type === 'invoice'
+  const isSO       = order.document_type === 'so'
+  const isPO       = order.document_type === 'po'
+  const isDraft    = order.status === 'draft'
   const isProforma = order.document_type === 'proforma'
-  const statuses = isInvoice ? INVOICE_STATUSES : isProforma ? [{ value: 'draft', label: 'Draft', icon: FileText, color: 'bg-gray-100 text-gray-600' }] : SO_STATUSES
+
+  const statuses = isInvoice ? INVOICE_STATUSES
+    : isProforma ? [{ value: 'draft', label: 'Draft', icon: FileText, color: 'bg-gray-100 text-gray-600' }]
+    : isPO ? PO_STATUSES
+    : SO_STATUSES
+
   const currentStatus = statuses.find((s: any) => s.value === order.status) ?? statuses[0]
   const commercialLines = (order.lines ?? []).filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')
   const alreadyHasInvoice = isSO && !!linkedDoc && linkedDoc.document_type === 'invoice'
@@ -160,10 +197,13 @@ export default function OrderDetailPage() {
             {order.is_tt_order && <span className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">T&T</span>}
             {order.is_foc && <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">FOC</span>}
             {order.is_sample && <span className="px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-700">SAMPLE</span>}
+            {isPO && order.requires_stock_review && (
+              <span className="px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-700">⚠ Stock review</span>
+            )}
           </div>
           <p className="text-gray-500 text-sm mt-0.5">{order.customer_name} · {order.warehouse}</p>
         </div>
-        {isDraft && (
+        {isDraft && !isPO && (
           <Link href={'/orders/' + id + '/edit'}
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
             <Edit className="h-4 w-4" />
@@ -174,6 +214,50 @@ export default function OrderDetailPage() {
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-1 space-y-4">
+
+          {/* PO Actions */}
+          {isPO && order.status === 'pending_approval' && (
+            <>
+              <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
+                <h2 className="font-semibold text-orange-900 mb-1">Purchase Order</h2>
+                <p className="text-xs text-orange-700 mb-3">Review this PO and approve or reject it.</p>
+                {order.requires_stock_review && (
+                  <p className="text-xs text-amber-700 bg-amber-100 rounded px-2 py-1 mb-3">
+                    ⚠ Some quantities exceed available stock — verify before approving.
+                  </p>
+                )}
+                <button onClick={handleApprovePO}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors mb-2">
+                  <CheckCircle className="h-4 w-4" />
+                  Convert to SO
+                </button>
+              </div>
+
+              <div className="bg-white rounded-xl border border-red-200 p-4">
+                <h2 className="font-semibold text-gray-900 mb-1">Reject Order</h2>
+                <p className="text-xs text-gray-500 mb-2">Client will see your message and can resubmit.</p>
+                <textarea
+                  id="reject-comment"
+                  rows={3}
+                  placeholder="Explain what needs to be changed..."
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none resize-none mb-2"
+                />
+                <button onClick={handleRejectPO}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors">
+                  <XCircle className="h-4 w-4" />
+                  Reject
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Rejected PO info */}
+          {isPO && order.status === 'rejected' && order.rejection_comment && (
+            <div className="bg-red-50 rounded-xl border border-red-200 p-4">
+              <h2 className="font-semibold text-red-800 mb-2">Rejection reason</h2>
+              <p className="text-sm text-red-700">{order.rejection_comment}</p>
+            </div>
+          )}
 
           {(sourceDoc || linkedDoc) && (
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-2">
@@ -192,6 +276,7 @@ export default function OrderDetailPage() {
               )}
             </div>
           )}
+
           {isProforma && !alreadyHasInvoice && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-1">Convert to Sales Order</h2>
@@ -212,6 +297,7 @@ export default function OrderDetailPage() {
               </button>
             </div>
           )}
+
           {isSO && !alreadyHasInvoice && !order.is_foc && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-1">Generate Invoice</h2>
@@ -227,7 +313,7 @@ export default function OrderDetailPage() {
           {isSO && !order.is_foc && !alreadyHasFoc && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-1">Create FOC Document</h2>
-              <p className="text-xs text-gray-500 mb-3">Creates SO(DO) linked to {order.order_number}. Opens editor directly.</p>
+              <p className="text-xs text-gray-500 mb-3">Creates SO(DO) linked to {order.order_number}.</p>
               <button onClick={handleCreateFoc}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
                 <Package className="h-4 w-4" />
@@ -261,20 +347,22 @@ export default function OrderDetailPage() {
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <h2 className="font-semibold text-gray-900 mb-3">Change Status</h2>
-            <div className="space-y-1">
-              {statuses.map((s: any) => (
-                <button key={s.value} onClick={() => updateStatus(s.value)}
-                  disabled={s.value === order.status}
-                  className={'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ' + (s.value === order.status ? s.color + ' font-medium' : 'text-gray-600 hover:bg-gray-50')}>
-                  <s.icon className="h-4 w-4" />
-                  {s.label}
-                  {s.value === order.status && <span className="ml-auto text-xs">Current</span>}
-                </button>
-              ))}
+          {!isPO && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h2 className="font-semibold text-gray-900 mb-3">Change Status</h2>
+              <div className="space-y-1">
+                {statuses.map((s: any) => (
+                  <button key={s.value} onClick={() => updateStatus(s.value)}
+                    disabled={s.value === order.status}
+                    className={'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ' + (s.value === order.status ? s.color + ' font-medium' : 'text-gray-600 hover:bg-gray-50')}>
+                    <s.icon className="h-4 w-4" />
+                    {s.label}
+                    {s.value === order.status && <span className="ml-auto text-xs">Current</span>}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {focOrder && (
             <div className="bg-green-50 rounded-xl border border-green-200 p-4">
@@ -302,15 +390,17 @@ export default function OrderDetailPage() {
             ))}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <h2 className="font-semibold text-gray-900 mb-3">Document</h2>
-            <InvoicePDF
-              order={order}
-              lines={commercialLines}
-              customer={order.customer}
-              appSettings={appSettings}
-            />
-          </div>
+          {!isPO && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h2 className="font-semibold text-gray-900 mb-3">Document</h2>
+              <InvoicePDF
+                order={order}
+                lines={commercialLines}
+                customer={order.customer}
+                appSettings={appSettings}
+              />
+            </div>
+          )}
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -349,7 +439,17 @@ export default function OrderDetailPage() {
                   </tr>
                 ))}
               </tbody>
-              {!order.is_foc && !order.is_sample && (
+              {!order.is_foc && !order.is_sample && !isPO && (
+                <tfoot className="bg-gray-50 border-t border-gray-200">
+                  <tr>
+                    <td colSpan={4} className="px-4 py-3 text-right font-semibold">Total</td>
+                    <td className="px-4 py-3 text-right font-bold">
+                      {order.currency} {Number(order.total_amount).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+              {isPO && (
                 <tfoot className="bg-gray-50 border-t border-gray-200">
                   <tr>
                     <td colSpan={4} className="px-4 py-3 text-right font-semibold">Total</td>
