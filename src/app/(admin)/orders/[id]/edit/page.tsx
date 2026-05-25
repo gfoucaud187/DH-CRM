@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Save, Trash2, Plus } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, Plus, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
@@ -29,6 +29,7 @@ export default function EditOrderPage() {
   const queryClient = useQueryClient()
 
   const [warehouse, setWarehouse] = useState('')
+  const [warehouseDestination, setWarehouseDestination] = useState('')
   const [incoterms, setIncoterms] = useState('')
   const [paymentTerms, setPaymentTerms] = useState('')
   const [notes, setNotes] = useState('')
@@ -55,10 +56,8 @@ export default function EditOrderPage() {
       const { data } = await supabase
         .from('products')
         .select('sku, full_name, brand, units_per_pack, fixmer_reference')
-        .eq('product_role', 'original')
-        .eq('status', 'active')
-        .order('brand')
-        .limit(500)
+        .eq('product_role', 'original').eq('status', 'active')
+        .order('brand').limit(500)
       return data ?? []
     }
   })
@@ -68,8 +67,7 @@ export default function EditOrderPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('price_list_entries')
-        .select('sku, price_list, price_per_unit')
-        .limit(1000)
+        .select('sku, price_list, price_per_unit').limit(1000)
       return data ?? []
     }
   })
@@ -77,22 +75,18 @@ export default function EditOrderPage() {
   useEffect(() => {
     if (order) {
       setWarehouse(order.warehouse ?? 'T1')
+      setWarehouseDestination(order.warehouse_destination ?? 'Central')
       setIncoterms(order.incoterms ?? '')
       setPaymentTerms(order.payment_terms ?? '')
       setNotes(order.notes ?? '')
       setShipmentDate(order.shipment_date ?? '')
       setLines(
         (order.lines ?? []).map((l: any) => ({
-          sku: l.sku,
-          product_name: l.product_name,
-          brand: l.brand,
+          sku: l.sku, product_name: l.product_name, brand: l.brand,
           units_per_pack: l.units_per_pack ?? 1,
-          quantity_packs: l.quantity_packs,
-          quantity_units: l.quantity_units,
-          price_per_unit: l.price_per_unit,
-          line_total: l.line_total,
-          line_type: l.line_type,
-          fixmer_reference: l.fixmer_reference ?? null,
+          quantity_packs: l.quantity_packs, quantity_units: l.quantity_units,
+          price_per_unit: l.price_per_unit, line_total: l.line_total,
+          line_type: l.line_type, fixmer_reference: l.fixmer_reference ?? null,
         }))
       )
     }
@@ -107,8 +101,10 @@ export default function EditOrderPage() {
     </div>
   )
 
+  const isInt = order.document_type === 'so_int'
+
   const getPrice = (sku: string) => {
-    if (order.is_foc || order.is_sample) return 0
+    if (order.is_foc || order.is_sample || isInt) return 0
     const entry = (priceEntries as any[]).find(
       (e: any) => e.sku === sku && e.price_list === order.price_list
     )
@@ -118,14 +114,10 @@ export default function EditOrderPage() {
   const addLine = (product: any) => {
     if (lines.some(l => l.sku === product.sku)) return
     setLines(l => [...l, {
-      sku: product.sku,
-      product_name: product.full_name,
-      brand: product.brand,
+      sku: product.sku, product_name: product.full_name, brand: product.brand,
       units_per_pack: product.units_per_pack ?? 1,
-      quantity_packs: 0,
-      quantity_units: 0,
-      price_per_unit: getPrice(product.sku),
-      line_total: 0,
+      quantity_packs: 0, quantity_units: 0,
+      price_per_unit: getPrice(product.sku), line_total: 0,
       line_type: order.is_foc ? 'foc' : 'commercial',
       fixmer_reference: product.fixmer_reference ?? null,
     }])
@@ -142,20 +134,25 @@ export default function EditOrderPage() {
   const removeLine = (idx: number) => setLines(l => l.filter((_, i) => i !== idx))
 
   const handleSave = async () => {
+    if (isInt && warehouse === warehouseDestination) {
+      alert('FROM and TO warehouses must be different')
+      return
+    }
     setSaving(true)
     try {
-      const totalAmount = lines.reduce((s, l) => s + l.line_total, 0)
-      const totalUnits  = lines.reduce((s, l) => s + l.quantity_units, 0)
-      const totalPacks  = lines.reduce((s, l) => s + l.quantity_packs, 0)
+      const totalUnits = lines.reduce((s, l) => s + l.quantity_units, 0)
+      const totalPacks = lines.reduce((s, l) => s + l.quantity_packs, 0)
+      const totalAmount = isInt ? 0 : lines.reduce((s, l) => s + l.line_total, 0)
 
-      // 1. Update this order
       await supabase.from('sales_orders').update({
-        warehouse, incoterms, payment_terms: paymentTerms,
+        warehouse,
+        warehouse_destination: isInt ? warehouseDestination : null,
+        incoterms: isInt ? null : incoterms,
+        payment_terms: isInt ? null : paymentTerms,
         notes, shipment_date: shipmentDate || null,
         total_amount: totalAmount, total_units: totalUnits, total_packs: totalPacks,
       }).eq('id', id as string)
 
-      // 2. Replace lines
       await supabase.from('sales_order_lines').delete().eq('order_id', id as string)
       if (lines.length > 0) {
         await supabase.from('sales_order_lines').insert(
@@ -169,62 +166,56 @@ export default function EditOrderPage() {
         )
       }
 
-      // 3. Sync with linked invoice (handles both SO→INV and SO(DO)→INV(DO))
-      // Check for invoice promoted FROM this document
-      const { data: promotedInvoice } = await supabase
-        .from('sales_orders')
-        .select('id, status, document_type, is_foc')
-        .eq('promoted_from', id as string)
-        .eq('document_type', 'invoice')
-        .eq('status', 'draft')
-        .maybeSingle()
+      // Sync linked invoice (non-INT only)
+      if (!isInt) {
+        const { data: promotedInvoice } = await supabase
+          .from('sales_orders')
+          .select('id, status, document_type')
+          .eq('promoted_from', id as string)
+          .eq('document_type', 'invoice')
+          .eq('status', 'draft')
+          .maybeSingle()
 
-      // Also check linked_order_id for backwards compatibility
-      const fallbackId = order.linked_order_id ?? order.promoted_from
-      const { data: fallbackDoc } = !promotedInvoice && fallbackId
-        ? await supabase.from('sales_orders').select('id, status, document_type, is_foc')
-            .eq('id', fallbackId).single()
-        : { data: null }
-
-      const syncTarget = promotedInvoice ?? (
-        fallbackDoc?.document_type === 'invoice' && fallbackDoc?.status === 'draft' ? fallbackDoc : null
-      )
-
-      if (syncTarget) {
-        await supabase.from('sales_orders').update({
-          total_amount: totalAmount, total_units: totalUnits, total_packs: totalPacks,
-        }).eq('id', syncTarget.id)
-
-        await supabase.from('sales_order_lines').delete().eq('order_id', syncTarget.id)
-
-        if (lines.length > 0) {
-          await supabase.from('sales_order_lines').insert(
-            lines.map(l => ({
-              order_id: syncTarget.id, line_type: l.line_type,
-              sku: l.sku, product_name: l.product_name, brand: l.brand,
-              units_per_pack: l.units_per_pack, quantity_packs: l.quantity_packs,
-              quantity_units: l.quantity_units, price_per_unit: l.price_per_unit,
-              line_total: l.line_total, fixmer_reference: l.fixmer_reference ?? null,
-            }))
-          )
+        if (promotedInvoice) {
+          await supabase.from('sales_orders').update({
+            total_amount: totalAmount, total_units: totalUnits, total_packs: totalPacks,
+          }).eq('id', promotedInvoice.id)
+          await supabase.from('sales_order_lines').delete().eq('order_id', promotedInvoice.id)
+          if (lines.length > 0) {
+            await supabase.from('sales_order_lines').insert(
+              lines.map(l => ({
+                order_id: promotedInvoice.id, line_type: l.line_type,
+                sku: l.sku, product_name: l.product_name, brand: l.brand,
+                units_per_pack: l.units_per_pack, quantity_packs: l.quantity_packs,
+                quantity_units: l.quantity_units, price_per_unit: l.price_per_unit,
+                line_total: l.line_total, fixmer_reference: l.fixmer_reference ?? null,
+              }))
+            )
+          }
         }
       }
 
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       router.push('/orders/' + id)
-    } catch (err) {
+    } catch {
       alert('Error saving order')
     }
     setSaving(false)
   }
 
   const total = lines.reduce((s, l) => s + l.line_total, 0)
+  const totalPacks = lines.reduce((s, l) => s + l.quantity_packs, 0)
+  const totalUnits = lines.reduce((s, l) => s + l.quantity_units, 0)
+
   const filteredProducts = (products as any[]).filter((p: any) =>
     !productSearch ||
     p.full_name?.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.sku?.toLowerCase().includes(productSearch.toLowerCase())
   )
+
+  const availableFrom = WAREHOUSES.filter(w => w !== warehouseDestination)
+  const availableTo   = WAREHOUSES.filter(w => w !== warehouse)
 
   return (
     <div className="max-w-5xl">
@@ -234,44 +225,85 @@ export default function EditOrderPage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">Edit {order.order_number}</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{order.customer_name} · {order.is_foc ? 'FOC Document' : 'Draft'}</p>
+          {isInt ? (
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-sm font-semibold text-teal-700">{warehouse}</span>
+              <ArrowRight className="h-4 w-4 text-teal-500" />
+              <span className="text-sm font-semibold text-teal-700">{warehouseDestination}</span>
+              <span className="text-gray-400 text-sm">· Internal Transfer</span>
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm mt-0.5">{order.customer_name} · {order.is_foc ? 'FOC' : 'Draft'}</p>
+          )}
         </div>
         <button onClick={handleSave} disabled={saving}
           className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
-          <Save className="h-4 w-4" />
-          {saving ? 'Saving...' : 'Save Changes'}
+          <Save className="h-4 w-4" />{saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-1 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
-            <h2 className="font-semibold text-gray-900">Order Details</h2>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Warehouse</label>
-              <select value={warehouse} onChange={e => setWarehouse(e.target.value)}
-                disabled={order.document_type === 'invoice' && !!order.promoted_from}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none disabled:bg-gray-50 disabled:text-gray-400">
-                {WAREHOUSES.map(w => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Incoterms</label>
-              <select value={incoterms} onChange={e => setIncoterms(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-                {['EXW','FOB','CIF','DAP','DDP'].map(i => <option key={i}>{i}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Payment Terms</label>
-              <input type="text" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Shipment Date</label>
-              <input type="date" value={shipmentDate} onChange={e => setShipmentDate(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-            </div>
+            <h2 className="font-semibold text-gray-900">{isInt ? 'Transfer Details' : 'Order Details'}</h2>
+
+            {/* INT: FROM + TO */}
+            {isInt ? (
+              <>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">From Warehouse</label>
+                  <select value={warehouse} onChange={e => setWarehouse(e.target.value)}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                    {availableFrom.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center justify-center">
+                  <ArrowRight className="h-5 w-5 text-teal-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">To Warehouse</label>
+                  <select value={warehouseDestination} onChange={e => setWarehouseDestination(e.target.value)}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                    {availableTo.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                </div>
+                {/* Visual */}
+                <div className="flex items-center justify-center gap-3 py-2 bg-teal-50 rounded-lg">
+                  <span className="px-3 py-1 bg-white border border-teal-200 rounded text-sm font-bold text-teal-800">{warehouse}</span>
+                  <ArrowRight className="h-4 w-4 text-teal-500" />
+                  <span className="px-3 py-1 bg-white border border-teal-200 rounded text-sm font-bold text-teal-800">{warehouseDestination}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Warehouse</label>
+                  <select value={warehouse} onChange={e => setWarehouse(e.target.value)}
+                    disabled={order.document_type === 'invoice' && !!order.promoted_from}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none disabled:bg-gray-50 disabled:text-gray-400">
+                    {WAREHOUSES.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Incoterms</label>
+                  <select value={incoterms} onChange={e => setIncoterms(e.target.value)}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                    {['EXW','FOB','CIF','DAP','DDP'].map(i => <option key={i}>{i}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Payment Terms</label>
+                  <input type="text" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Shipment Date</label>
+                  <input type="date" value={shipmentDate} onChange={e => setShipmentDate(e.target.value)}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+                </div>
+              </>
+            )}
+
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Notes</label>
               <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
@@ -283,11 +315,14 @@ export default function EditOrderPage() {
             <div className="bg-gray-900 rounded-xl p-4 text-white">
               <h3 className="font-semibold mb-2">Summary</h3>
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-gray-400">Packs</span><span>{lines.reduce((s,l)=>s+l.quantity_packs,0)}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Units</span><span>{lines.reduce((s,l)=>s+l.quantity_units,0)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Packs</span><span>{totalPacks}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Units</span><span>{totalUnits}</span></div>
                 <div className="border-t border-gray-700 pt-2 flex justify-between font-semibold">
                   <span>Total</span>
-                  <span>{order.is_foc || order.is_sample ? 'FOC' : order.currency + ' ' + total.toFixed(2)}</span>
+                  {isInt
+                    ? <span className="text-teal-400">{warehouse} → {warehouseDestination}</span>
+                    : <span>{order.is_foc || order.is_sample ? 'FOC' : order.currency + ' ' + total.toFixed(2)}</span>
+                  }
                 </div>
               </div>
             </div>
@@ -296,7 +331,9 @@ export default function EditOrderPage() {
 
         <div className="col-span-2 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <h3 className="font-medium text-gray-900 mb-3">Add Product</h3>
+            <h3 className="font-medium text-gray-900 mb-3">
+              {isInt ? 'Products to transfer' : 'Add Product'}
+            </h3>
             <input type="text" placeholder="Search products..."
               value={productSearch} onChange={e => setProductSearch(e.target.value)}
               className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none mb-3" />
@@ -325,7 +362,7 @@ export default function EditOrderPage() {
                     <th className="text-left px-4 py-2 font-medium text-gray-600">Product</th>
                     <th className="text-center px-3 py-2 font-medium text-gray-600">Packs</th>
                     <th className="text-center px-3 py-2 font-medium text-gray-600">Units</th>
-                    {!order.is_foc && !order.is_sample && (
+                    {!order.is_foc && !order.is_sample && !isInt && (
                       <>
                         <th className="text-right px-3 py-2 font-medium text-gray-600">Price/Unit</th>
                         <th className="text-right px-3 py-2 font-medium text-gray-600">Total</th>
@@ -347,7 +384,7 @@ export default function EditOrderPage() {
                           className="w-20 h-8 rounded border border-gray-200 px-2 text-center text-sm" />
                       </td>
                       <td className="px-3 py-3 text-center text-gray-600">{line.quantity_units}</td>
-                      {!order.is_foc && !order.is_sample && (
+                      {!order.is_foc && !order.is_sample && !isInt && (
                         <>
                           <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toFixed(2)}</td>
                           <td className="px-3 py-3 text-right font-medium">{Number(line.line_total).toFixed(2)}</td>

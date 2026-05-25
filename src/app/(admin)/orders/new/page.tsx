@@ -4,17 +4,18 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ShoppingCart, FileText, Gift, Package } from 'lucide-react'
+import { Plus, Trash2, ShoppingCart, FileText, Gift, Package, ArrowRight } from 'lucide-react'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 
-type OrderMode = 'so' | 'proforma' | 'foc' | 'sample'
+type OrderMode = 'so' | 'proforma' | 'foc' | 'sample' | 'int'
 
 const MODE_CONFIG = {
-  so:       { label: 'SO — Sales Order',              docType: 'so',        isFoc: false, isSample: false, btnLabel: 'Create SO',         activeClass: 'bg-blue-50 text-blue-800 border-blue-400 font-medium' },
-  proforma: { label: 'Proforma',                      docType: 'proforma',  isFoc: false, isSample: false, btnLabel: 'Create Proforma',    activeClass: 'bg-amber-50 text-amber-800 border-amber-400 font-medium' },
-  foc:      { label: 'SO(DO) — Free of charge',       docType: 'so',        isFoc: true,  isSample: false, btnLabel: 'Create SO(DO)',      activeClass: 'bg-green-50 text-green-800 border-green-400 font-medium' },
-  sample:   { label: 'SO(SAMPLE) — Samples, value 0', docType: 'so_sample', isFoc: false, isSample: true,  btnLabel: 'Create SO(SAMPLE)',  activeClass: 'bg-orange-50 text-orange-800 border-orange-400 font-medium' },
+  so:       { label: 'SO — Sales Order',              docType: 'so',        isFoc: false, isSample: false, isInt: false, btnLabel: 'Create SO',         activeClass: 'bg-blue-50 text-blue-800 border-blue-400 font-medium' },
+  proforma: { label: 'Proforma',                      docType: 'proforma',  isFoc: false, isSample: false, isInt: false, btnLabel: 'Create Proforma',    activeClass: 'bg-amber-50 text-amber-800 border-amber-400 font-medium' },
+  foc:      { label: 'SO(DO) — Free of charge',       docType: 'so',        isFoc: true,  isSample: false, isInt: false, btnLabel: 'Create SO(DO)',      activeClass: 'bg-green-50 text-green-800 border-green-400 font-medium' },
+  sample:   { label: 'SO(SAMPLE) — Samples, value 0', docType: 'so_sample', isFoc: false, isSample: true,  isInt: false, btnLabel: 'Create SO(SAMPLE)',  activeClass: 'bg-orange-50 text-orange-800 border-orange-400 font-medium' },
+  int:      { label: 'SO(INT) — Internal Transfer',   docType: 'so_int',    isFoc: false, isSample: false, isInt: true,  btnLabel: 'Create SO(INT)',     activeClass: 'bg-teal-50 text-teal-800 border-teal-400 font-medium' },
 }
 
 const MODE_ICONS = {
@@ -22,6 +23,7 @@ const MODE_ICONS = {
   proforma: FileText,
   foc:      Gift,
   sample:   Package,
+  int:      ArrowRight,
 }
 
 interface OrderLine {
@@ -44,6 +46,7 @@ export default function NewOrderPage() {
   const [customerId, setCustomerId] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [warehouse, setWarehouse] = useState('T1')
+  const [warehouseDestination, setWarehouseDestination] = useState('Central')
   const [currency, setCurrency] = useState('USD')
   const [incoterms, setIncoterms] = useState('EXW')
   const [paymentTerms, setPaymentTerms] = useState('Net 30')
@@ -56,7 +59,8 @@ export default function NewOrderPage() {
   const cfg = MODE_CONFIG[mode]
   const isFoc = cfg.isFoc
   const isSample = cfg.isSample
-  const priceIsZero = isFoc || isSample
+  const isInt = cfg.isInt
+  const priceIsZero = isFoc || isSample || isInt
 
   const { data: customers = [] } = useQuery({
     queryKey: ['customers-simple'],
@@ -146,7 +150,9 @@ export default function NewOrderPage() {
   const totalUnits = lines.reduce((s, l) => s + l.quantity_units, 0)
 
   const handleSubmit = async () => {
-    if (!customerId || lines.length === 0) return
+    if (!isInt && !customerId) return alert('Please select a customer')
+    if (lines.length === 0) return alert('Please add at least one product')
+    if (isInt && warehouse === warehouseDestination) return alert('FROM and TO warehouses must be different')
     setSaving(true)
     try {
       const res = await fetch('/api/orders', {
@@ -154,27 +160,28 @@ export default function NewOrderPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           order: {
-            document_type:  cfg.docType,
-            is_foc:         isFoc,
-            is_sample:      isSample,
-            customer_id:    customerId,
-            customer_name:  customerName,
-            currency,
-            warehouse:      isSample ? 'Sample' : warehouse,
-            incoterms,
-            payment_terms:  paymentTerms,
+            document_type:         cfg.docType,
+            is_foc:                isFoc,
+            is_sample:             isSample,
+            customer_id:           isInt ? null : customerId,
+            customer_name:         isInt ? 'Internal Transfer' : customerName,
+            currency:              isInt ? 'USD' : currency,
+            warehouse:             isSample ? 'Sample' : warehouse,
+            warehouse_destination: isInt ? warehouseDestination : null,
+            incoterms:             isInt ? 'EXW' : incoterms,
+            payment_terms:         isInt ? '—' : paymentTerms,
             notes,
-            shipment_date:  shipmentDate || null,
-            price_list:     priceIsZero ? null : getCustomerPriceList(),
-            total_amount:   priceIsZero ? 0 : total,
-            total_units:    totalUnits,
-            total_packs:    totalPacks,
+            shipment_date:         shipmentDate || null,
+            price_list:            priceIsZero ? null : getCustomerPriceList(),
+            total_amount:          0,
+            total_units:           totalUnits,
+            total_packs:           totalPacks,
           },
           commercial_lines: lines.map(l => ({
             ...l,
-            line_type:      isFoc ? 'foc' : 'commercial',
-            price_per_unit: priceIsZero ? 0 : l.price_per_unit,
-            line_total:     priceIsZero ? 0 : l.line_total,
+            line_type:      'commercial',
+            price_per_unit: 0,
+            line_total:     0,
           })),
           foc_lines: [],
         }),
@@ -193,6 +200,11 @@ export default function NewOrderPage() {
     p.brand?.toLowerCase().includes(productSearch.toLowerCase())
   )
 
+  const availableWarehouses = isInt
+    ? WAREHOUSES.filter(w => w !== warehouseDestination)
+    : WAREHOUSES
+  const availableDestinations = WAREHOUSES.filter(w => w !== warehouse)
+
   return (
     <div className="max-w-6xl">
       <div className="flex items-center justify-between mb-4">
@@ -200,13 +212,14 @@ export default function NewOrderPage() {
           <h1 className="text-2xl font-bold text-gray-900">New Sales Document</h1>
           <p className="text-gray-500 text-sm mt-0.5">Select document type below</p>
         </div>
-        <button onClick={handleSubmit} disabled={saving || !customerId || lines.length === 0}
+        <button onClick={handleSubmit} disabled={saving || lines.length === 0}
           className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
           <ShoppingCart className="h-4 w-4" />
           {saving ? 'Creating...' : cfg.btnLabel}
         </button>
       </div>
 
+      {/* Mode tabs */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {(Object.entries(MODE_CONFIG) as [OrderMode, typeof MODE_CONFIG[OrderMode]][]).map(([key, c]) => {
           const Icon = MODE_ICONS[key]
@@ -221,73 +234,110 @@ export default function NewOrderPage() {
         })}
       </div>
 
+      {/* Mode notices */}
       {isSample && (
         <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
-          Stock deducted from <strong>Sample</strong> warehouse. Can be promoted to Invoice at 0 later.
+          Stock deducted from <strong>Sample</strong> warehouse.
+        </div>
+      )}
+      {isInt && (
+        <div className="mb-4 p-3 bg-teal-50 border border-teal-200 rounded-lg text-sm text-teal-800">
+          <strong>Internal Transfer</strong> — no customer, no price. Stock will move from <strong>{warehouse}</strong> → <strong>{warehouseDestination}</strong> when status is set to <strong>Stock Transferred</strong>.
         </div>
       )}
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-1 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
-            <h2 className="font-semibold text-gray-900">Order Details</h2>
+            <h2 className="font-semibold text-gray-900">{isInt ? 'Transfer Details' : 'Order Details'}</h2>
 
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Customer *</label>
-              <div className="flex gap-2 mt-1 items-center">
-                <select value={customerId} onChange={e => handleCustomerChange(e.target.value)}
-                  className="flex-1 h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-                  <option value="">Select customer...</option>
-                  {(customers as any[]).map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.legal_name}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => router.push('/customers/new?returnTo=/orders/new')}
-                  title="Add new distributor"
-                  className="h-9 w-9 flex items-center justify-center border border-gray-200 rounded-md text-gray-600 hover:bg-gray-50 flex-shrink-0">
-                  <Plus className="h-4 w-4" />
-                </button>
+            {/* Customer — hidden for INT */}
+            {!isInt && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase">Customer *</label>
+                <div className="flex gap-2 mt-1 items-center">
+                  <select value={customerId} onChange={e => handleCustomerChange(e.target.value)}
+                    className="flex-1 h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                    <option value="">Select customer...</option>
+                    {(customers as any[]).map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.legal_name}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => router.push('/customers/new?returnTo=/orders/new')}
+                    title="Add new distributor"
+                    className="h-9 w-9 flex items-center justify-center border border-gray-200 rounded-md text-gray-600 hover:bg-gray-50 flex-shrink-0">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
+            {/* Warehouse FROM */}
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Warehouse</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">
+                {isInt ? 'From Warehouse' : 'Warehouse'}
+              </label>
               <select value={isSample ? 'Sample' : warehouse} onChange={e => setWarehouse(e.target.value)}
                 disabled={isSample}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none disabled:bg-gray-50 disabled:text-gray-400">
-                {WAREHOUSES.map(w => <option key={w} value={w}>{w}</option>)}
+                {availableWarehouses.map(w => <option key={w} value={w}>{w}</option>)}
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* Warehouse TO — only for INT */}
+            {isInt && (
               <div>
-                <label className="text-xs font-medium text-gray-500 uppercase">Currency</label>
-                <select value={currency} onChange={e => setCurrency(e.target.value)}
+                <label className="text-xs font-medium text-gray-500 uppercase">To Warehouse</label>
+                <select value={warehouseDestination} onChange={e => setWarehouseDestination(e.target.value)}
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-                  <option>USD</option><option>EUR</option><option>GBP</option>
+                  {availableDestinations.map(w => <option key={w} value={w}>{w}</option>)}
                 </select>
+                {warehouse === warehouseDestination && (
+                  <p className="text-xs text-red-500 mt-1">FROM and TO must be different</p>
+                )}
               </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 uppercase">Incoterms</label>
-                <select value={incoterms} onChange={e => setIncoterms(e.target.value)}
-                  className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-                  {['EXW','FOB','CIF','DAP','DDP'].map(i => <option key={i}>{i}</option>)}
-                </select>
+            )}
+
+            {/* Arrow visual for INT */}
+            {isInt && (
+              <div className="flex items-center justify-center gap-3 py-2">
+                <span className="px-3 py-1.5 bg-teal-100 text-teal-800 rounded-lg text-sm font-semibold">{warehouse}</span>
+                <ArrowRight className="h-5 w-5 text-teal-600" />
+                <span className="px-3 py-1.5 bg-teal-100 text-teal-800 rounded-lg text-sm font-semibold">{warehouseDestination}</span>
               </div>
-            </div>
+            )}
 
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Payment Terms</label>
-              <input type="text" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Shipment Date</label>
-              <input type="date" value={shipmentDate} onChange={e => setShipmentDate(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-            </div>
+            {/* Commercial fields — hidden for INT */}
+            {!isInt && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase">Currency</label>
+                    <select value={currency} onChange={e => setCurrency(e.target.value)}
+                      className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                      <option>USD</option><option>EUR</option><option>GBP</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase">Incoterms</label>
+                    <select value={incoterms} onChange={e => setIncoterms(e.target.value)}
+                      className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                      {['EXW','FOB','CIF','DAP','DDP'].map(i => <option key={i}>{i}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Payment Terms</label>
+                  <input type="text" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Shipment Date</label>
+                  <input type="date" value={shipmentDate} onChange={e => setShipmentDate(e.target.value)}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+                </div>
+              </>
+            )}
 
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Notes</label>
@@ -302,10 +352,18 @@ export default function NewOrderPage() {
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-gray-400">Packs</span><span>{totalPacks}</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Units</span><span>{totalUnits}</span></div>
-                <div className="border-t border-gray-700 pt-2 mt-2 flex justify-between font-semibold text-lg">
-                  <span>Total</span>
-                  <span>{priceIsZero ? 'FOC' : currency + ' ' + total.toFixed(2)}</span>
-                </div>
+                {isInt && (
+                  <div className="border-t border-gray-700 pt-2 mt-2 flex justify-between font-semibold">
+                    <span>Transfer</span>
+                    <span className="text-teal-400">{warehouse} → {warehouseDestination}</span>
+                  </div>
+                )}
+                {!isInt && (
+                  <div className="border-t border-gray-700 pt-2 mt-2 flex justify-between font-semibold text-lg">
+                    <span>Total</span>
+                    <span>{priceIsZero ? 'FOC' : currency + ' ' + total.toFixed(2)}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -315,7 +373,7 @@ export default function NewOrderPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="font-medium text-gray-900 mb-3">
               Add Product — {(products as any[]).length} available
-              {priceIsZero && <span className="ml-2 text-xs text-gray-400 font-normal">All at price 0</span>}
+              {priceIsZero && <span className="ml-2 text-xs text-gray-400 font-normal">No price for this document type</span>}
             </h3>
             <input type="text" placeholder="Search products..."
               value={productSearch} onChange={e => setProductSearch(e.target.value)}
@@ -332,10 +390,7 @@ export default function NewOrderPage() {
                       <span className="ml-2 text-xs text-gray-400 font-mono">{p.sku}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      {priceIsZero
-                        ? <span className="text-xs text-gray-400">0.00</span>
-                        : price > 0 && <span className="text-xs text-gray-500">{price.toFixed(2)} {currency}</span>
-                      }
+                      {!priceIsZero && price > 0 && <span className="text-xs text-gray-500">{price.toFixed(2)} {currency}</span>}
                       {alreadyAdded ? <span className="text-xs text-gray-400">Added</span> : <Plus className="h-4 w-4 text-gray-400" />}
                     </div>
                   </button>
