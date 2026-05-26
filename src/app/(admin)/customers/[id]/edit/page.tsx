@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Save, Plus, Trash2, Copy, Upload, X, AlertTriangle, Info } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, Copy, Upload, X, AlertTriangle, Info, Globe } from 'lucide-react'
 import Link from 'next/link'
 
 const PRICE_LISTS = ['G', 'G1', 'A1', 'SPECIAL']
@@ -126,8 +126,13 @@ export default function EditCustomerPage() {
   const [prContracted, setPrContracted] = useState(false)
   const [authorizedWarehouse, setAuthorizedWarehouse] = useState(false)
   const [fiscalWarehouseNumber, setFiscalWarehouseNumber] = useState('')
-  // Non-EU export
   const [exportProcedure, setExportProcedure] = useState<'central'|'t1'|'both'>('central')
+
+  // Portal Access
+  const [portalStatus, setPortalStatus] = useState('not_invited')
+  const [portalUserId, setPortalUserId] = useState('')
+  const [portalEmail, setPortalEmail] = useState('')
+  const [portalPassword, setPortalPassword] = useState('')
 
   const { data: customer, isLoading } = useQuery({
     queryKey: ['customer-edit', id],
@@ -141,7 +146,6 @@ export default function EditCustomerPage() {
     if (country) setIsEuropean(EU_COUNTRY_CODES.has(country))
   }, [country])
 
-  // Auto-set TT when EU and no PR
   useEffect(() => {
     if (isEuropean && euComplianceType === '') setEuComplianceType('TT')
     if (!isEuropean) setEuComplianceType('')
@@ -178,6 +182,10 @@ export default function EditCustomerPage() {
     setAuthorizedWarehouse(customer.authorized_warehouse ?? false)
     setFiscalWarehouseNumber(customer.fiscal_warehouse_number ?? '')
     setExportProcedure(customer.export_procedure ?? 'central')
+    setPortalStatus(customer.portal_status ?? 'not_invited')
+    setPortalUserId(customer.portal_user_id ?? '')
+    setPortalEmail(customer.portal_email ?? '')
+    setPortalPassword(customer.portal_password ?? '')
   }, [customer])
 
   const stockInfo = getDefaultStock(isEuropean, euComplianceType)
@@ -226,7 +234,21 @@ export default function EditCustomerPage() {
       authorized_warehouse: authorizedWarehouse,
       fiscal_warehouse_number: fiscalWarehouseNumber || null,
       export_procedure: isEuropean ? null : exportProcedure,
+      portal_status: portalStatus,
+      portal_user_id: portalUserId || null,
+      portal_email: portalEmail || null,
+      portal_password: portalPassword || null,
     }).eq('id', id as string)
+
+    // Link user to customer in user_profiles when activating
+    if (!error && portalUserId && portalStatus === 'active') {
+      await supabase.from('user_profiles').upsert({
+        id: portalUserId,
+        role: 'client',
+        customer_id: id,
+      })
+    }
+
     setSaving(false)
     if (!error) { queryClient.invalidateQueries({ queryKey: ['customers'] }); router.push('/customers') }
     else alert('Error: ' + error.message)
@@ -275,7 +297,7 @@ export default function EditCustomerPage() {
                 : <span className="text-gray-300 text-xs text-center">No logo</span>}
             </div>
             <div className="space-y-2">
-              <p className="text-sm text-gray-500">JPEG or PNG, max 200KB. Displayed in client portal and distributor list.</p>
+              <p className="text-sm text-gray-500">JPEG or PNG, max 200KB.</p>
               <div className="flex gap-2">
                 <button onClick={() => fileInputRef.current?.click()} disabled={uploadingLogo}
                   className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
@@ -358,7 +380,7 @@ export default function EditCustomerPage() {
           </div>
         </div>
 
-        {/* Commercial Terms — no fiscal warehouse */}
+        {/* Commercial Terms */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="font-semibold text-gray-900 mb-4">Commercial Terms</h2>
           <div className="grid grid-cols-3 gap-4">
@@ -401,7 +423,7 @@ export default function EditCustomerPage() {
           </div>
         </div>
 
-        {/* European Compliance — redesigned */}
+        {/* Compliance & Stock Rules */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-1">
             <h2 className="font-semibold text-gray-900">Compliance & Stock Rules</h2>
@@ -417,7 +439,6 @@ export default function EditCustomerPage() {
               : 'Select a country to configure compliance rules'}
           </p>
 
-          {/* EU Status */}
           <div className="flex items-center gap-3 mb-5">
             <label className="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" checked={isEuropean} onChange={e => setIsEuropean(e.target.checked)} className="rounded w-4 h-4" />
@@ -430,42 +451,18 @@ export default function EditCustomerPage() {
 
           {isEuropean && (
             <div className="space-y-5">
-              {/* Compliance Type */}
               <div>
                 <label className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3 block">EU Compliance Type *</label>
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    {
-                      value: 'TT',
-                      title: 'Track & Trace (TT)',
-                      desc: 'EMCS + TPD2. Products travel via e-AD under duty suspension. Stock: Central warehouse.',
-                      badge: 'Default for EU',
-                      color: 'border-blue-400 bg-blue-50',
-                      badgeColor: 'bg-blue-100 text-blue-700',
-                    },
-                    {
-                      value: 'PR',
-                      title: 'Primary Repository (PR)',
-                      desc: 'Authorized tax warehouse. Contracted data storage for TPD2. Access: T1 + Central.',
-                      badge: 'Extended access',
-                      color: 'border-green-400 bg-green-50',
-                      badgeColor: 'bg-green-100 text-green-700',
-                    },
-                    {
-                      value: '',
-                      title: '⚠️ Not configured',
-                      desc: 'EU compliance not set. Order creation will be blocked until TT or PR is configured.',
-                      badge: 'Blocked',
-                      color: 'border-red-300 bg-red-50',
-                      badgeColor: 'bg-red-100 text-red-600',
-                    },
+                    { value: 'TT', title: 'Track & Trace (TT)', desc: 'EMCS + TPD2. Products travel via e-AD under duty suspension. Stock: Central warehouse.', badge: 'Default for EU', color: 'border-blue-400 bg-blue-50', badgeColor: 'bg-blue-100 text-blue-700' },
+                    { value: 'PR', title: 'Primary Repository (PR)', desc: 'Authorized tax warehouse. Contracted data storage for TPD2. Access: T1 + Central.', badge: 'Extended access', color: 'border-green-400 bg-green-50', badgeColor: 'bg-green-100 text-green-700' },
+                    { value: '', title: '⚠️ Not configured', desc: 'EU compliance not set. Order creation will be blocked until TT or PR is configured.', badge: 'Blocked', color: 'border-red-300 bg-red-50', badgeColor: 'bg-red-100 text-red-600' },
                   ].map(opt => (
-                    <label key={opt.value}
-                      className={`cursor-pointer rounded-xl border-2 p-4 transition-all ${euComplianceType === opt.value ? opt.color : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                    <label key={opt.value} className={`cursor-pointer rounded-xl border-2 p-4 transition-all ${euComplianceType === opt.value ? opt.color : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
                       <div className="flex items-start gap-3">
                         <input type="radio" value={opt.value} checked={euComplianceType === opt.value}
-                          onChange={() => setEuComplianceType(opt.value as any)}
-                          className="mt-0.5 flex-shrink-0" />
+                          onChange={() => setEuComplianceType(opt.value as any)} className="mt-0.5 flex-shrink-0" />
                         <div>
                           <p className="text-sm font-semibold text-gray-900">{opt.title}</p>
                           <p className="text-xs text-gray-500 mt-1 leading-relaxed">{opt.desc}</p>
@@ -477,7 +474,6 @@ export default function EditCustomerPage() {
                 </div>
               </div>
 
-              {/* TT Options */}
               {euComplianceType === 'TT' && (
                 <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
                   <h3 className="text-sm font-semibold text-blue-900 mb-3">Track & Trace Configuration</h3>
@@ -500,7 +496,6 @@ export default function EditCustomerPage() {
                 </div>
               )}
 
-              {/* PR Options */}
               {euComplianceType === 'PR' && (
                 <div className="bg-green-50 rounded-xl p-4 border border-green-100">
                   <h3 className="text-sm font-semibold text-green-900 mb-3">Primary Repository Configuration</h3>
@@ -509,7 +504,7 @@ export default function EditCustomerPage() {
                       <input type="checkbox" checked={primaryRepository} onChange={e => setPrimaryRepository(e.target.checked)} className="rounded" />
                       <div>
                         <p className="text-sm font-medium text-gray-700">Primary Repository contracted</p>
-                        <p className="text-xs text-gray-400">Data storage module contracted and notified to EU regulators (deadline Dec 2022).</p>
+                        <p className="text-xs text-gray-400">Data storage module contracted and notified to EU regulators.</p>
                       </div>
                     </label>
                     <label className="flex items-center gap-3 cursor-pointer">
@@ -522,8 +517,8 @@ export default function EditCustomerPage() {
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input type="checkbox" checked={authorizedWarehouse} onChange={e => setAuthorizedWarehouse(e.target.checked)} className="rounded" />
                       <div>
-                        <p className="text-sm font-medium text-gray-700">Authorized Tax Warehouse (entrepôt fiscal agréé)</p>
-                        <p className="text-xs text-gray-400">Client is an authorized warehouse keeper — can receive T1 (duty suspended) stock.</p>
+                        <p className="text-sm font-medium text-gray-700">Authorized Tax Warehouse</p>
+                        <p className="text-xs text-gray-400">Can receive T1 (duty suspended) stock.</p>
                       </div>
                     </label>
                   </div>
@@ -533,89 +528,138 @@ export default function EditCustomerPage() {
                       <input value={fiscalWarehouseNumber} onChange={e => setFiscalWarehouseNumber(e.target.value)}
                         placeholder="e.g. BE00A00001234"
                         className="mt-1 w-full h-9 rounded-md border border-green-200 bg-white px-3 text-sm focus:outline-none font-mono" />
-                      <p className="text-xs text-gray-400 mt-1">EMCS warehouse ID — required for T1 movements via EMCS system.</p>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Default stock display */}
               <div className={`rounded-xl p-4 border ${euComplianceType === 'PR' ? 'bg-green-50 border-green-200' : euComplianceType === 'TT' ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'}`}>
                 <div className="flex items-center gap-2 mb-2">
                   <Info className="h-4 w-4 text-gray-500" />
                   <span className="text-sm font-semibold text-gray-800">Stock Assignment Rule</span>
                 </div>
-                <p className="text-sm text-gray-700">
-                  Default warehouse: <strong>{stockInfo.default}</strong>
-                  {stockInfo.available.length > 1 && (
-                    <span className="ml-2 text-xs text-gray-500">Available: {stockInfo.available.join(', ')}</span>
-                  )}
+                <p className="text-sm text-gray-700">Default warehouse: <strong>{stockInfo.default}</strong>
+                  {stockInfo.available.length > 1 && <span className="ml-2 text-xs text-gray-500">Available: {stockInfo.available.join(', ')}</span>}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">{stockInfo.note}</p>
               </div>
             </div>
           )}
 
-          {/* Non-EU Export Procedure */}
           {!isEuropean && (
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3 block">Export Procedure</label>
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    {
-                      value: 'central',
-                      title: 'Central (Standard)',
-                      desc: 'Export via entrepôt fiscal. EX1/DAU document. Standard export procedure.',
-                      badge: 'Default',
-                      color: 'border-blue-400 bg-blue-50',
-                    },
-                    {
-                      value: 't1',
-                      title: 'T1 Transit',
-                      desc: 'Duty-suspended transit (sous douane suspendue). Warehouse-to-warehouse. T1 document.',
-                      badge: 'Under customs',
-                      color: 'border-amber-400 bg-amber-50',
-                    },
-                    {
-                      value: 'both',
-                      title: 'Both available',
-                      desc: 'Client accepts both Central export and T1 transit depending on the shipment.',
-                      badge: 'Flexible',
-                      color: 'border-green-400 bg-green-50',
-                    },
+                    { value: 'central', title: 'Central (Standard)', desc: 'Export via entrepôt fiscal. EX1/DAU document.', color: 'border-blue-400 bg-blue-50' },
+                    { value: 't1',     title: 'T1 Transit',          desc: 'Duty-suspended transit. T1 document.',           color: 'border-amber-400 bg-amber-50' },
+                    { value: 'both',   title: 'Both available',      desc: 'Central export and T1 transit.',                color: 'border-green-400 bg-green-50' },
                   ].map(opt => (
-                    <label key={opt.value}
-                      className={`cursor-pointer rounded-xl border-2 p-4 transition-all ${exportProcedure === opt.value ? opt.color : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                    <label key={opt.value} className={`cursor-pointer rounded-xl border-2 p-4 transition-all ${exportProcedure === opt.value ? opt.color : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
                       <div className="flex items-start gap-3">
                         <input type="radio" value={opt.value} checked={exportProcedure === opt.value}
-                          onChange={() => setExportProcedure(opt.value as any)}
-                          className="mt-0.5 flex-shrink-0" />
+                          onChange={() => setExportProcedure(opt.value as any)} className="mt-0.5 flex-shrink-0" />
                         <div>
                           <p className="text-sm font-semibold text-gray-900">{opt.title}</p>
-                          <p className="text-xs text-gray-500 mt-1 leading-relaxed">{opt.desc}</p>
+                          <p className="text-xs text-gray-500 mt-1">{opt.desc}</p>
                         </div>
                       </div>
                     </label>
                   ))}
                 </div>
               </div>
-
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                 <div className="flex items-center gap-2 mb-2">
                   <Info className="h-4 w-4 text-gray-500" />
                   <span className="text-sm font-semibold text-gray-800">Stock Assignment Rule</span>
                 </div>
-                <p className="text-sm text-gray-700">
-                  Default warehouse: <strong>{stockInfo.default}</strong>
-                  {stockInfo.available.length > 1 && (
-                    <span className="ml-2 text-xs text-gray-500">Available: {stockInfo.available.join(', ')}</span>
-                  )}
+                <p className="text-sm text-gray-700">Default warehouse: <strong>{stockInfo.default}</strong>
+                  {stockInfo.available.length > 1 && <span className="ml-2 text-xs text-gray-500">Available: {stockInfo.available.join(', ')}</span>}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">{stockInfo.note}</p>
               </div>
             </div>
           )}
+        </div>
+
+        {/* Portal Access */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Globe className="h-4 w-4 text-gray-400" />
+            <h2 className="font-semibold text-gray-900">Portal Access</h2>
+            <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${
+              portalStatus === 'active'      ? 'bg-green-100 text-green-700' :
+              portalStatus === 'invited'     ? 'bg-blue-100 text-blue-700' :
+              portalStatus === 'disabled'    ? 'bg-red-100 text-red-600' :
+              'bg-gray-100 text-gray-500'
+            }`}>
+              {portalStatus === 'not_invited' ? 'Not invited' :
+               portalStatus === 'invited'     ? 'Invited' :
+               portalStatus === 'active'      ? 'Active' : 'Disabled'}
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 mb-4">
+            Create the user in <strong>Supabase → Authentication → Users → Add user</strong> with email + password, then paste the UUID below and set Active.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase mb-2 block">Status</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {[
+                  { value: 'not_invited', label: '⬜ Not invited', color: 'border-gray-200 text-gray-500' },
+                  { value: 'invited',     label: '📧 Invited',     color: 'border-blue-300 text-blue-700 bg-blue-50' },
+                  { value: 'active',      label: '✅ Active',      color: 'border-green-400 text-green-700 bg-green-50' },
+                  { value: 'disabled',    label: '⛔ Disabled',    color: 'border-red-300 text-red-600 bg-red-50' },
+                ].map(opt => (
+                  <button key={opt.value} onClick={() => setPortalStatus(opt.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border-2 transition-all ${
+                      portalStatus === opt.value ? opt.color : 'border-gray-200 text-gray-400 bg-white hover:bg-gray-50'
+                    }`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Supabase User ID (UUID)</label>
+              <input value={portalUserId} onChange={e => setPortalUserId(e.target.value)}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm font-mono focus:outline-none" />
+              <p className="text-xs text-gray-400 mt-1">Supabase → Authentication → Users → copy UUID of the user you created</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase">Portal Email</label>
+                <input value={portalEmail} onChange={e => setPortalEmail(e.target.value)}
+                  placeholder="email@dh.com"
+                  className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none font-mono" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase">Portal Password</label>
+                <input value={portalPassword} onChange={e => setPortalPassword(e.target.value)}
+                  placeholder="temporary password"
+                  className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none font-mono" />
+                <p className="text-xs text-gray-400 mt-1">For reference only — distributor should change it</p>
+              </div>
+            </div>
+            {portalStatus === 'active' && portalUserId && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-700">
+                ✅ Portal active — distributor can log in at <strong>/portal-login</strong>
+              </div>
+            )}
+            {portalStatus === 'active' && !portalUserId && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+                ⚠️ Status is Active but no User ID — please add the Supabase UUID
+              </div>
+            )}
+            {portalStatus === 'disabled' && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-600">
+                ⛔ Portal disabled — distributor cannot access the portal
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Contacts */}
@@ -749,6 +793,7 @@ export default function EditCustomerPage() {
               </div>
             ))}
         </div>
+
       </div>
     </div>
   )

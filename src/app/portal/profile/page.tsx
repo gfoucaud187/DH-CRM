@@ -67,13 +67,13 @@ export default function PortalProfilePage() {
   const router = useRouter()
 
   const [customer, setCustomer] = useState<any>(null)
+  const [customerId, setCustomerId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [pendingRequest, setPendingRequest] = useState<any>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
 
-  // All editable fields
   const [legalName, setLegalName] = useState('')
   const [tradingName, setTradingName] = useState('')
   const [country, setCountry] = useState('')
@@ -102,6 +102,7 @@ export default function PortalProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/portal-login'); return }
       const { data: profile } = await supabase.from('user_profiles').select('customer_id').eq('id', user.id).single()
+      setCustomerId(profile?.customer_id ?? null)
       const { data: c } = await supabase.from('customers').select('*').eq('id', profile?.customer_id).single()
       if (c) {
         setCustomer(c)
@@ -131,12 +132,10 @@ export default function PortalProfilePage() {
     load()
   }, [])
 
-  // Auto-detect EU from country
   useEffect(() => {
     if (country) setIsEuropean(EU_COUNTRY_CODES.has(country))
   }, [country])
 
-  // Detect changes
   useEffect(() => {
     if (!customer) return
     const changed =
@@ -162,44 +161,38 @@ export default function PortalProfilePage() {
   const handleSubmitRequest = async () => {
     if (!hasChanges || !customer) return
     setSubmitting(true)
-
     const current: Record<string, any> = {}
     const requested: Record<string, any> = {}
-
     const fields = [
-      { key: 'legal_name',             curr: customer.legal_name ?? '',             req: legalName },
-      { key: 'trading_name',           curr: customer.trading_name ?? '',           req: tradingName },
-      { key: 'country',                curr: customer.country ?? '',                req: country },
-      { key: 'region',                 curr: customer.region ?? '',                 req: region },
-      { key: 'vat_number',             curr: customer.vat_number ?? '',             req: vatNumber },
-      { key: 'excise_number',          curr: customer.excise_number ?? '',          req: exciseNumber },
-      { key: 'payment_terms',          curr: customer.payment_terms ?? '',          req: paymentTerms },
-      { key: 'incoterms',              curr: customer.incoterms ?? '',              req: incoterms },
-      { key: 'eu_compliance_type',     curr: customer.eu_compliance_type ?? '',     req: euComplianceType },
-      { key: 'fiscal_warehouse_number',curr: customer.fiscal_warehouse_number ?? '',req: fiscalWarehouseNumber },
-      { key: 'notes',                  curr: customer.notes ?? '',                  req: notes },
+      { key: 'legal_name',              curr: customer.legal_name ?? '',              req: legalName },
+      { key: 'trading_name',            curr: customer.trading_name ?? '',            req: tradingName },
+      { key: 'country',                 curr: customer.country ?? '',                 req: country },
+      { key: 'region',                  curr: customer.region ?? '',                  req: region },
+      { key: 'vat_number',              curr: customer.vat_number ?? '',              req: vatNumber },
+      { key: 'excise_number',           curr: customer.excise_number ?? '',           req: exciseNumber },
+      { key: 'payment_terms',           curr: customer.payment_terms ?? '',           req: paymentTerms },
+      { key: 'incoterms',               curr: customer.incoterms ?? '',               req: incoterms },
+      { key: 'eu_compliance_type',      curr: customer.eu_compliance_type ?? '',      req: euComplianceType },
+      { key: 'fiscal_warehouse_number', curr: customer.fiscal_warehouse_number ?? '', req: fiscalWarehouseNumber },
+      { key: 'notes',                   curr: customer.notes ?? '',                   req: notes },
     ]
-
     fields.forEach(({ key, curr, req }) => {
       if (curr !== req) { current[key] = curr; requested[key] = req }
     })
-
     const boolFields = [
-      { key: 'is_european',        curr: customer.is_european ?? false,        req: isEuropean },
-      { key: 'track_trace_enabled',curr: customer.track_trace_enabled ?? false,req: trackTrace },
-      { key: 'primary_repository', curr: customer.primary_repository ?? false, req: primaryRepository },
+      { key: 'is_european',         curr: customer.is_european ?? false,         req: isEuropean },
+      { key: 'track_trace_enabled', curr: customer.track_trace_enabled ?? false, req: trackTrace },
+      { key: 'primary_repository',  curr: customer.primary_repository ?? false,  req: primaryRepository },
     ]
     boolFields.forEach(({ key, curr, req }) => {
       if (curr !== req) { current[key] = curr; requested[key] = req }
     })
-
     if (JSON.stringify(contacts) !== JSON.stringify(customer.contacts ?? [])) {
       current.contacts = customer.contacts ?? []; requested.contacts = contacts
     }
     if (JSON.stringify(addresses) !== JSON.stringify(customer.addresses ?? [])) {
       current.addresses = customer.addresses ?? []; requested.addresses = addresses
     }
-
     const { data, error } = await supabase.from('profile_change_requests').insert({
       customer_id: customer.id,
       customer_name: customer.legal_name,
@@ -207,7 +200,6 @@ export default function PortalProfilePage() {
       requested_changes: requested,
       status: 'pending',
     }).select().single()
-
     if (!error) { setPendingRequest(data); setSubmitted(true) }
     else alert('Error: ' + error.message)
     setSubmitting(false)
@@ -217,8 +209,16 @@ export default function PortalProfilePage() {
     setPwError('')
     if (newPassword.length < 6) { setPwError('Password must be at least 6 characters'); return }
     if (newPassword !== confirmPassword) { setPwError('Passwords do not match'); return }
+
+    // Update Supabase auth password
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) { setPwError(error.message); return }
+
+    // Also update portal_password in customers table so admin can see it
+    if (customerId) {
+      await supabase.from('customers').update({ portal_password: newPassword }).eq('id', customerId)
+    }
+
     setNewPassword(''); setConfirmPassword('')
     setPwSaved(true); setTimeout(() => setPwSaved(false), 3000)
   }
@@ -234,7 +234,6 @@ export default function PortalProfilePage() {
     setAddresses(a => a.map((ad, idx) => idx === i ? { ...ad, [field]: value } : ad))
 
   const disabled = !!pendingRequest
-
   const selectedCountry = EU_COUNTRIES.find(c => c.code === country)
 
   if (loading || !customer) return <div className="flex items-center justify-center h-48 text-gray-400">Loading...</div>
@@ -246,7 +245,6 @@ export default function PortalProfilePage() {
         <p className="text-gray-500 text-sm mt-0.5">{customer.legal_name}</p>
       </div>
 
-      {/* Pending banner */}
       {pendingRequest && (
         <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
           <Clock className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -264,7 +262,6 @@ export default function PortalProfilePage() {
         </div>
       )}
 
-      {/* Save / Submit bar */}
       {hasChanges && !pendingRequest && (
         <div className="mb-4 p-3 bg-gray-900 rounded-xl flex items-center justify-between">
           <div className="flex items-center gap-2 text-white text-sm">
@@ -508,11 +505,16 @@ export default function PortalProfilePage() {
               className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
           </div>
           {pwError && <p className="text-red-500 text-xs">{pwError}</p>}
-          {pwSaved && <p className="text-green-600 text-xs font-medium flex items-center gap-1"><CheckCircle className="h-3.5 w-3.5" /> Password updated!</p>}
+          {pwSaved && (
+            <p className="text-green-600 text-xs font-medium flex items-center gap-1">
+              <CheckCircle className="h-3.5 w-3.5" /> Password updated! DH Signature can see your new password in your profile.
+            </p>
+          )}
           <button onClick={handlePasswordChange}
             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
             Update password
           </button>
+          <p className="text-xs text-gray-400">Your new password will be visible to DH Signature for support purposes.</p>
         </div>
       </div>
     </div>
