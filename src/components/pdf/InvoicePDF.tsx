@@ -16,7 +16,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     const html2canvas = (await import('html2canvas')).default
     const el = document.getElementById('invoice-print-area-' + order.id)
     if (!el) return
-    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' })
+    const canvas = await html2canvas(el, {  background: '#ffffff' })
     const imgData = canvas.toDataURL('image/png')
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
     const w = pdf.internal.pageSize.getWidth()
@@ -81,7 +81,7 @@ Amounts received need to coincide with amounts invoiced.`
 
       <div
         id={'invoice-print-area-' + order.id}
-        style={{ position: 'fixed', left: '-9999px', top: 0, width: '794px', backgroundColor: '#fff', padding: '48px 56px', fontFamily: 'Arial, sans-serif', fontSize: '12px', color: '#1a1a1a', boxSizing: 'border-box' }}
+        style={{ position: 'fixed', left: '-9999px', top: 0, width: '794px', background: '#fff', padding: '48px 56px', fontFamily: 'Arial, sans-serif', fontSize: '12px', color: '#1a1a1a', boxSizing: 'border-box' }}
       >
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>

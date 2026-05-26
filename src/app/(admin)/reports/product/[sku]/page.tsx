@@ -113,7 +113,7 @@ export default function ProductReportPage() {
     if (!pdfRef.current) return
     const jsPDF = (await import('jspdf')).default
     const html2canvas = (await import('html2canvas')).default
-    const canvas = await html2canvas(pdfRef.current, { scale: 2, backgroundColor: '#ffffff' })
+    const canvas = await html2canvas(pdfRef.current, {  background: '#ffffff' })
     const imgData = canvas.toDataURL('image/png')
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
     const w = pdf.internal.pageSize.getWidth()
@@ -268,7 +268,7 @@ export default function ProductReportPage() {
       {/* ── PDF-ONLY SECTION (hidden off-screen) ── */}
       <div ref={pdfRef} style={{
         position: 'fixed', left: '-9999px', top: 0,
-        width: '794px', backgroundColor: '#fff',
+        width: '794px', background: '#fff',
         padding: '48px 56px', fontFamily: 'Arial, sans-serif',
         fontSize: '12px', color: '#1a1a1a', boxSizing: 'border-box'
       }}>

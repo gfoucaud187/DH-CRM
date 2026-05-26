@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ShoppingCart, Package, FileText, Clock, Plus } from 'lucide-react'
+import { ShoppingCart, FileText, Clock, Plus } from 'lucide-react'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:            'bg-gray-100 text-gray-500',
@@ -22,24 +22,26 @@ export default async function PortalDashboardPage() {
   const { data: customer } = await supabase
     .from('customers').select('payment_terms, currency').eq('id', profile?.customer_id).single()
 
-  const { data: pos = [] } = await supabase
+  const { data: posRaw } = await supabase
     .from('sales_orders').select('*')
     .eq('customer_id', profile?.customer_id)
     .eq('document_type', 'po')
     .neq('status', 'cancelled')
     .order('created_at', { ascending: false })
     .limit(5)
+  const pos = posRaw ?? []
 
-  const { data: invoices = [] } = await supabase
+  const { data: invoicesRaw } = await supabase
     .from('sales_orders').select('*')
     .eq('customer_id', profile?.customer_id)
     .eq('document_type', 'invoice')
     .eq('is_foc', false)
     .order('created_at', { ascending: false })
     .limit(5)
+  const invoices = invoicesRaw ?? []
 
-  const activePOs      = pos.filter((o: any) => ['draft','pending_approval'].includes(o.status))
-  const pendingInvoices = invoices.filter((o: any) => o.status !== 'paid')
+  const activePOs        = pos.filter((o: any) => ['draft','pending_approval'].includes(o.status))
+  const pendingInvoices  = invoices.filter((o: any) => o.status !== 'paid')
   const totalOutstanding = pendingInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
 
   const getDaysRemaining = (o: any) => {
@@ -57,7 +59,6 @@ export default async function PortalDashboardPage() {
         <p className="text-gray-500 text-sm mt-0.5">Overview of your account</p>
       </div>
 
-      {/* KPIs */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center gap-2 mb-3">
@@ -88,7 +89,6 @@ export default async function PortalDashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-6">
-        {/* Recent POs */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">My Orders</h2>
@@ -124,7 +124,6 @@ export default async function PortalDashboardPage() {
           )}
         </div>
 
-        {/* Recent Invoices */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Invoices</h2>

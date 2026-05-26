@@ -25,12 +25,13 @@ export default async function PortalOrdersPage() {
   const { data: profile } = await supabase
     .from('user_profiles').select('customer_id').eq('id', user.id).single()
 
-  const { data: orders = [] } = await supabase
+  const { data: ordersRaw } = await supabase
     .from('sales_orders').select('*')
     .eq('customer_id', profile?.customer_id)
     .eq('document_type', 'po')
     .neq('status', 'cancelled')
     .order('created_at', { ascending: false })
+  const orders: any[] = ordersRaw ?? []
 
   const rejected = orders.filter((o: any) => o.status === 'rejected')
 
@@ -47,16 +48,13 @@ export default async function PortalOrdersPage() {
         </Link>
       </div>
 
-      {/* Rejected alerts */}
       {rejected.length > 0 && (
         <div className="mb-6 space-y-2">
           {rejected.map((po: any) => (
             <div key={po.id} className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between">
               <div>
                 <p className="font-semibold text-red-800 text-sm">{po.order_number} was rejected</p>
-                {po.rejection_comment && (
-                  <p className="text-xs text-red-600 mt-1">{po.rejection_comment}</p>
-                )}
+                {po.rejection_comment && <p className="text-xs text-red-600 mt-1">{po.rejection_comment}</p>}
               </div>
               <Link href={`/portal/orders/${po.id}/edit`}
                 className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex-shrink-0">
@@ -90,16 +88,13 @@ export default async function PortalOrdersPage() {
               {orders.map((o: any) => (
                 <tr key={o.id} className={'hover:bg-gray-50 ' + (o.status === 'rejected' ? 'bg-red-50' : '')}>
                   <td className="px-5 py-3">
-                    <Link href={'/portal/orders/' + o.id}
-                      className="font-mono text-xs font-semibold text-blue-600 hover:underline">
+                    <Link href={'/portal/orders/' + o.id} className="font-mono text-xs font-semibold text-blue-600 hover:underline">
                       {o.order_number ?? 'Draft'}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{new Date(o.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3 text-right text-gray-600">{o.total_units ?? 0} u</td>
-                  <td className="px-4 py-3 text-right font-medium text-gray-900">
-                    {o.currency} {Number(o.total_amount).toFixed(2)}
-                  </td>
+                  <td className="px-4 py-3 text-right font-medium text-gray-900">{o.currency} {Number(o.total_amount).toFixed(2)}</td>
                   <td className="px-4 py-3">
                     <span className={'inline-flex px-2 py-0.5 rounded-full text-xs font-medium ' + (STATUS_COLORS[o.status] ?? 'bg-gray-100 text-gray-500')}>
                       {STATUS_LABELS[o.status] ?? o.status}
@@ -107,16 +102,10 @@ export default async function PortalOrdersPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     {o.status === 'draft' && (
-                      <Link href={`/portal/orders/${o.id}/edit`}
-                        className="text-xs text-gray-500 hover:text-gray-900 underline">
-                        Continue →
-                      </Link>
+                      <Link href={`/portal/orders/${o.id}/edit`} className="text-xs text-gray-500 hover:text-gray-900 underline">Continue →</Link>
                     )}
                     {o.status === 'rejected' && (
-                      <Link href={`/portal/orders/${o.id}/edit`}
-                        className="text-xs text-red-600 hover:underline font-medium">
-                        Edit & resubmit →
-                      </Link>
+                      <Link href={`/portal/orders/${o.id}/edit`} className="text-xs text-red-600 hover:underline font-medium">Edit & resubmit →</Link>
                     )}
                   </td>
                 </tr>

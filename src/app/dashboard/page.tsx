@@ -91,7 +91,7 @@ export default function DashboardPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Welcome back — here's what's happening</p>
+        <p className="text-gray-500 text-sm mt-0.5">Welcome back — here&apos;s what&apos;s happening</p>
       </div>
 
       {/* KPIs */}
