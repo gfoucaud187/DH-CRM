@@ -2,10 +2,10 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { ShoppingCart, Plus, Search, RotateCcw, X, AlertTriangle, Info } from 'lucide-react'
+import { ShoppingCart, Plus, Search, RotateCcw, X, AlertTriangle, Info, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:                'bg-gray-100 text-gray-500',
@@ -19,6 +19,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending_approval:     'bg-orange-100 text-orange-700',
   rejected:             'bg-red-100 text-red-600',
   approved:             'bg-green-100 text-green-700',
+  stock_transferred:    'bg-teal-100 text-teal-700',
 }
 
 const getDocLabel = (o: any) => {
@@ -40,7 +41,17 @@ const getDocColor = (o: any) => {
   if (o.document_type === 'so') return 'bg-blue-100 text-blue-700'
   if (o.document_type === 'proforma') return 'bg-gray-100 text-gray-600'
   if (o.document_type === 'so_sample') return 'bg-amber-100 text-amber-700'
+  if (o.document_type === 'so_int') return 'bg-teal-100 text-teal-700'
   return 'bg-gray-100 text-gray-600'
+}
+
+// Doc type order for grouping: proforma=0, so=1, invoice=2, others=3
+const getDocOrder = (o: any) => {
+  if (o.document_type === 'proforma') return 0
+  if (o.document_type === 'so' && !o.is_foc) return 1
+  if (o.document_type === 'invoice' && !o.is_foc) return 2
+  if (o.is_foc) return 3
+  return 4
 }
 
 const DOC_FILTER_OPTIONS = [
@@ -69,7 +80,7 @@ export default function OrdersPage() {
       const { data } = await supabase
         .from('sales_orders')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('order_date', { ascending: false })
       return data ?? []
     }
   })
@@ -93,8 +104,56 @@ export default function OrdersPage() {
     return matchDoc && matchSearch
   })
 
-  const filtered          = applyFilters(active)
-  const filteredCancelled = applyFilters(cancelled)
+  // Group linked documents together
+  const groupedOrders = useMemo(() => {
+    const filtered = applyFilters(active)
+
+    // Build a map of all orders by id
+    const byId: Record<string, any> = {}
+    filtered.forEach((o: any) => { byId[o.id] = o })
+
+    // Find root documents (not promoted from anything in the filtered set)
+    // A root is: has no promoted_from, OR its promoted_from is not in filtered
+    const groups: any[][] = []
+    const visited = new Set<string>()
+
+    // Sort filtered by date desc
+    const sorted = [...filtered].sort((a: any, b: any) =>
+      new Date(b.order_date ?? b.created_at).getTime() - new Date(a.order_date ?? a.created_at).getTime()
+    )
+
+    sorted.forEach((o: any) => {
+      if (visited.has(o.id)) return
+
+      // Find the root of this chain
+      let root = o
+      while (root.promoted_from && byId[root.promoted_from]) {
+        root = byId[root.promoted_from]
+      }
+
+      if (visited.has(root.id)) return
+
+      // Build the chain from root
+      const chain: any[] = []
+      const addToChain = (doc: any) => {
+        if (!doc || visited.has(doc.id)) return
+        visited.add(doc.id)
+        chain.push(doc)
+        // Find children (docs promoted from this one)
+        filtered
+          .filter((d: any) => d.promoted_from === doc.id)
+          .sort((a: any, b: any) => getDocOrder(a) - getDocOrder(b))
+          .forEach(addToChain)
+      }
+      addToChain(root)
+
+      // Sort chain: proforma → SO → INV
+      chain.sort((a: any, b: any) => getDocOrder(a) - getDocOrder(b))
+      groups.push(chain)
+    })
+
+    return groups
+  }, [allOrders, docFilter, search])
 
   const handleCancel = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
@@ -109,30 +168,46 @@ export default function OrdersPage() {
     queryClient.invalidateQueries({ queryKey: ['orders'] })
   }
 
-  const OrderRow = ({ o, cancelled = false }: { o: any; cancelled?: boolean }) => (
+  const OrderRow = ({ o, isChild = false, isLast = false, cancelled = false }: { o: any; isChild?: boolean; isLast?: boolean; cancelled?: boolean }) => (
     <tr onClick={() => router.push('/orders/' + o.id)}
       className={'cursor-pointer transition-colors ' + (cancelled ? 'opacity-50 bg-gray-50 hover:opacity-70' : 'hover:bg-gray-50')}>
-      <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-900">{o.order_number ?? 'Draft'}</td>
-      <td className="px-4 py-3 font-medium text-gray-900">{o.customer_name}</td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          {isChild && (
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="w-4 border-l-2 border-b-2 border-gray-200 h-4 rounded-bl" />
+              <ChevronRight className="h-3 w-3 text-gray-300 flex-shrink-0" />
+            </div>
+          )}
+          <span className="font-mono text-xs font-semibold text-gray-900">{o.order_number ?? 'Draft'}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3 font-medium text-gray-900 text-sm">
+        {isChild ? <span className="text-gray-400">↳</span> : o.customer_name}
+      </td>
       <td className="px-4 py-3">
         <span className={'text-xs px-2 py-0.5 rounded font-mono font-medium ' + getDocColor(o)}>{getDocLabel(o)}</span>
       </td>
-      <td className="px-4 py-3 text-gray-600">{o.warehouse}</td>
+      <td className="px-4 py-3 text-gray-600 text-sm">{o.warehouse}</td>
       <td className="px-4 py-3 text-right">
         <div className="flex flex-col items-end">
-          <span className="font-medium text-gray-900">{(o.total_units ?? 0).toLocaleString()} u</span>
+          <span className="font-medium text-gray-900 text-sm">{(o.total_units ?? 0).toLocaleString()} u</span>
           <span className="text-xs text-gray-400">{o.total_packs ?? 0} pk</span>
         </div>
       </td>
-      <td className="px-4 py-3 text-right font-medium text-gray-900">
-        {o.is_foc || o.is_sample ? <span className="text-green-600 text-xs">FOC</span> : o.currency + ' ' + Number(o.total_amount).toFixed(2)}
+      <td className="px-4 py-3 text-right font-medium text-gray-900 text-sm">
+        {o.is_foc || o.is_sample ? <span className="text-green-600 text-xs">FOC</span>
+          : o.document_type === 'so_int' ? <span className="text-teal-600 text-xs">INT</span>
+          : o.currency + ' ' + Number(o.total_amount).toFixed(2)}
       </td>
       <td className="px-4 py-3">
         <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (STATUS_COLORS[o.status] ?? 'bg-gray-100 text-gray-500')}>
           {o.status?.replace(/_/g, ' ')}
         </span>
       </td>
-      <td className="px-4 py-3 text-gray-400 text-xs">{new Date(o.created_at).toLocaleDateString()}</td>
+      <td className="px-4 py-3 text-gray-400 text-xs">
+        {o.order_date ? new Date(o.order_date).toLocaleDateString() : new Date(o.created_at).toLocaleDateString()}
+      </td>
       <td className="px-4 py-3">
         {cancelled ? (
           <button onClick={(e) => handleRestore(e, o.id)} title="Restore"
@@ -145,6 +220,15 @@ export default function OrdersPage() {
             <X className="h-4 w-4" />
           </button>
         )}
+      </td>
+    </tr>
+  )
+
+  // Separator row between groups
+  const GroupSeparator = () => (
+    <tr className="h-1">
+      <td colSpan={9} className="p-0">
+        <div className="h-px bg-gray-100" />
       </td>
     </tr>
   )
@@ -166,13 +250,14 @@ export default function OrdersPage() {
   )
 
   const allPOs = [...pendingPOs, ...rejectedPOs]
+  const filteredCancelled = applyFilters(cancelled)
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{filtered.length} of {active.length} active documents</p>
+          <p className="text-gray-500 text-sm mt-0.5">{groupedOrders.flat().length} of {active.length} active documents</p>
         </div>
         <Link href="/orders/new"
           className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
@@ -188,9 +273,6 @@ export default function OrdersPage() {
             <h2 className="font-semibold text-gray-900">Purchase Orders Received</h2>
             {pendingPOs.length > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-xs font-bold">{pendingPOs.length} pending</span>
-            )}
-            {rejectedPOs.length > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">{rejectedPOs.length} rejected</span>
             )}
           </div>
           <div className="bg-white rounded-xl border border-orange-200 overflow-hidden">
@@ -226,9 +308,7 @@ export default function OrdersPage() {
                         )}
                         {po.status === 'rejected' && po.rejection_comment && (
                           <div className="relative">
-                            <button
-                              onMouseEnter={() => setHoveredComment(po.id)}
-                              onMouseLeave={() => setHoveredComment(null)}
+                            <button onMouseEnter={() => setHoveredComment(po.id)} onMouseLeave={() => setHoveredComment(null)}
                               className="text-gray-400 hover:text-gray-600">
                               <Info className="h-4 w-4" />
                             </button>
@@ -243,8 +323,7 @@ export default function OrdersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => router.push('/orders/' + po.id)}
+                      <button onClick={() => router.push('/orders/' + po.id)}
                         className="flex items-center gap-1.5 px-4 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-700 transition-colors">
                         Open →
                       </button>
@@ -275,11 +354,11 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Active orders */}
+      {/* Active orders — grouped */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
         {isLoading ? (
           <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading...</div>
-        ) : filtered.length === 0 ? (
+        ) : groupedOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <ShoppingCart className="h-8 w-8 mb-2" />
             <p className="text-sm">No orders found</p>
@@ -287,8 +366,15 @@ export default function OrdersPage() {
         ) : (
           <table className="w-full text-sm">
             <TableHead />
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((o: any) => <OrderRow key={o.id} o={o} />)}
+            <tbody>
+              {groupedOrders.map((group, gi) => (
+                <>
+                  {group.map((o, idx) => (
+                    <OrderRow key={o.id} o={o} isChild={idx > 0} isLast={idx === group.length - 1} />
+                  ))}
+                  {gi < groupedOrders.length - 1 && <GroupSeparator key={`sep-${gi}`} />}
+                </>
+              ))}
             </tbody>
           </table>
         )}

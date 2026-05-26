@@ -1,21 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { BarChart3, Globe, Package, Users, Target, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { BarChart3, Globe, Package, Users, Target, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, Clock, XCircle, Calendar } from 'lucide-react'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
 const TABS = [
-  { id: 'overview',   label: 'Overview',   icon: BarChart3 },
-  { id: 'geography',  label: 'Geography',  icon: Globe },
-  { id: 'products',   label: 'Products',   icon: Package },
-  { id: 'clients',    label: 'Clients',    icon: Users },
-  { id: 'activity',   label: 'Activity',   icon: Target },
+  { id: 'overview',  label: 'Overview',  icon: BarChart3 },
+  { id: 'geography', label: 'Geography', icon: Globe },
+  { id: 'products',  label: 'Products',  icon: Package },
+  { id: 'clients',   label: 'Clients',   icon: Users },
+  { id: 'activity',  label: 'Activity',  icon: Target },
 ]
 
-function fmt(n: number, currency = 'USD') {
+const PERIODS = [
+  { id: 'ytd',     label: 'YTD' },
+  { id: '12m',     label: 'Last 12M' },
+  { id: '2y',      label: '2 Years' },
+  { id: '3y',      label: '3 Years' },
+  { id: 'all',     label: 'All time' },
+]
+
+function fmt(n: number) {
   if (n >= 1000000) return `$${(n/1000000).toFixed(1)}M`
   if (n >= 1000) return `$${(n/1000).toFixed(1)}K`
   return `$${n.toFixed(0)}`
@@ -25,7 +34,7 @@ function getHealthScore(lastOrderDays: number, freqPerMonth: number) {
   if (lastOrderDays > 365) return { label: 'Lost',    color: 'bg-gray-100 text-gray-500',   dot: 'bg-gray-400',   priority: 4 }
   if (lastOrderDays > 120) return { label: 'Dormant', color: 'bg-red-100 text-red-600',     dot: 'bg-red-500',    priority: 3 }
   if (lastOrderDays > 60 || freqPerMonth < 0.5) return { label: 'At risk', color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500', priority: 2 }
-  return { label: 'Active',   color: 'bg-green-100 text-green-700', dot: 'bg-green-500',  priority: 1 }
+  return { label: 'Active', color: 'bg-green-100 text-green-700', dot: 'bg-green-500', priority: 1 }
 }
 
 function Delta({ curr, prev }: { curr: number; prev: number }) {
@@ -37,17 +46,55 @@ function Delta({ curr, prev }: { curr: number; prev: number }) {
     : <span className="text-red-500 text-xs flex items-center gap-0.5"><TrendingDown className="h-3 w-3" />{Math.abs(p).toFixed(0)}%</span>
 }
 
+function getPeriodDates(period: string) {
+  const now = new Date()
+  let start: Date
+  let prevStart: Date
+  let prevEnd: Date
+
+  switch (period) {
+    case 'ytd':
+      start = new Date(now.getFullYear(), 0, 1)
+      prevStart = new Date(now.getFullYear() - 1, 0, 1)
+      prevEnd = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+      break
+    case '12m':
+      start = new Date(now); start.setFullYear(start.getFullYear() - 1)
+      prevStart = new Date(now); prevStart.setFullYear(prevStart.getFullYear() - 2)
+      prevEnd = new Date(start)
+      break
+    case '2y':
+      start = new Date(now); start.setFullYear(start.getFullYear() - 2)
+      prevStart = new Date(now); prevStart.setFullYear(prevStart.getFullYear() - 4)
+      prevEnd = new Date(start)
+      break
+    case '3y':
+      start = new Date(now); start.setFullYear(start.getFullYear() - 3)
+      prevStart = new Date(now); prevStart.setFullYear(prevStart.getFullYear() - 6)
+      prevEnd = new Date(start)
+      break
+    default: // all
+      start = new Date('2020-01-01')
+      prevStart = new Date('2015-01-01')
+      prevEnd = new Date('2020-01-01')
+  }
+  return { start, end: now, prevStart, prevEnd }
+}
+
 export default function ReportsPage() {
   const supabase = createClient()
   const router = useRouter()
   const [tab, setTab] = useState('overview')
+  const [period, setPeriod] = useState('ytd')
   const [activityFilter, setActivityFilter] = useState<'all'|'active'|'at_risk'|'dormant'|'lost'>('all')
   const [expandedRegion, setExpandedRegion] = useState<string | null>(null)
 
   const { data: customers = [] } = useQuery({
     queryKey: ['report-customers'],
     queryFn: async () => {
-      const { data } = await supabase.from('customers').select('id, legal_name, country, region, assigned_price_list, currency, status, is_european, eu_compliance_type, internal_owner').eq('status', 'active')
+      const { data } = await supabase.from('customers')
+        .select('id, legal_name, country, region, assigned_price_list, currency, status, is_european, eu_compliance_type, internal_owner')
+        .eq('status', 'active')
       return data ?? []
     }
   })
@@ -73,19 +120,31 @@ export default function ReportsPage() {
     }
   })
 
-  const invoices = orders.filter((o: any) => o.document_type === 'invoice' && !o.is_foc)
   const now = new Date()
+  const { start, end, prevStart, prevEnd } = useMemo(() => getPeriodDates(period), [period])
 
-  // ── OVERVIEW ──
-  const ytdInvoices = invoices.filter((o: any) => new Date(o.order_date ?? o.created_at).getFullYear() === now.getFullYear())
-  const lastYearInvoices = invoices.filter((o: any) => new Date(o.order_date ?? o.created_at).getFullYear() === now.getFullYear() - 1)
-  const ytdRevenue = ytdInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-  const lyRevenue = lastYearInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-  const ytdUnits = ytdInvoices.reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
-  const lyUnits = lastYearInvoices.reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
-  const activeClients = new Set(ytdInvoices.map((o: any) => o.customer_id)).size
-  const lyActiveClients = new Set(lastYearInvoices.map((o: any) => o.customer_id)).size
+  const invoices = orders.filter((o: any) => o.document_type === 'invoice' && !o.is_foc)
 
+  const inPeriod = (o: any) => {
+    const d = new Date(o.order_date ?? o.created_at)
+    return d >= start && d <= end
+  }
+  const inPrev = (o: any) => {
+    const d = new Date(o.order_date ?? o.created_at)
+    return d >= prevStart && d <= prevEnd
+  }
+
+  const periodInvoices = invoices.filter(inPeriod)
+  const prevInvoices   = invoices.filter(inPrev)
+
+  const periodRevenue = periodInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  const prevRevenue   = prevInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  const periodUnits   = periodInvoices.reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+  const prevUnits     = prevInvoices.reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+  const activeClients = new Set(periodInvoices.map((o: any) => o.customer_id)).size
+  const prevClients   = new Set(prevInvoices.map((o: any) => o.customer_id)).size
+
+  // Monthly trend — last 12 months always for chart
   const monthlyRevenue = Array.from({ length: 12 }, (_, i) => {
     const d = new Date(); d.setMonth(d.getMonth() - 11 + i)
     const key = `${d.getFullYear()}-${d.getMonth()}`
@@ -93,31 +152,29 @@ export default function ReportsPage() {
       const od = new Date(o.order_date ?? o.created_at)
       return `${od.getFullYear()}-${od.getMonth()}` === key
     }).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-    return { label: MONTHS[d.getMonth()], value: val }
+    return { label: MONTHS[d.getMonth()], value: val, year: d.getFullYear() }
   })
   const maxMonthly = Math.max(...monthlyRevenue.map(m => m.value), 1)
 
-  // ── GEOGRAPHY ──
+  // Geography
   const regionMap: Record<string, { clients: any[], revenue: number, units: number, prevRevenue: number }> = {}
   customers.forEach((c: any) => {
     const region = c.region ?? c.country ?? 'Unknown'
     if (!regionMap[region]) regionMap[region] = { clients: [], revenue: 0, units: 0, prevRevenue: 0 }
     regionMap[region].clients.push(c)
-    const cInvoices = ytdInvoices.filter((o: any) => o.customer_id === c.id)
-    const cPrevInvoices = lastYearInvoices.filter((o: any) => o.customer_id === c.id)
-    regionMap[region].revenue += cInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-    regionMap[region].units += cInvoices.reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
-    regionMap[region].prevRevenue += cPrevInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    regionMap[region].revenue += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    regionMap[region].prevRevenue += prevInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    regionMap[region].units += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
   })
   const regionList = Object.entries(regionMap).sort(([,a],[,b]) => b.revenue - a.revenue)
   const maxRegionRevenue = Math.max(...regionList.map(([,v]) => v.revenue), 1)
 
-  // ── PRODUCTS ──
+  // Products
   const brandMap: Record<string, { units: number, revenue: number }> = {}
   const productMap: Record<string, { units: number, revenue: number, brand: string }> = {}
   lines.forEach((l: any) => {
     const o = invoices.find((o: any) => o.id === l.order_id)
-    if (!o || new Date(o.order_date ?? o.created_at).getFullYear() !== now.getFullYear()) return
+    if (!o || !inPeriod(o)) return
     const brand = l.brand ?? 'Unknown'
     if (!brandMap[brand]) brandMap[brand] = { units: 0, revenue: 0 }
     brandMap[brand].units += l.quantity_units ?? 0
@@ -131,49 +188,47 @@ export default function ReportsPage() {
   const maxBrand = Math.max(...brandList.map(([,v]) => v.revenue), 1)
   const maxProduct = Math.max(...productList.map(([,v]) => v.units), 1)
 
-  // ── CLIENTS ──
-  const clientRevenue = customers.map((c: any) => {
-    const cInv = ytdInvoices.filter((o: any) => o.customer_id === c.id)
-    const cPrev = lastYearInvoices.filter((o: any) => o.customer_id === c.id)
-    const rev = cInv.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-    const prevRev = cPrev.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-    const units = cInv.reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
-    return { ...c, revenue: rev, prevRevenue: prevRev, units, orders: cInv.length }
-  }).filter((c: any) => c.revenue > 0).sort((a: any, b: any) => b.revenue - a.revenue)
+  // Clients
+  const clientRevenue = customers.map((c: any) => ({
+    ...c,
+    revenue: periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0),
+    prevRevenue: prevInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0),
+    units: periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0),
+    orders: periodInvoices.filter((o: any) => o.customer_id === c.id).length,
+  })).filter((c: any) => c.revenue > 0).sort((a: any, b: any) => b.revenue - a.revenue)
   const maxClientRev = Math.max(...clientRevenue.map((c: any) => c.revenue), 1)
 
-  // ── ACTIVITY ──
+  // Activity
   const activityData = customers.map((c: any) => {
     const cOrders = invoices.filter((o: any) => o.customer_id === c.id)
-    if (cOrders.length === 0) {
-      return { ...c, lastOrderDate: null, lastOrderDays: 9999, freqPerMonth: 0, revenue12m: 0, prevRevenue12m: 0, orderCount12m: 0, health: getHealthScore(9999, 0) }
-    }
-    const sorted = cOrders.sort((a: any, b: any) => new Date(b.order_date ?? b.created_at).getTime() - new Date(a.order_date ?? a.created_at).getTime())
+    if (!cOrders.length) return { ...c, lastOrderDate: null, lastOrderDays: 9999, freqPerMonth: 0, revenue12m: 0, prevRevenue12m: 0, orderCount12m: 0, health: getHealthScore(9999, 0), heatmap: Array(12).fill(0) }
+    const sorted = [...cOrders].sort((a: any, b: any) => new Date(b.order_date ?? b.created_at).getTime() - new Date(a.order_date ?? a.created_at).getTime())
     const lastDate = new Date(sorted[0].order_date ?? sorted[0].created_at)
     const lastOrderDays = Math.floor((now.getTime() - lastDate.getTime()) / 86400000)
-    const cutoff12m = new Date(); cutoff12m.setFullYear(cutoff12m.getFullYear() - 1)
-    const cutoff24m = new Date(); cutoff24m.setFullYear(cutoff24m.getFullYear() - 2)
-    const orders12m = cOrders.filter((o: any) => new Date(o.order_date ?? o.created_at) > cutoff12m)
-    const orders12m24m = cOrders.filter((o: any) => { const d = new Date(o.order_date ?? o.created_at); return d > cutoff24m && d <= cutoff12m })
-    const revenue12m = orders12m.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-    const prevRevenue12m = orders12m24m.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-    const freqPerMonth = orders12m.length / 12
-    // Heatmap: last 12 months order count
+    const cut12 = new Date(); cut12.setFullYear(cut12.getFullYear() - 1)
+    const cut24 = new Date(); cut24.setFullYear(cut24.getFullYear() - 2)
+    const o12 = cOrders.filter((o: any) => new Date(o.order_date ?? o.created_at) > cut12)
+    const o24 = cOrders.filter((o: any) => { const d = new Date(o.order_date ?? o.created_at); return d > cut24 && d <= cut12 })
     const heatmap = Array.from({ length: 12 }, (_, i) => {
       const d = new Date(); d.setMonth(d.getMonth() - 11 + i)
-      return cOrders.filter((o: any) => {
-        const od = new Date(o.order_date ?? o.created_at)
-        return od.getFullYear() === d.getFullYear() && od.getMonth() === d.getMonth()
-      }).length
+      return cOrders.filter((o: any) => { const od = new Date(o.order_date ?? o.created_at); return od.getFullYear() === d.getFullYear() && od.getMonth() === d.getMonth() }).length
     })
-    return { ...c, lastOrderDate: lastDate, lastOrderDays, freqPerMonth, revenue12m, prevRevenue12m, orderCount12m: orders12m.length, health: getHealthScore(lastOrderDays, freqPerMonth), heatmap }
+    return {
+      ...c,
+      lastOrderDate: lastDate,
+      lastOrderDays,
+      freqPerMonth: o12.length / 12,
+      revenue12m: o12.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0),
+      prevRevenue12m: o24.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0),
+      orderCount12m: o12.length,
+      health: getHealthScore(lastOrderDays, o12.length / 12),
+      heatmap,
+    }
   }).sort((a: any, b: any) => a.health.priority - b.health.priority || b.lastOrderDays - a.lastOrderDays)
 
-  const filteredActivity = activityData.filter((c: any) => {
-    if (activityFilter === 'all') return true
-    return c.health.label.toLowerCase().replace(' ', '_') === activityFilter
-  })
-
+  const filteredActivity = activityData.filter((c: any) =>
+    activityFilter === 'all' || c.health.label.toLowerCase().replace(' ', '_') === activityFilter
+  )
   const healthCounts = {
     active:  activityData.filter((c: any) => c.health.label === 'Active').length,
     at_risk: activityData.filter((c: any) => c.health.label === 'At risk').length,
@@ -183,9 +238,21 @@ export default function ReportsPage() {
 
   return (
     <div className="max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Business intelligence & analytics</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Business intelligence & analytics</p>
+        </div>
+        {/* Period selector */}
+        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
+          <Calendar className="h-4 w-4 text-gray-400 ml-2" />
+          {PERIODS.map(p => (
+            <button key={p.id} onClick={() => setPeriod(p.id)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${period === p.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab navigation */}
@@ -207,20 +274,20 @@ export default function ReportsPage() {
         })}
       </div>
 
-      {/* ── OVERVIEW TAB ── */}
+      {/* ── OVERVIEW ── */}
       {tab === 'overview' && (
         <div className="space-y-5">
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Revenue YTD',    value: fmt(ytdRevenue),              prev: lyRevenue,       sub: `${ytdInvoices.length} invoices` },
-              { label: 'Units YTD',      value: ytdUnits.toLocaleString(),    prev: lyUnits,         sub: 'units shipped' },
-              { label: 'Active clients', value: activeClients.toString(),     prev: lyActiveClients, sub: 'ordered this year' },
-            ].map(({ label, value, prev, sub }) => (
+              { label: 'Revenue',        value: fmt(periodRevenue), curr: periodRevenue, prev: prevRevenue, sub: `${periodInvoices.length} invoices` },
+              { label: 'Units shipped',  value: periodUnits.toLocaleString(), curr: periodUnits, prev: prevUnits, sub: 'units' },
+              { label: 'Active clients', value: activeClients.toString(), curr: activeClients, prev: prevClients, sub: 'ordered in period' },
+            ].map(({ label, value, curr, prev, sub }) => (
               <div key={label} className="bg-white rounded-xl border border-gray-200 p-5">
                 <p className="text-sm text-gray-500 mb-1">{label}</p>
                 <div className="flex items-baseline gap-2">
                   <p className="text-3xl font-bold text-gray-900">{value}</p>
-                  <Delta curr={typeof value === 'string' ? parseFloat(value.replace(/[^0-9.]/g,'')) : value as any} prev={prev} />
+                  <Delta curr={curr} prev={prev} />
                 </div>
                 <p className="text-xs text-gray-400 mt-1">{sub}</p>
               </div>
@@ -228,7 +295,7 @@ export default function ReportsPage() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">Revenue trend — last 12 months</h2>
+            <h2 className="font-semibold text-gray-900 mb-4">Revenue — last 12 months</h2>
             <div className="flex items-end gap-2" style={{ height: '120px' }}>
               {monthlyRevenue.map((m, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1">
@@ -242,7 +309,7 @@ export default function ReportsPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="font-semibold text-gray-900 mb-3">Top regions YTD</h2>
+              <h2 className="font-semibold text-gray-900 mb-3">Top regions</h2>
               {regionList.slice(0,6).map(([region, data]) => (
                 <div key={region} className="flex items-center gap-3 mb-2.5">
                   <span className="text-sm text-gray-600 w-28 truncate">{region}</span>
@@ -254,7 +321,7 @@ export default function ReportsPage() {
               ))}
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="font-semibold text-gray-900 mb-3">Top brands YTD</h2>
+              <h2 className="font-semibold text-gray-900 mb-3">Top brands</h2>
               {brandList.slice(0,6).map(([brand, data]) => (
                 <div key={brand} className="flex items-center gap-3 mb-2.5">
                   <span className="text-sm text-gray-600 w-28 truncate">{brand}</span>
@@ -269,15 +336,15 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* ── GEOGRAPHY TAB ── */}
+      {/* ── GEOGRAPHY ── */}
       {tab === 'geography' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-3 mb-2">
+          <div className="grid grid-cols-4 gap-3">
             {[
-              { label: 'Regions',         value: regionList.length },
-              { label: 'Active clients',  value: customers.length },
-              { label: 'Revenue YTD',     value: fmt(ytdRevenue) },
-              { label: 'Avg per region',  value: fmt(ytdRevenue / Math.max(regionList.length, 1)) },
+              { label: 'Regions',        value: regionList.length },
+              { label: 'Active clients', value: customers.length },
+              { label: 'Revenue',        value: fmt(periodRevenue) },
+              { label: 'Avg per region', value: fmt(periodRevenue / Math.max(regionList.length, 1)) },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
                 <p className="text-xs text-gray-500 mb-1">{label}</p>
@@ -285,24 +352,22 @@ export default function ReportsPage() {
               </div>
             ))}
           </div>
-
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="text-left px-5 py-3 font-medium text-gray-600">Region</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Clients</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue YTD</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">vs LY</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">vs prev</th>
                   <th className="px-4 py-3 w-40" />
                 </tr>
               </thead>
               <tbody>
                 {regionList.map(([region, data]) => (
                   <>
-                    <tr key={region}
-                      onClick={() => setExpandedRegion(expandedRegion === region ? null : region)}
+                    <tr key={region} onClick={() => setExpandedRegion(expandedRegion === region ? null : region)}
                       className="cursor-pointer hover:bg-gray-50 border-b border-gray-100">
                       <td className="px-5 py-3 font-semibold text-gray-900">
                         <div className="flex items-center gap-2">
@@ -321,9 +386,9 @@ export default function ReportsPage() {
                       </td>
                     </tr>
                     {expandedRegion === region && data.clients.map((c: any) => {
-                      const cRev = ytdInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-                      const cPrev = lastYearInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-                      const cUnits = ytdInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+                      const cRev = periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+                      const cPrev = prevInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+                      const cUnits = periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
                       return (
                         <tr key={c.id} className="bg-blue-50 border-b border-blue-100 hover:bg-blue-100 cursor-pointer"
                           onClick={e => { e.stopPropagation(); router.push('/reports/client/' + c.id) }}>
@@ -336,7 +401,7 @@ export default function ReportsPage() {
                           <td className="px-4 py-2.5 text-right text-sm font-medium text-gray-900">{cRev > 0 ? fmt(cRev) : '—'}</td>
                           <td className="px-4 py-2.5 text-right text-sm text-gray-600">{cUnits > 0 ? cUnits.toLocaleString() : '—'}</td>
                           <td className="px-4 py-2.5 text-right"><Delta curr={cRev} prev={cPrev} /></td>
-                          <td className="px-4 py-2.5 text-right text-xs text-blue-600">View report →</td>
+                          <td className="px-4 py-2.5 text-right text-xs text-blue-600">View →</td>
                         </tr>
                       )
                     })}
@@ -348,12 +413,12 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* ── PRODUCTS TAB ── */}
+      {/* ── PRODUCTS ── */}
       {tab === 'products' && (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-5">
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="font-semibold text-gray-900 mb-4">Revenue by brand YTD</h2>
+              <h2 className="font-semibold text-gray-900 mb-4">Revenue by brand</h2>
               {brandList.map(([brand, data]) => (
                 <div key={brand} className="flex items-center gap-3 mb-3">
                   <span className="text-sm text-gray-700 w-32 truncate">{brand}</span>
@@ -363,18 +428,16 @@ export default function ReportsPage() {
                       <span className="text-white" style={{ fontSize: '9px' }}>{fmt(data.revenue)}</span>
                     </div>
                   </div>
-                  <span className="text-xs text-gray-400 w-16 text-right">{data.units.toLocaleString()} u</span>
+                  <span className="text-xs text-gray-400 w-16 text-right">{data.units.toLocaleString()}u</span>
                 </div>
               ))}
             </div>
-
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="font-semibold text-gray-900 mb-4">Top products by units YTD</h2>
+              <h2 className="font-semibold text-gray-900 mb-4">Top products by units</h2>
               {productList.map(([name, data], i) => (
                 <div key={name} className="flex items-center gap-2 mb-2.5">
                   <span className="text-xs text-gray-400 w-4 text-right">{i+1}</span>
-                  <button onClick={() => router.push('/reports/product/' + encodeURIComponent(Object.keys(productMap).find(k => k === name) ?? name))}
-                    className="text-xs text-gray-700 w-40 truncate text-left hover:text-blue-600" title={name}>{name}</button>
+                  <span className="text-xs text-gray-700 w-44 truncate" title={name}>{name}</span>
                   <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${(data.units/maxProduct)*100}%`, background: '#185FA5' }} />
                   </div>
@@ -386,7 +449,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* ── CLIENTS TAB ── */}
+      {/* ── CLIENTS ── */}
       {tab === 'clients' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <table className="w-full text-sm">
@@ -395,11 +458,11 @@ export default function ReportsPage() {
                 <th className="text-left px-5 py-3 font-medium text-gray-600">#</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Region</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue YTD</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Orders</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">vs LY</th>
-                <th className="px-4 py-3 w-32" />
+                <th className="text-right px-4 py-3 font-medium text-gray-600">vs prev</th>
+                <th className="px-4 py-3 w-20" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -427,17 +490,16 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* ── ACTIVITY TAB ── */}
+      {/* ── ACTIVITY ── */}
       {tab === 'activity' && (
         <div className="space-y-4">
-          {/* Health summary */}
           <div className="grid grid-cols-4 gap-3">
             {[
-              { key: 'active',  label: 'Active',   count: healthCounts.active,  icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' },
-              { key: 'at_risk', label: 'At risk',  count: healthCounts.at_risk, icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
-              { key: 'dormant', label: 'Dormant',  count: healthCounts.dormant, icon: Clock, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
-              { key: 'lost',    label: 'Lost',     count: healthCounts.lost,    icon: XCircle, color: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-200' },
-            ].map(({ key, label, count, icon: Icon, color, bg, border }) => (
+              { key: 'active',  label: 'Active',  count: healthCounts.active,  icon: CheckCircle,  color: 'text-green-600', bg: 'bg-green-50',  border: 'border-green-200', desc: '< 60 days, regular' },
+              { key: 'at_risk', label: 'At risk', count: healthCounts.at_risk, icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50',  border: 'border-amber-200', desc: '60–120 days or low freq' },
+              { key: 'dormant', label: 'Dormant', count: healthCounts.dormant, icon: Clock,         color: 'text-red-600',   bg: 'bg-red-50',    border: 'border-red-200',   desc: '120–365 days' },
+              { key: 'lost',    label: 'Lost',    count: healthCounts.lost,    icon: XCircle,       color: 'text-gray-500',  bg: 'bg-gray-50',   border: 'border-gray-200',  desc: '> 365 days' },
+            ].map(({ key, label, count, icon: Icon, color, bg, border, desc }) => (
               <button key={key}
                 onClick={() => setActivityFilter(activityFilter === key as any ? 'all' : key as any)}
                 className={`rounded-xl border-2 p-4 text-left transition-all ${activityFilter === key ? border + ' ' + bg : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
@@ -446,30 +508,24 @@ export default function ReportsPage() {
                   <span className="text-2xl font-bold text-gray-900">{count}</span>
                 </div>
                 <p className={`text-sm font-medium ${color}`}>{label}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {key === 'active'  && '< 60 days, regular'}
-                  {key === 'at_risk' && '60–120 days or low freq'}
-                  {key === 'dormant' && '120–365 days'}
-                  {key === 'lost'    && '> 365 days'}
-                </p>
+                <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
               </button>
             ))}
           </div>
 
-          {/* Activity table */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-semibold text-gray-900">
                 Customer Activity Tracker
                 <span className="ml-2 text-sm font-normal text-gray-400">{filteredActivity.length} clients</span>
               </h2>
-              <div className="text-xs text-gray-400 flex items-center gap-4">
-                <span>Heatmap = orders/month (12 months)</span>
+              <div className="flex items-center gap-3 text-xs text-gray-400">
+                <span>Heatmap = orders/month</span>
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded bg-gray-100" /> 0
-                  <div className="w-3 h-3 rounded bg-blue-200 ml-1" /> 1
-                  <div className="w-3 h-3 rounded bg-blue-400 ml-1" /> 2
-                  <div className="w-3 h-3 rounded bg-blue-600 ml-1" /> 3+
+                  <div className="w-3 h-3 rounded bg-gray-100" />0
+                  <div className="w-3 h-3 rounded bg-blue-200 ml-1" />1
+                  <div className="w-3 h-3 rounded bg-blue-400 ml-1" />2
+                  <div className="w-3 h-3 rounded bg-blue-600 ml-1" />3+
                 </div>
               </div>
             </div>
@@ -482,7 +538,7 @@ export default function ReportsPage() {
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Freq/mo</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">12M value</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">vs prev</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Activity (12mo)</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Activity</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Score</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -514,7 +570,7 @@ export default function ReportsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-0.5 justify-center">
                         {(c.heatmap ?? []).map((count: number, i: number) => (
-                          <div key={i} title={`${MONTHS[new Date(new Date().setMonth(new Date().getMonth()-11+i)).getMonth()]}: ${count} orders`}
+                          <div key={i} title={`${MONTHS[(new Date().getMonth() - 11 + i + 12) % 12]}: ${count}`}
                             className="w-3.5 h-3.5 rounded-sm flex-shrink-0"
                             style={{ background: count === 0 ? '#F3F4F6' : count === 1 ? '#BFDBFE' : count === 2 ? '#60A5FA' : '#1D4ED8' }} />
                         ))}
@@ -523,9 +579,7 @@ export default function ReportsPage() {
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <div className={`w-2 h-2 rounded-full ${c.health.dot}`} />
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.health.color}`}>
-                          {c.health.label}
-                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.health.color}`}>{c.health.label}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right text-xs text-blue-600">View →</td>

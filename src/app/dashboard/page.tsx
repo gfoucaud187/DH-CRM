@@ -17,6 +17,7 @@ const STATUS_COLORS: Record<string, string> = {
   sent_to_customer:     'bg-blue-100 text-blue-700',
   pending_approval:     'bg-orange-100 text-orange-700',
   rejected:             'bg-red-100 text-red-600',
+  stock_transferred:    'bg-teal-100 text-teal-700',
 }
 
 const getDocLabel = (o: any) => {
@@ -27,6 +28,7 @@ const getDocLabel = (o: any) => {
   if (o.document_type === 'invoice') return 'INV'
   if (o.document_type === 'proforma') return 'PF'
   if (o.document_type === 'so_sample') return 'SO(SAMPLE)'
+  if (o.document_type === 'so_int') return 'SO(INT)'
   return o.document_type?.toUpperCase()
 }
 
@@ -37,7 +39,14 @@ const getDocColor = (o: any) => {
   if (o.document_type === 'so') return 'bg-blue-100 text-blue-700'
   if (o.document_type === 'proforma') return 'bg-gray-100 text-gray-600'
   if (o.document_type === 'so_sample') return 'bg-amber-100 text-amber-700'
+  if (o.document_type === 'so_int') return 'bg-teal-100 text-teal-700'
   return 'bg-gray-100 text-gray-600'
+}
+
+const fmt = (n: number) => {
+  if (n >= 1000000) return `$${(n/1000000).toFixed(1)}M`
+  if (n >= 1000) return `$${(n/1000).toFixed(1)}K`
+  return `$${n.toFixed(0)}`
 }
 
 export default function DashboardPage() {
@@ -50,24 +59,33 @@ export default function DashboardPage() {
       const { data } = await supabase
         .from('sales_orders')
         .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50)
+        .order('order_date', { ascending: false })
       return data ?? []
     }
   })
 
+  const now = new Date()
+  const startOfYear = new Date(now.getFullYear(), 0, 1)
+
   const activeOrders   = orders.filter((o: any) => !['completed','cancelled'].includes(o.status) && o.document_type !== 'po')
   const pendingPOs     = orders.filter((o: any) => o.document_type === 'po' && o.status === 'pending_approval')
-  const invoices       = orders.filter((o: any) => o.document_type === 'invoice' && !o.is_foc)
-  const revenueYTD     = invoices.filter((o: any) => new Date(o.created_at).getFullYear() === new Date().getFullYear())
-                                 .reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-  const pendingPayment = invoices.filter((o: any) => ['draft','sent_to_customer'].includes(o.status))
-                                 .reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  const allInvoices    = orders.filter((o: any) => o.document_type === 'invoice' && !o.is_foc)
+
+  const invoicesYTD    = allInvoices.filter((o: any) => {
+    const d = new Date(o.order_date ?? o.created_at)
+    return d >= startOfYear && d <= now
+  })
+
+  const revenueYTD     = invoicesYTD.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  const pendingPayment = allInvoices
+    .filter((o: any) => ['draft','sent_to_customer'].includes(o.status))
+    .reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
   const readyToShip    = orders.filter((o: any) => o.status === 'ready_for_shipment').length
 
-  const last5 = orders.slice(0, 5)
-
-  const fmt = (n: number) => n >= 1000 ? `$${(n/1000).toFixed(1)}K` : `$${n.toFixed(0)}`
+  // Recent 8 orders (non-PO, sorted by order_date)
+  const recent = orders
+    .filter((o: any) => o.document_type !== 'po')
+    .slice(0, 8)
 
   return (
     <div>
@@ -79,10 +97,10 @@ export default function DashboardPage() {
       {/* KPIs */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         {[
-          { icon: TrendingUp,   label: 'Revenue YTD',      value: fmt(revenueYTD),          sub: `${invoices.length} invoices`,    color: 'text-blue-600',   bg: 'bg-blue-50' },
-          { icon: ShoppingCart, label: 'Active orders',    value: activeOrders.length,       sub: `${readyToShip} ready to ship`,   color: 'text-purple-600', bg: 'bg-purple-50' },
-          { icon: AlertCircle,  label: 'Pending payment',  value: fmt(pendingPayment),       sub: 'outstanding invoices',           color: 'text-amber-600',  bg: 'bg-amber-50' },
-          { icon: Package,      label: 'POs awaiting',     value: pendingPOs.length,         sub: 'purchase orders to review',      color: 'text-orange-600', bg: 'bg-orange-50' },
+          { icon: TrendingUp,   label: 'Revenue YTD',     value: fmt(revenueYTD),    sub: `${invoicesYTD.length} invoices this year`,  color: 'text-blue-600',   bg: 'bg-blue-50' },
+          { icon: ShoppingCart, label: 'Active orders',   value: activeOrders.length, sub: `${readyToShip} ready to ship`,              color: 'text-purple-600', bg: 'bg-purple-50' },
+          { icon: AlertCircle,  label: 'Pending payment', value: fmt(pendingPayment), sub: 'outstanding invoices',                       color: 'text-amber-600',  bg: 'bg-amber-50' },
+          { icon: Package,      label: 'POs awaiting',    value: pendingPOs.length,   sub: 'purchase orders to review',                  color: 'text-orange-600', bg: 'bg-orange-50' },
         ].map(({ icon: Icon, label, value, sub, color, bg }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-3">
@@ -95,7 +113,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Last 5 orders */}
+      {/* Recent orders */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="font-semibold text-gray-900">Recent Orders</h2>
@@ -117,18 +135,13 @@ export default function DashboardPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {last5.map((o: any) => (
-              <tr key={o.id}
-                onClick={() => router.push('/orders/' + o.id)}
+            {recent.map((o: any) => (
+              <tr key={o.id} onClick={() => router.push('/orders/' + o.id)}
                 className="hover:bg-gray-50 cursor-pointer transition-colors">
-                <td className="px-5 py-3 font-mono text-xs font-semibold text-gray-900">
-                  {o.order_number ?? 'Draft'}
-                </td>
+                <td className="px-5 py-3 font-mono text-xs font-semibold text-gray-900">{o.order_number ?? 'Draft'}</td>
                 <td className="px-4 py-3 font-medium text-gray-900">{o.customer_name}</td>
                 <td className="px-4 py-3">
-                  <span className={'text-xs px-2 py-0.5 rounded font-mono font-medium ' + getDocColor(o)}>
-                    {getDocLabel(o)}
-                  </span>
+                  <span className={'text-xs px-2 py-0.5 rounded font-mono font-medium ' + getDocColor(o)}>{getDocLabel(o)}</span>
                 </td>
                 <td className="px-4 py-3 text-gray-600">{o.warehouse ?? '—'}</td>
                 <td className="px-4 py-3 text-right">
@@ -140,6 +153,8 @@ export default function DashboardPage() {
                 <td className="px-4 py-3 text-right font-medium text-gray-900">
                   {o.is_foc || o.is_sample
                     ? <span className="text-green-600 text-xs">FOC</span>
+                    : o.document_type === 'so_int'
+                    ? <span className="text-teal-600 text-xs">INT</span>
                     : `${o.currency} ${Number(o.total_amount).toFixed(2)}`}
                 </td>
                 <td className="px-4 py-3">
@@ -148,7 +163,7 @@ export default function DashboardPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-gray-400 text-xs">
-                  {new Date(o.created_at).toLocaleDateString()}
+                  {new Date(o.order_date ?? o.created_at).toLocaleDateString()}
                 </td>
               </tr>
             ))}
