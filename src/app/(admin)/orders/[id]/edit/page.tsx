@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Save, Trash2, Plus, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
+import { logActivity } from '@/lib/log-activity'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 
@@ -195,6 +196,25 @@ export default function EditOrderPage() {
         }
       }
 
+      await logActivity({
+        action: 'update_order',
+        entityType: 'order',
+        entityId: id as string,
+        entityRef: order.order_number,
+        newValue: {
+          warehouse,
+          total_amount: totalAmount,
+          total_units: totalUnits,
+          total_packs: totalPacks,
+          ...(isInt ? { warehouse_destination: warehouseDestination } : {}),
+        },
+        metadata: {
+          document_type: order.document_type,
+          customer: order.customer_name,
+          lines_count: lines.length,
+        },
+      })
+
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       router.push('/orders/' + id)
@@ -247,7 +267,6 @@ export default function EditOrderPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
             <h2 className="font-semibold text-gray-900">{isInt ? 'Transfer Details' : 'Order Details'}</h2>
 
-            {/* INT: FROM + TO */}
             {isInt ? (
               <>
                 <div>
@@ -267,7 +286,6 @@ export default function EditOrderPage() {
                     {availableTo.map(w => <option key={w} value={w}>{w}</option>)}
                   </select>
                 </div>
-                {/* Visual */}
                 <div className="flex items-center justify-center gap-3 py-2 bg-teal-50 rounded-lg">
                   <span className="px-3 py-1 bg-white border border-teal-200 rounded text-sm font-bold text-teal-800">{warehouse}</span>
                   <ArrowRight className="h-4 w-4 text-teal-500" />

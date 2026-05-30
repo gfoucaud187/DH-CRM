@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Package, Truck, CheckCircle, XCircle, FileText, Edit, Send, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import InvoicePDF from '@/components/pdf/InvoicePDF'
+import { logActivity } from '@/lib/log-activity'
 
 const SO_STATUSES = [
   { value: 'draft',               label: 'Draft',               icon: FileText,    color: 'bg-gray-100 text-gray-600' },
@@ -107,11 +108,20 @@ export default function OrderDetailPage() {
 
   const { mutate: updateStatus } = useMutation({
     mutationFn: async (status: any) => {
+      const oldStatus = order?.status
       const { error } = await supabase
         .from('sales_orders')
         .update({ status })
         .eq('id', id as string)
       if (error) throw error
+      await logActivity({
+        action: 'update_order_status',
+        entityType: 'order',
+        entityId: id as string,
+        entityRef: order?.order_number,
+        oldValue: { status: oldStatus },
+        newValue: { status },
+      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', id] })
@@ -126,8 +136,17 @@ export default function OrderDetailPage() {
       body: JSON.stringify({ order_id: id }),
     })
     const data = await res.json()
-    if (data.success) router.push('/orders/' + data.invoice.id)
-    else alert('Error: ' + data.error)
+    if (data.success) {
+      await logActivity({
+        action: 'promote_order',
+        entityType: 'order',
+        entityId: id as string,
+        entityRef: order?.order_number,
+        newValue: { promoted_to: data.invoice?.order_number },
+        metadata: { from_type: order?.document_type, to_type: 'invoice' },
+      })
+      router.push('/orders/' + data.invoice.id)
+    } else alert('Error: ' + data.error)
   }
 
   const handleCreateFoc = async () => {
@@ -137,8 +156,16 @@ export default function OrderDetailPage() {
       body: JSON.stringify({ so_id: id }),
     })
     const data = await res.json()
-    if (data.success) router.push('/orders/' + data.foc_order.id + '/edit')
-    else if (data.existing_id) router.push('/orders/' + data.existing_id)
+    if (data.success) {
+      await logActivity({
+        action: 'promote_order',
+        entityType: 'order',
+        entityId: id as string,
+        entityRef: order?.order_number,
+        metadata: { type: 'foc', foc_number: data.foc_order?.order_number },
+      })
+      router.push('/orders/' + data.foc_order.id + '/edit')
+    } else if (data.existing_id) router.push('/orders/' + data.existing_id)
     else alert('Error: ' + data.error)
   }
 
@@ -151,6 +178,14 @@ export default function OrderDetailPage() {
     const data = await res.json()
     if (data.success) {
       await supabase.from('sales_orders').update({ status: 'approved' }).eq('id', id as string)
+      await logActivity({
+        action: 'approve_po',
+        entityType: 'order',
+        entityId: id as string,
+        entityRef: order?.order_number,
+        newValue: { status: 'approved', so_number: data.invoice?.order_number },
+        metadata: { customer: order?.customer_name },
+      })
       router.push('/orders/' + data.invoice.id)
     } else alert('Error: ' + data.error)
   }
@@ -162,6 +197,14 @@ export default function OrderDetailPage() {
       status: 'rejected',
       rejection_comment: comment,
     }).eq('id', id as string)
+    await logActivity({
+      action: 'reject_po',
+      entityType: 'order',
+      entityId: id as string,
+      entityRef: order?.order_number,
+      newValue: { status: 'rejected' },
+      metadata: { reason: comment, customer: order?.customer_name },
+    })
     queryClient.invalidateQueries({ queryKey: ['order', id] })
     queryClient.invalidateQueries({ queryKey: ['orders'] })
     router.push('/orders')
@@ -217,7 +260,6 @@ export default function OrderDetailPage() {
               <span className="px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-700">⚠ Stock review</span>
             )}
           </div>
-          {/* SO(INT) warehouse display */}
           {isInt ? (
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded">{order.warehouse}</span>
@@ -229,24 +271,17 @@ export default function OrderDetailPage() {
             <p className="text-gray-500 text-sm mt-0.5">{order.customer_name} · {order.warehouse}</p>
           )}
         </div>
-        {isDraft && !isPO && !isInt && (
+        {(isDraft && !isPO) || (isDraft && isInt) ? (
           <Link href={'/orders/' + id + '/edit'}
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
             <Edit className="h-4 w-4" /> Edit
           </Link>
-        )}
-        {isDraft && isInt && (
-          <Link href={'/orders/' + id + '/edit'}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
-            <Edit className="h-4 w-4" /> Edit
-          </Link>
-        )}
+        ) : null}
       </div>
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-1 space-y-4">
 
-          {/* SO(INT) stock transfer info */}
           {isInt && (
             <div className="bg-teal-50 rounded-xl border border-teal-200 p-4">
               <h2 className="font-semibold text-teal-900 mb-3">Internal Transfer</h2>
@@ -269,7 +304,6 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* PO Actions */}
           {isPO && order.status === 'pending_approval' && (
             <>
               <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
@@ -334,8 +368,16 @@ export default function OrderDetailPage() {
                   body: JSON.stringify({ order_id: id, target_type: 'so' }),
                 })
                 const data = await res.json()
-                if (data.success) router.push('/orders/' + data.invoice.id)
-                else alert('Error: ' + data.error)
+                if (data.success) {
+                  await logActivity({
+                    action: 'promote_order',
+                    entityType: 'order',
+                    entityId: id as string,
+                    entityRef: order?.order_number,
+                    metadata: { from_type: 'proforma', to_type: 'so', so_number: data.invoice?.order_number },
+                  })
+                  router.push('/orders/' + data.invoice.id)
+                } else alert('Error: ' + data.error)
               }}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
                 <FileText className="h-4 w-4" /> Convert to SO
@@ -365,11 +407,9 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* Order Info */}
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
             <h2 className="font-semibold text-gray-900">Order Info</h2>
             {isInt ? (
-              // INT: show warehouse transfer info only
               [
                 { label: 'From Warehouse',    value: order.warehouse },
                 { label: 'To Warehouse',      value: order.warehouse_destination ?? '—' },
@@ -405,7 +445,6 @@ export default function OrderDetailPage() {
             )}
           </div>
 
-          {/* Status change */}
           {!isPO && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-3">Change Status</h2>
@@ -455,7 +494,6 @@ export default function OrderDetailPage() {
             ))}
           </div>
 
-          {/* PDF only for non-INT documents */}
           {!isInt && !isPO && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-3">Document</h2>

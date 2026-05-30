@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { logActivity } from '@/lib/log-activity'
 import { useRouter } from 'next/navigation'
 import { Save, Plus, Trash2, KeyRound, Send, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 
@@ -200,7 +201,17 @@ export default function PortalProfilePage() {
       requested_changes: requested,
       status: 'pending',
     }).select().single()
-    if (!error) { setPendingRequest(data); setSubmitted(true) }
+    if (!error) {
+      await logActivity({
+        action: 'submit_profile_request',
+        entityType: 'profile_request',
+        entityId: data.id,
+        entityRef: customer.legal_name,
+        newValue: requested,
+        metadata: { fields_changed: Object.keys(requested) },
+      })
+      setPendingRequest(data); setSubmitted(true)
+    }
     else alert('Error: ' + error.message)
     setSubmitting(false)
   }

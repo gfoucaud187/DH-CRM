@@ -1,9 +1,9 @@
 'use client'
-
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { logActivity } from '@/lib/log-activity'
 
 export default function PortalLoginPage() {
   const supabase = createClient()
@@ -17,19 +17,20 @@ export default function PortalLoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
     if (signInError) { setError(signInError.message); setLoading(false); return }
-
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setError('Could not get user'); setLoading(false); return }
-
     const { data: profile, error: profileError } = await supabase
-      .from('user_profiles').select('role').eq('id', user.id).single()
-
+      .from('user_profiles').select('role, customer_id').eq('id', user.id).single()
     if (profileError) { setError('Profile error: ' + profileError.message); setLoading(false); return }
-
     if (profile?.role === 'client') {
+      await logActivity({
+        action: 'login',
+        entityType: 'auth',
+        entityRef: email,
+        metadata: { role: 'client', customer_id: profile.customer_id },
+      })
       router.push('/portal/dashboard')
     } else {
       await supabase.auth.signOut()
@@ -46,7 +47,6 @@ export default function PortalLoginPage() {
           <div className="text-xs text-gray-500 font-bold tracking-widest mt-1">SIGNATURE</div>
           <p className="text-gray-400 text-sm mt-4">Client Portal</p>
         </div>
-
         <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800">
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -68,7 +68,6 @@ export default function PortalLoginPage() {
             </button>
           </form>
         </div>
-
         <div className="text-center mt-4 space-y-2">
           <p className="text-gray-600 text-xs">DH Signature · Trade Portal · Confidential</p>
           <Link href="/login" className="text-gray-500 text-xs hover:text-gray-300 underline block">

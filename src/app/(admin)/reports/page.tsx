@@ -17,11 +17,11 @@ const TABS = [
 ]
 
 const PERIODS = [
-  { id: 'ytd',     label: 'YTD' },
-  { id: '12m',     label: 'Last 12M' },
-  { id: '2y',      label: '2 Years' },
-  { id: '3y',      label: '3 Years' },
-  { id: 'all',     label: 'All time' },
+  { id: 'ytd', label: 'YTD',       vsLabel: 'vs. same period last year' },
+  { id: '12m', label: 'Last 12M',  vsLabel: 'vs. previous 12 months' },
+  { id: '2y',  label: '2 Years',   vsLabel: 'vs. previous 2 years' },
+  { id: '3y',  label: '3 Years',   vsLabel: 'vs. previous 3 years' },
+  { id: 'all', label: 'All time',  vsLabel: 'vs. previous period' },
 ]
 
 function fmt(n: number) {
@@ -73,7 +73,7 @@ function getPeriodDates(period: string) {
       prevStart = new Date(now); prevStart.setFullYear(prevStart.getFullYear() - 6)
       prevEnd = new Date(start)
       break
-    default: // all
+    default:
       start = new Date('2020-01-01')
       prevStart = new Date('2015-01-01')
       prevEnd = new Date('2020-01-01')
@@ -88,6 +88,8 @@ export default function ReportsPage() {
   const [period, setPeriod] = useState('ytd')
   const [activityFilter, setActivityFilter] = useState<'all'|'active'|'at_risk'|'dormant'|'lost'>('all')
   const [expandedRegion, setExpandedRegion] = useState<string | null>(null)
+
+  const currentPeriod = PERIODS.find(p => p.id === period) ?? PERIODS[0]
 
   const { data: customers = [] } = useQuery({
     queryKey: ['report-customers'],
@@ -144,7 +146,6 @@ export default function ReportsPage() {
   const activeClients = new Set(periodInvoices.map((o: any) => o.customer_id)).size
   const prevClients   = new Set(prevInvoices.map((o: any) => o.customer_id)).size
 
-  // Monthly trend — last 12 months always for chart
   const monthlyRevenue = Array.from({ length: 12 }, (_, i) => {
     const d = new Date(); d.setMonth(d.getMonth() - 11 + i)
     const key = `${d.getFullYear()}-${d.getMonth()}`
@@ -156,7 +157,6 @@ export default function ReportsPage() {
   })
   const maxMonthly = Math.max(...monthlyRevenue.map(m => m.value), 1)
 
-  // Geography
   const regionMap: Record<string, { clients: any[], revenue: number, units: number, prevRevenue: number }> = {}
   customers.forEach((c: any) => {
     const region = c.region ?? c.country ?? 'Unknown'
@@ -169,7 +169,6 @@ export default function ReportsPage() {
   const regionList = Object.entries(regionMap).sort(([,a],[,b]) => b.revenue - a.revenue)
   const maxRegionRevenue = Math.max(...regionList.map(([,v]) => v.revenue), 1)
 
-  // Products
   const brandMap: Record<string, { units: number, revenue: number }> = {}
   const productMap: Record<string, { units: number, revenue: number, brand: string }> = {}
   lines.forEach((l: any) => {
@@ -188,7 +187,6 @@ export default function ReportsPage() {
   const maxBrand = Math.max(...brandList.map(([,v]) => v.revenue), 1)
   const maxProduct = Math.max(...productList.map(([,v]) => v.units), 1)
 
-  // Clients
   const clientRevenue = customers.map((c: any) => ({
     ...c,
     revenue: periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0),
@@ -198,7 +196,6 @@ export default function ReportsPage() {
   })).filter((c: any) => c.revenue > 0).sort((a: any, b: any) => b.revenue - a.revenue)
   const maxClientRev = Math.max(...clientRevenue.map((c: any) => c.revenue), 1)
 
-  // Activity
   const activityData = customers.map((c: any) => {
     const cOrders = invoices.filter((o: any) => o.customer_id === c.id)
     if (!cOrders.length) return { ...c, lastOrderDate: null, lastOrderDays: 9999, freqPerMonth: 0, revenue12m: 0, prevRevenue12m: 0, orderCount12m: 0, health: getHealthScore(9999, 0), heatmap: Array(12).fill(0) }
@@ -214,9 +211,7 @@ export default function ReportsPage() {
       return cOrders.filter((o: any) => { const od = new Date(o.order_date ?? o.created_at); return od.getFullYear() === d.getFullYear() && od.getMonth() === d.getMonth() }).length
     })
     return {
-      ...c,
-      lastOrderDate: lastDate,
-      lastOrderDays,
+      ...c, lastOrderDate: lastDate, lastOrderDays,
       freqPerMonth: o12.length / 12,
       revenue12m: o12.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0),
       prevRevenue12m: o24.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0),
@@ -243,7 +238,6 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
           <p className="text-gray-500 text-sm mt-0.5">Business intelligence & analytics</p>
         </div>
-        {/* Period selector */}
         <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
           <Calendar className="h-4 w-4 text-gray-400 ml-2" />
           {PERIODS.map(p => (
@@ -255,7 +249,6 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Tab navigation */}
       <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
         {TABS.map(t => {
           const Icon = t.icon
@@ -290,6 +283,7 @@ export default function ReportsPage() {
                   <Delta curr={curr} prev={prev} />
                 </div>
                 <p className="text-xs text-gray-400 mt-1">{sub}</p>
+                <p className="text-xs text-gray-300 mt-0.5">{currentPeriod.vsLabel}</p>
               </div>
             ))}
           </div>
@@ -360,7 +354,7 @@ export default function ReportsPage() {
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Clients</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">vs prev</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">{currentPeriod.vsLabel}</th>
                   <th className="px-4 py-3 w-40" />
                 </tr>
               </thead>
@@ -461,7 +455,7 @@ export default function ReportsPage() {
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Orders</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">vs prev</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">{currentPeriod.vsLabel}</th>
                 <th className="px-4 py-3 w-20" />
               </tr>
             </thead>
@@ -537,7 +531,7 @@ export default function ReportsPage() {
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Last order</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Freq/mo</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">12M value</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">vs prev</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">vs prev 12M</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Activity</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Score</th>
                   <th className="px-4 py-3" />

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, ShoppingCart, FileText, Gift, Package, ArrowRight } from 'lucide-react'
+import { logActivity } from '@/lib/log-activity'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 
@@ -187,8 +188,27 @@ export default function NewOrderPage() {
         }),
       })
       const data = await res.json()
-      if (data.success) router.push('/orders/' + data.order.id)
-      else alert('Error: ' + data.error)
+      if (data.success) {
+        await logActivity({
+          action: 'create_order',
+          entityType: 'order',
+          entityId: data.order.id,
+          entityRef: data.order.order_number,
+          newValue: {
+            document_type: cfg.docType,
+            customer: isInt ? 'Internal Transfer' : customerName,
+            total_amount: total,
+            total_units: totalUnits,
+          },
+          metadata: {
+            mode,
+            warehouse,
+            lines_count: lines.length,
+            ...(isInt ? { warehouse_destination: warehouseDestination } : {}),
+          },
+        })
+        router.push('/orders/' + data.order.id)
+      } else alert('Error: ' + data.error)
     } catch { alert('Error creating order') }
     setSaving(false)
   }
@@ -219,7 +239,6 @@ export default function NewOrderPage() {
         </button>
       </div>
 
-      {/* Mode tabs */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {(Object.entries(MODE_CONFIG) as [OrderMode, typeof MODE_CONFIG[OrderMode]][]).map(([key, c]) => {
           const Icon = MODE_ICONS[key]
@@ -234,7 +253,6 @@ export default function NewOrderPage() {
         })}
       </div>
 
-      {/* Mode notices */}
       {isSample && (
         <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
           Stock deducted from <strong>Sample</strong> warehouse.
@@ -251,7 +269,6 @@ export default function NewOrderPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
             <h2 className="font-semibold text-gray-900">{isInt ? 'Transfer Details' : 'Order Details'}</h2>
 
-            {/* Customer — hidden for INT */}
             {!isInt && (
               <div>
                 <label className="text-xs font-medium text-gray-500 uppercase">Customer *</label>
@@ -272,7 +289,6 @@ export default function NewOrderPage() {
               </div>
             )}
 
-            {/* Warehouse FROM */}
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">
                 {isInt ? 'From Warehouse' : 'Warehouse'}
@@ -284,7 +300,6 @@ export default function NewOrderPage() {
               </select>
             </div>
 
-            {/* Warehouse TO — only for INT */}
             {isInt && (
               <div>
                 <label className="text-xs font-medium text-gray-500 uppercase">To Warehouse</label>
@@ -298,7 +313,6 @@ export default function NewOrderPage() {
               </div>
             )}
 
-            {/* Arrow visual for INT */}
             {isInt && (
               <div className="flex items-center justify-center gap-3 py-2">
                 <span className="px-3 py-1.5 bg-teal-100 text-teal-800 rounded-lg text-sm font-semibold">{warehouse}</span>
@@ -307,7 +321,6 @@ export default function NewOrderPage() {
               </div>
             )}
 
-            {/* Commercial fields — hidden for INT */}
             {!isInt && (
               <>
                 <div className="grid grid-cols-2 gap-3">

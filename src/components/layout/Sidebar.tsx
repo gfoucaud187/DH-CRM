@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Package, Users, Handshake, DollarSign,
   ShoppingCart, Warehouse, BarChart3, FolderOpen, Settings,
-  ListChecks, LogOut, ExternalLink
+  ListChecks, LogOut, ExternalLink, Target
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -21,6 +21,7 @@ const nav = [
   { label: 'Finance',      href: '/finance',      icon: DollarSign },
   { label: 'Documents',    href: '/documents',    icon: FolderOpen },
   { label: 'Reports',      href: '/reports',      icon: BarChart3 },
+  { label: 'Targets',      href: '/targets',      icon: Target },
   { label: 'Tracking Log', href: '/tracking',     icon: ListChecks },
   { label: 'Settings',     href: '/settings',     icon: Settings },
   { label: 'Client Portal', href: '/portal-login', icon: ExternalLink },
