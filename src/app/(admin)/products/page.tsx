@@ -25,9 +25,9 @@ export default function ProductsPage() {
     }
   })
 
-  const brands = ['All', ...Array.from(new Set(products.map((p: any) => p.brand))).sort()]
+  const brands = ['All', ...Array.from(new Set((products as any[]).map((p: any) => p.brand))).sort() as string[]]
 
-  const filtered = products.filter((p: any) => {
+  const filtered = (products as any[]).filter((p: any) => {
     const matchSearch = !search ||
       p.sku?.toLowerCase().includes(search.toLowerCase()) ||
       p.full_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -42,7 +42,7 @@ export default function ProductsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{products.length} products</p>
+          <p className="text-gray-500 text-sm mt-0.5">{(products as any[]).length} products</p>
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer transition-colors">
