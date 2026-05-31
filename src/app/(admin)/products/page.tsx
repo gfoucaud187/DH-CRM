@@ -45,6 +45,20 @@ export default function ProductsPage() {
           <p className="text-gray-500 text-sm mt-0.5">{(products as any[]).length} products</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              const headers = 'sku,full_name,brand,line,vitola,shape,wrapper,binder,filler,units_per_pack,pack_type,fixmer_reference,eu_ceg_id,length_inches,ring_gauge,net_weight_g,status,notes,price_g,price_g1,price_a1,price_special,currency'
+              const example = 'NI-ROBUS-B10,Nicarao Exclusivo Robusto B10,Nicarao,Exclusivo,Robusto,Robusto,Ecuador Connecticut,Nicaragua,Nicaragua,10,Box,REF001,,5.0,50,12.5,active,,85.00,90.00,95.00,,USD'
+              const csv = headers + '\n' + example
+              const blob = new Blob([csv], { type: 'text/csv' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url; a.download = 'products-template.csv'; a.click()
+              URL.revokeObjectURL(url)
+            }}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+            📥 CSV Template
+          </button>
           <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer transition-colors">
             <Upload className="h-4 w-4" />
             Import CSV
