@@ -45,7 +45,7 @@ export const COUNTRIES: { code: string; name: string; flag: string; eu: boolean 
   { code: 'KP', name: 'Corée du Nord', flag: '🇰🇵', eu: false },
   { code: 'KR', name: 'Corée du Sud', flag: '🇰🇷', eu: false },
   { code: 'CR', name: 'Costa Rica', flag: '🇨🇷', eu: false },
-  { code: 'CI', name: "Côte d'Ivoire", flag: '🇨🇮' },
+  { code: 'CI', name: "Côte d'Ivoire", flag: '🇨🇮', eu: false },
   { code: 'HR', name: 'Croatie', flag: '🇭🇷', eu: true },
   { code: 'CU', name: 'Cuba', flag: '🇨🇺', eu: false },
   { code: 'DK', name: 'Danemark', flag: '🇩🇰', eu: true },
