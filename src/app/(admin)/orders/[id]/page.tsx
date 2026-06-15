@@ -6,7 +6,6 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Package, Truck, CheckCircle, XCircle, FileText, Edit, Send, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import InvoicePDF from '@/components/pdf/InvoicePDF'
-import { logActivity } from '@/lib/log-activity'
 
 const SO_STATUSES = [
   { value: 'draft',               label: 'Draft',               icon: FileText,    color: 'bg-gray-100 text-gray-600' },
@@ -114,14 +113,6 @@ export default function OrderDetailPage() {
         .update({ status })
         .eq('id', id as string)
       if (error) throw error
-      await logActivity({
-        action: 'update_order_status',
-        entityType: 'order',
-        entityId: id as string,
-        entityRef: order?.order_number,
-        oldValue: { status: oldStatus },
-        newValue: { status },
-      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', id] })
@@ -137,14 +128,6 @@ export default function OrderDetailPage() {
     })
     const data = await res.json()
     if (data.success) {
-      await logActivity({
-        action: 'promote_order',
-        entityType: 'order',
-        entityId: id as string,
-        entityRef: order?.order_number,
-        newValue: { promoted_to: data.invoice?.order_number },
-        metadata: { from_type: order?.document_type, to_type: 'invoice' },
-      })
       router.push('/orders/' + data.invoice.id)
     } else alert('Error: ' + data.error)
   }
@@ -157,13 +140,6 @@ export default function OrderDetailPage() {
     })
     const data = await res.json()
     if (data.success) {
-      await logActivity({
-        action: 'promote_order',
-        entityType: 'order',
-        entityId: id as string,
-        entityRef: order?.order_number,
-        metadata: { type: 'foc', foc_number: data.foc_order?.order_number },
-      })
       router.push('/orders/' + data.foc_order.id + '/edit')
     } else if (data.existing_id) router.push('/orders/' + data.existing_id)
     else alert('Error: ' + data.error)
@@ -178,14 +154,6 @@ export default function OrderDetailPage() {
     const data = await res.json()
     if (data.success) {
       await supabase.from('sales_orders').update({ status: 'approved' }).eq('id', id as string)
-      await logActivity({
-        action: 'approve_po',
-        entityType: 'order',
-        entityId: id as string,
-        entityRef: order?.order_number,
-        newValue: { status: 'approved', so_number: data.invoice?.order_number },
-        metadata: { customer: order?.customer_name },
-      })
       router.push('/orders/' + data.invoice.id)
     } else alert('Error: ' + data.error)
   }
@@ -197,14 +165,6 @@ export default function OrderDetailPage() {
       status: 'rejected',
       rejection_comment: comment,
     }).eq('id', id as string)
-    await logActivity({
-      action: 'reject_po',
-      entityType: 'order',
-      entityId: id as string,
-      entityRef: order?.order_number,
-      newValue: { status: 'rejected' },
-      metadata: { reason: comment, customer: order?.customer_name },
-    })
     queryClient.invalidateQueries({ queryKey: ['order', id] })
     queryClient.invalidateQueries({ queryKey: ['orders'] })
     router.push('/orders')
@@ -369,13 +329,6 @@ export default function OrderDetailPage() {
                 })
                 const data = await res.json()
                 if (data.success) {
-                  await logActivity({
-                    action: 'promote_order',
-                    entityType: 'order',
-                    entityId: id as string,
-                    entityRef: order?.order_number,
-                    metadata: { from_type: 'proforma', to_type: 'so', so_number: data.invoice?.order_number },
-                  })
                   router.push('/orders/' + data.invoice.id)
                 } else alert('Error: ' + data.error)
               }}

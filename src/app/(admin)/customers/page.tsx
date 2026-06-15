@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { logActivity } from '@/lib/log-activity'
 import { Users, Plus, Search, Upload, X, Edit, Mail, Phone, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -132,28 +131,12 @@ function ModificationRequestsSection() {
   const handleApprove = async (req: any) => {
     await supabase.from('customers').update(req.requested_changes).eq('id', req.customer_id)
     await supabase.from('profile_change_requests').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', req.id)
-    await logActivity({
-      action: 'approve_profile_request',
-      entityType: 'profile_request',
-      entityId: req.id,
-      entityRef: req.customer_name,
-      oldValue: req.current_values,
-      newValue: req.requested_changes,
-      metadata: { customer_id: req.customer_id },
-    })
     queryClient.invalidateQueries({ queryKey: ['modification-requests'] })
     queryClient.invalidateQueries({ queryKey: ['customers'] })
   }
 
   const handleReject = async (req: any) => {
     await supabase.from('profile_change_requests').update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', req.id)
-    await logActivity({
-      action: 'reject_profile_request',
-      entityType: 'profile_request',
-      entityId: req.id,
-      entityRef: req.customer_name,
-      metadata: { customer_id: req.customer_id },
-    })
     queryClient.invalidateQueries({ queryKey: ['modification-requests'] })
   }
 
