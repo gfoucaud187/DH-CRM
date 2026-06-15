@@ -206,4 +206,5 @@ export const COUNTRIES = [
 ].sort((a, b) => a.name.localeCompare(b.name, 'fr'))
 
 export const countryFlag = (code: string) => COUNTRIES.find(c => c.code === code)?.flag ?? '🌍'
-export const countryName = (code: string) => COUNTRIES.find(c => c.code === code)?.name ?? code
+export const countryName = (code: string) => COUNTRIES.find(c => c.code === code)?.name ?? codeexport const EU_CODES = new Set(['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'])
+export const isEU = (code: string) => EU_CODES.has(code)
