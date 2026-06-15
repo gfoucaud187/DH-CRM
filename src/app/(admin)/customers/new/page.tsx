@@ -27,58 +27,8 @@ const ADDRESS_TYPES = [
   { value: 'warehouse', label: 'Warehouse' },
 ]
 
-const EU_COUNTRIES = [
-  { code: 'AT', name: 'Austria', flag: '🇦🇹', eu: true },
-  { code: 'BE', name: 'Belgium', flag: '🇧🇪', eu: true },
-  { code: 'BG', name: 'Bulgaria', flag: '🇧🇬', eu: true },
-  { code: 'HR', name: 'Croatia', flag: '🇭🇷', eu: true },
-  { code: 'CY', name: 'Cyprus', flag: '🇨🇾', eu: true },
-  { code: 'CZ', name: 'Czech Republic', flag: '🇨🇿', eu: true },
-  { code: 'DK', name: 'Denmark', flag: '🇩🇰', eu: true },
-  { code: 'EE', name: 'Estonia', flag: '🇪🇪', eu: true },
-  { code: 'FI', name: 'Finland', flag: '🇫🇮', eu: true },
-  { code: 'FR', name: 'France', flag: '🇫🇷', eu: true },
-  { code: 'DE', name: 'Germany', flag: '🇩🇪', eu: true },
-  { code: 'GR', name: 'Greece', flag: '🇬🇷', eu: true },
-  { code: 'HU', name: 'Hungary', flag: '🇭🇺', eu: true },
-  { code: 'IE', name: 'Ireland', flag: '🇮🇪', eu: true },
-  { code: 'IT', name: 'Italy', flag: '🇮🇹', eu: true },
-  { code: 'LV', name: 'Latvia', flag: '🇱🇻', eu: true },
-  { code: 'LT', name: 'Lithuania', flag: '🇱🇹', eu: true },
-  { code: 'LU', name: 'Luxembourg', flag: '🇱🇺', eu: true },
-  { code: 'MT', name: 'Malta', flag: '🇲🇹', eu: true },
-  { code: 'NL', name: 'Netherlands', flag: '🇳🇱', eu: true },
-  { code: 'PL', name: 'Poland', flag: '🇵🇱', eu: true },
-  { code: 'PT', name: 'Portugal', flag: '🇵🇹', eu: true },
-  { code: 'RO', name: 'Romania', flag: '🇷🇴', eu: true },
-  { code: 'SK', name: 'Slovakia', flag: '🇸🇰', eu: true },
-  { code: 'SI', name: 'Slovenia', flag: '🇸🇮', eu: true },
-  { code: 'ES', name: 'Spain', flag: '🇪🇸', eu: true },
-  { code: 'SE', name: 'Sweden', flag: '🇸🇪', eu: true },
-  { code: 'AU', name: 'Australia', flag: '🇦🇺', eu: false },
-  { code: 'BR', name: 'Brazil', flag: '🇧🇷', eu: false },
-  { code: 'CA', name: 'Canada', flag: '🇨🇦', eu: false },
-  { code: 'CN', name: 'China', flag: '🇨🇳', eu: false },
-  { code: 'HK', name: 'Hong Kong', flag: '🇭🇰', eu: false },
-  { code: 'IN', name: 'India', flag: '🇮🇳', eu: false },
-  { code: 'JP', name: 'Japan', flag: '🇯🇵', eu: false },
-  { code: 'KR', name: 'South Korea', flag: '🇰🇷', eu: false },
-  { code: 'MA', name: 'Morocco', flag: '🇲🇦', eu: false },
-  { code: 'MX', name: 'Mexico', flag: '🇲🇽', eu: false },
-  { code: 'NO', name: 'Norway', flag: '🇳🇴', eu: false },
-  { code: 'RU', name: 'Russia', flag: '🇷🇺', eu: false },
-  { code: 'SA', name: 'Saudi Arabia', flag: '🇸🇦', eu: false },
-  { code: 'SG', name: 'Singapore', flag: '🇸🇬', eu: false },
-  { code: 'CH', name: 'Switzerland', flag: '🇨🇭', eu: false },
-  { code: 'TH', name: 'Thailand', flag: '🇹🇭', eu: false },
-  { code: 'TR', name: 'Turkey', flag: '🇹🇷', eu: false },
-  { code: 'AE', name: 'United Arab Emirates', flag: '🇦🇪', eu: false },
-  { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', eu: false },
-  { code: 'US', name: 'United States', flag: '🇺🇸', eu: false },
-  { code: 'ZA', name: 'South Africa', flag: '🇿🇦', eu: false },
-].sort((a, b) => a.name.localeCompare(b.name))
+import { COUNTRIES, isEU, countryFlag as getFlag } from '@/lib/countries'
 
-const EU_COUNTRY_CODES = new Set(EU_COUNTRIES.filter(c => c.eu).map(c => c.code))
 
 const getDefaultStock = (isEu: boolean, complianceType: string) => {
   if (!isEu) return { default: 'Central', available: ['Central', 'T1'], note: 'Export via entrepôt fiscal (DAU/EX1). T1 possible for duty-suspended transit.' }
@@ -121,7 +71,7 @@ export default function NewCustomerPage() {
   const [exportProcedure, setExportProcedure] = useState<'central'|'t1'|'both'>('central')
 
   useEffect(() => {
-    if (country) setIsEuropean(EU_COUNTRY_CODES.has(country))
+    if (country) setIsEuropean(isEU(country))
   }, [country])
 
   useEffect(() => {
@@ -130,7 +80,7 @@ export default function NewCustomerPage() {
   }, [isEuropean])
 
   const stockInfo = getDefaultStock(isEuropean, euComplianceType)
-  const selectedCountry = EU_COUNTRIES.find(c => c.code === country)
+  const selectedCountry = COUNTRIES.find(c => c.code === country)
 
   const handleSave = async () => {
     if (!legalName) return alert('Legal name is required')
@@ -222,7 +172,7 @@ export default function NewCustomerPage() {
               <select value={country} onChange={e => setCountry(e.target.value)}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
                 <option value="">Select country...</option>
-                {EU_COUNTRIES.map(c => (
+                {COUNTRIES.map(c => (
                   <option key={c.code} value={c.code}>{c.flag} {c.name}{c.eu ? ' 🇪🇺' : ''}</option>
                 ))}
               </select>
@@ -581,7 +531,7 @@ export default function NewCustomerPage() {
                     <select value={a.country ?? ''} onChange={e => updateAddress(i,'country',e.target.value)}
                       className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none">
                       <option value="">Select...</option>
-                      {EU_COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                      {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
                     </select>
                   </div>
                 </div>

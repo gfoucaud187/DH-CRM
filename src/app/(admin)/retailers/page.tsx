@@ -12,26 +12,7 @@ const RetailersMap = dynamic(() => import('./map'), { ssr: false, loading: () =>
   </div>
 ) })
 
-const EU_COUNTRIES = [
-  { code: 'AT', name: 'Austria', flag: '🇦🇹' }, { code: 'BE', name: 'Belgium', flag: '🇧🇪' },
-  { code: 'FR', name: 'France', flag: '🇫🇷' }, { code: 'DE', name: 'Germany', flag: '🇩🇪' },
-  { code: 'IT', name: 'Italy', flag: '🇮🇹' }, { code: 'ES', name: 'Spain', flag: '🇪🇸' },
-  { code: 'NL', name: 'Netherlands', flag: '🇳🇱' }, { code: 'PT', name: 'Portugal', flag: '🇵🇹' },
-  { code: 'CH', name: 'Switzerland', flag: '🇨🇭' }, { code: 'GB', name: 'United Kingdom', flag: '🇬🇧' },
-  { code: 'US', name: 'United States', flag: '🇺🇸' }, { code: 'CA', name: 'Canada', flag: '🇨🇦' },
-  { code: 'AE', name: 'UAE', flag: '🇦🇪' }, { code: 'HK', name: 'Hong Kong', flag: '🇭🇰' },
-  { code: 'SG', name: 'Singapore', flag: '🇸🇬' }, { code: 'JP', name: 'Japan', flag: '🇯🇵' },
-  { code: 'AU', name: 'Australia', flag: '🇦🇺' }, { code: 'NO', name: 'Norway', flag: '🇳🇴' },
-  { code: 'DK', name: 'Denmark', flag: '🇩🇰' }, { code: 'SE', name: 'Sweden', flag: '🇸🇪' },
-  { code: 'LU', name: 'Luxembourg', flag: '🇱🇺' }, { code: 'MC', name: 'Monaco', flag: '🇲🇨' },
-  { code: 'MA', name: 'Morocco', flag: '🇲🇦' }, { code: 'SA', name: 'Saudi Arabia', flag: '🇸🇦' },
-  { code: 'MX', name: 'Mexico', flag: '🇲🇽' }, { code: 'BR', name: 'Brazil', flag: '🇧🇷' },
-  { code: 'PL', name: 'Poland', flag: '🇵🇱' }, { code: 'CZ', name: 'Czech Republic', flag: '🇨🇿' },
-  { code: 'RO', name: 'Romania', flag: '🇷🇴' }, { code: 'HU', name: 'Hungary', flag: '🇭🇺' },
-].sort((a, b) => a.name.localeCompare(b.name))
-
-const countryFlag = (code: string) => EU_COUNTRIES.find(c => c.code === code)?.flag ?? '🌍'
-const countryName = (code: string) => EU_COUNTRIES.find(c => c.code === code)?.name ?? code
+import { COUNTRIES, countryFlag, countryName } from '@/lib/countries'
 
 const emptyShopForm = () => ({
   shop_name: '', country: '', street: '', city: '', postal_code: '',
@@ -198,7 +179,7 @@ export default function RetailersPage() {
                 <select value={shopForm.country} onChange={e => setShopForm(f => ({ ...f, country: e.target.value }))}
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
                   <option value="">Select country...</option>
-                  {EU_COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                  {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
                 </select>
               </div>
               <div>
@@ -327,7 +308,7 @@ export default function RetailersPage() {
               <select value={b2cForm.country} onChange={e => setB2cForm(f => ({ ...f, country: e.target.value }))}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
                 <option value="">Select country...</option>
-                {EU_COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
               </select>
             </div>
             <div>
