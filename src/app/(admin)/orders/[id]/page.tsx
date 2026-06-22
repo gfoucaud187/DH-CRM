@@ -61,7 +61,7 @@ export default function OrderDetailPage() {
       const skus = order.lines.map((l: any) => l.sku).filter(Boolean)
       const { data } = await supabase
         .from('products')
-        .select('sku, shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, vitola')
+        .select('sku, brand, line, shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, vitola')
         .in('sku', skus)
       return data ?? []
     },
@@ -81,6 +81,8 @@ export default function OrderDetailPage() {
       length_inches: line.length_inches ?? product.length_inches,
       ring_gauge:    line.ring_gauge    ?? product.ring_gauge,
       vitola:        line.vitola        ?? product.vitola,
+      brand:     line.brand     ?? product.brand,
+      line_name: line.line_name ?? product.line,
     }
   })
 
