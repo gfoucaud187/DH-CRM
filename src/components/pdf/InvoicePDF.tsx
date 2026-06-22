@@ -323,8 +323,8 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                     )}
                     <div style={{ flex: 1 }} />
                     <div className="totals-block">
-                      <div className="total-line"><span>Total Boxes</span><span>{order.total_packs}</span></div>
-                      <div className="total-line"><span>Total Articles</span><span>{order.total_units}</span></div>
+                      <div className="total-line"><span>Total Boxes</span><span>{Number(order.total_packs).toLocaleString('en-US')}</span></div>
+                      <div className="total-line"><span>Total Articles</span><span>{Number(order.total_units).toLocaleString('en-US')}</span></div>
                       <hr className="total-hr" />
                       <div className="grand-row">
                         <span className="grand-label">{isInvoice ? 'Amount Due' : 'Total'}</span>
