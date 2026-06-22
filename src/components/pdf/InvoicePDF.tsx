@@ -85,7 +85,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    .doc { width: 1123px; min-height: 794px; background: #FBF9F4; font-family: 'IBM Plex Sans', sans-serif; color: #221C18; display: flex; flex-direction: column; }
+    .doc { width: 1123px; background: #FBF9F4; font-family: 'IBM Plex Sans', sans-serif; color: #221C18; display: flex; flex-direction: column; }
     .accent-bar { height: 6px; background: ${accent}; width: 100%; flex-shrink: 0; }
     .inner { padding: 38px 56px 32px; flex: 1; display: flex; flex-direction: column; gap: 18px; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -171,7 +171,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     const vitola = line.vitola ?? '—'
     return (
       <tr key={idx}>
-        <td className="ink" style={{ whiteSpace: 'normal', wordBreak: 'break-word', textAlign: 'center' }}>{brandLine}</td>
+        <td className="ink" style={{ whiteSpace: 'nowrap' }}>{brandLine}</td>
         <td style={{ whiteSpace: 'nowrap' }}>{vitola}</td>
         <td className="mono muted" style={{ whiteSpace: 'nowrap' }}>{line.sku}</td>
         <td className="mono muted" style={{ whiteSpace: 'nowrap' }}>{line.fixmer_reference ?? '—'}</td>
