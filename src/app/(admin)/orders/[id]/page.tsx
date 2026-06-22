@@ -83,10 +83,6 @@ export default function OrderDetailPage() {
       vitola:        line.vitola        ?? product.vitola,
       brand:     line.brand     ?? product.brand,
       line_name: line.line_name ?? product.line,
-      brand:         line.brand          ?? product.brand,
-      line_name:     line.line_name       ?? product.line,
-      brand:         line.brand          ?? product.brand,
-      line_name:     line.line_name       ?? product.line,
     }
   })
 
