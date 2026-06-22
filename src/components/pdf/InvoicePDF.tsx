@@ -87,7 +87,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     * { box-sizing: border-box; margin: 0; padding: 0; }
     .doc { width: 1123px; background: #FBF9F4; font-family: 'IBM Plex Sans', sans-serif; color: #221C18; display: flex; flex-direction: column; }
     .accent-bar { height: 6px; background: ${accent}; width: 100%; flex-shrink: 0; }
-    .inner { padding: 38px 56px 32px; flex: 1; display: flex; flex-direction: column; gap: 18px; }
+    .inner { padding: 38px 56px 32px; display: flex; flex-direction: column; gap: 18px; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; }
     .header-right { text-align: right; }
     .doc-eyebrow { font-family: 'Cormorant Garamond', serif; font-size: 14px; font-weight: 600; color: ${accent}; letter-spacing: 0.34em; text-transform: uppercase; margin-bottom: 4px; }
@@ -126,7 +126,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     .grand-row { display: flex; justify-content: space-between; align-items: baseline; }
     .grand-label { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; }
     .grand-value { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 700; color: ${accent}; font-variant-numeric: lining-nums; }
-    .footer { border-top: 1px solid #E6E0D5; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+    .footer { border-top: 1px solid #E6E0D5; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
     .footer-notes { font-size: 10px; color: #6E665A; max-width: 500px; }
     .footer-right { font-size: 9px; color: #B3AA99; letter-spacing: 0.12em; text-transform: uppercase; text-align: right; }
     .page-num { font-size: 9px; color: #B3AA99; letter-spacing: 0.08em; margin-top: 3px; }
