@@ -60,7 +60,7 @@ export default function NewOrderPage() {
   const isFoc = cfg.isFoc
   const isSample = cfg.isSample
   const isInt = cfg.isInt
-  const priceIsZero = isFoc || isSample || isInt
+  const priceIsZero = isSample || isInt
 
   const { data: customers = [] } = useQuery({
     queryKey: ['customers-simple'],
