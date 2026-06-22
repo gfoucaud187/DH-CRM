@@ -109,7 +109,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     .party-addr { font-size: 11px; color: #6E665A; margin-top: 2px; }
     .co-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid #E6E0D5; }
 ; border-radius: 999px; padding: 2px 10px; font-size: 9px; font-weight: 600; color: ${accent}; letter-spacing: 0.12em; margin-top: 6px; }
-    .meta-block { display: flex; gap: 32px; border-top: 1px solid #E6E0D5; padding-top: 12px; justify-content: flex-end; }
+    .meta-block { flex: 1.6; padding-left: 40px; border-left: 1px solid #E6E0D5; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; padding-top: 4px; }
     .meta-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 3px; }
     .meta-value { font-size: 13px; font-weight: 600; color: #221C18; }
     .line-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -237,30 +237,28 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
 
                 {/* PARTIES + META — first page only */}
                 {isFirst && (
-                  <>
-                    <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start', flexShrink: 0 }}>
-                      <div className="party-block">
-                        <div className="party-eyebrow">
-                          {isFoc || isSample ? 'Deliver To' : isInvoice ? 'Invoice To' : 'Sales Order To'}
-                        </div>
-                        <div className="party-name">{billToName}</div>
-                        {billToContactLine && <div className="party-contact">{billToContactLine}</div>}
-                        {!isTT && primaryAddress && (
-                          <div className="party-addr">
-                            {[primaryAddress.street1, primaryAddress.city, primaryAddress.postal_code, primaryAddress.country].filter(Boolean).join(', ')}
-                          </div>
-                        )}
-                        {isTT && endCustomerName && (
-                          <div className="co-block">
-                            <div className="party-eyebrow">C/O — End Customer</div>
-                            <div className="party-name">{endCustomerName}</div>
-                            {salesContactLine && <div className="party-contact">{salesContactLine}</div>}
-                            <span style={{ backgroundColor: isInvoice ? '#6A1E2A' : '#1C4B3C', borderRadius: '999px', paddingTop: '2px', paddingBottom: '6px', paddingLeft: '12px', paddingRight: '12px', fontSize: '9px', fontWeight: 600, color: '#ffffff', letterSpacing: '0.12em', marginTop: '6px', fontFamily: 'Arial, sans-serif', display: 'inline-block', lineHeight: '1' }}>TRACK &amp; TRACE</span>
-                          </div>
-                        )}
+                  <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start', flexShrink: 0 }}>
+                    <div className="party-block">
+                      <div className="party-eyebrow">
+                        {isFoc || isSample ? 'Deliver To' : isInvoice ? 'Invoice To' : 'Sales Order To'}
                       </div>
+                      <div className="party-name">{billToName}</div>
+                      {billToContactLine && <div className="party-contact">{billToContactLine}</div>}
+                      {!isTT && primaryAddress && (
+                        <div className="party-addr">
+                          {[primaryAddress.street1, primaryAddress.city, primaryAddress.postal_code, primaryAddress.country].filter(Boolean).join(', ')}
+                        </div>
+                      )}
+                      {isTT && endCustomerName && (
+                        <div className="co-block">
+                          <div className="party-eyebrow">C/O — End Customer</div>
+                          <div className="party-name">{endCustomerName}</div>
+                          {salesContactLine && <div className="party-contact">{salesContactLine}</div>}
+                          <span style={{ backgroundColor: isInvoice ? '#6A1E2A' : '#1C4B3C', borderRadius: '999px', paddingTop: '2px', paddingBottom: '6px', paddingLeft: '12px', paddingRight: '12px', fontSize: '9px', fontWeight: 600, color: '#ffffff', letterSpacing: '0.12em', marginTop: '6px', fontFamily: 'Arial, sans-serif', display: 'inline-block', lineHeight: '1' }}>TRACK &amp; TRACE</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="meta-block">
+                    <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-start', paddingTop: '4px', borderLeft: '1px solid #E6E0D5', paddingLeft: '40px' }}>
                       {[
                         { label: 'Incoterms', value: order.incoterms },
                         { label: 'Payment',   value: order.payment_terms },
@@ -273,7 +271,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
                         </div>
                       ))}
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {/* TABLE — all pages */}
