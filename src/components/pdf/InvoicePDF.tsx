@@ -89,20 +89,18 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     .accent-bar { height: 6px; background: ${accent}; width: 100%; flex-shrink: 0; }
     .inner { padding: 38px 56px 32px; flex: 1; display: flex; flex-direction: column; gap: 18px; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; }
-    .logo { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 700; letter-spacing: -2px; line-height: 1; }
-    .logo-sub { font-size: 8px; font-weight: 600; letter-spacing: 0.3em; color: #6E665A; margin-top: 3px; }
     .header-right { text-align: right; }
     .doc-eyebrow { font-family: 'Cormorant Garamond', serif; font-size: 14px; font-weight: 600; color: ${accent}; letter-spacing: 0.34em; text-transform: uppercase; margin-bottom: 4px; }
     .doc-number { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; line-height: 1.2; letter-spacing: 0.04em; margin-bottom: 4px; }
     .doc-ref { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 600; color: #8C8475; margin-top: 2px; font-variant-numeric: lining-nums; }
     .doc-date { font-size: 11px; color: #8C8475; margin-top: 6px; }
     .kpi-strip { display: flex; border: 1px solid #E6E0D5; border-radius: 6px; overflow: hidden; background: #fff; flex-shrink: 0; }
-    .kpi-seg { flex: 1; padding: 10px 16px 14px; border-right: 1px solid #E6E0D5; }
-    .kpi-seg-accent { flex: 1.2; padding: 10px 16px 14px; background: ${accent}; }
-    .kpi-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 6px; }
-    .kpi-label-accent { font-size: 9px; font-weight: 600; color: ${onAccent}; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 6px; }
-    .kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1.4; font-variant-numeric: lining-nums; }
-    .kpi-value-accent { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1.4; color: #fff; font-variant-numeric: lining-nums; }
+    .kpi-seg { flex: 1; padding: 12px 16px 8px; border-right: 1px solid #E6E0D5; display: flex; flex-direction: column; justify-content: center; }
+    .kpi-seg-accent { flex: 1.2; padding: 12px 16px 8px; background: ${accent}; display: flex; flex-direction: column; justify-content: center; }
+    .kpi-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 4px; }
+    .kpi-label-accent { font-size: 9px; font-weight: 600; color: ${onAccent}; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 4px; }
+    .kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums; }
+    .kpi-value-accent { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600; line-height: 1; color: #fff; font-variant-numeric: lining-nums; }
     .parties { display: flex; gap: 48px; align-items: flex-start; flex-shrink: 0; }
     .party-block { flex: 1.5; }
     .party-eyebrow { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 6px; }
@@ -161,7 +159,9 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
       : '—'
     const priceUnit  = (!isFoc && !isSample && line.price_per_unit != null) ? fmt2(line.price_per_unit) : '—'
     const priceTotal = (!isFoc && !isSample && line.line_total != null)     ? fmt2(line.line_total)     : '—'
-    const brandLine  = line.brand ? (line.line_name ? line.brand + ' ' + line.line_name : line.brand) : (line.product_name ?? '').split(' ')[0]?.replace(/_/g, ' ') ?? line.product_name
+    const brandLine  = line.brand
+      ? (line.line_name ? line.brand + ' ' + line.line_name : line.brand)
+      : (line.product_name ?? '').split(' ')[0]?.replace(/_/g, ' ') ?? line.product_name
     const vitola     = line.vitola ?? '—'
     return (
       <tr key={idx}>
@@ -206,8 +206,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
                 {isFirst && (
                   <div className="header">
                     <div>
-                      <div className="logo">dh.</div>
-                      <div className="logo-sub">SIGNATURE</div>
+                      <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/Logo_DH_signature_color_white_background.png" alt="DH Signature" style={{ height: '72px', width: 'auto' }} />
                     </div>
                     <div className="header-right">
                       <div className="doc-eyebrow">{isInvoice ? 'Invoice' : 'Sales Order'}</div>

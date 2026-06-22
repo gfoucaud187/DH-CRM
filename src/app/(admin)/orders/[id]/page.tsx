@@ -81,6 +81,10 @@ export default function OrderDetailPage() {
       length_inches: line.length_inches ?? product.length_inches,
       ring_gauge:    line.ring_gauge    ?? product.ring_gauge,
       vitola:        line.vitola        ?? product.vitola,
+      brand:     line.brand     ?? product.brand,
+      line_name: line.line_name ?? product.line,
+      brand:         line.brand          ?? product.brand,
+      line_name:     line.line_name       ?? product.line,
       brand:         line.brand          ?? product.brand,
       line_name:     line.line_name       ?? product.line,
     }
