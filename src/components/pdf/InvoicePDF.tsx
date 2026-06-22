@@ -16,9 +16,9 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     const html2canvas = (await import('html2canvas')).default
     const el = document.getElementById('invoice-print-area-' + order.id)
     if (!el) return
-    const canvas = await html2canvas(el, {  background: '#ffffff' })
+    const canvas = await html2canvas(el, { background: '#ffffff' })
     const imgData = canvas.toDataURL('image/png')
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
     const w = pdf.internal.pageSize.getWidth()
     const pageHeight = pdf.internal.pageSize.getHeight()
     const h = (canvas.height * w) / canvas.width
@@ -30,8 +30,8 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     pdf.save(order.order_number + '.pdf')
   }
 
-  const isTT = order.is_tt_order || customer?.track_trace_enabled
-  const isFoc = order.is_foc
+  const isTT     = order.is_tt_order || customer?.track_trace_enabled
+  const isFoc    = order.is_foc
   const isSample = order.is_sample
 
   const fixmerName    = appSettings?.tt_company   ?? 'Fixmer Belgium S.A.'
@@ -53,23 +53,33 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     : new Date().toLocaleDateString('en-GB')
 
   const paymentInfo = appSettings?.payment_info ??
-    `Beneficiary name and address: Nadir y Bohue Pte. Ltd. / 20C Sea avenue / Singapore 424243 / Singapore
-Account number: 048-904845-0
-Swift/BIC: DBSSSGSG
-Beneficiary bank and address: DBS Bank Ltd / 12 Marina Boulevard / DBS Asia Central / Marina Bay Financial Centre Tower 3 / Singapore 018982 / Singapore
+    `Beneficiary: Nadir y Bohue Pte. Ltd. / 20C Sea avenue / Singapore 424243
+Account: 048-904845-0 · Swift/BIC: DBSSSGSG
+Bank: DBS Bank Ltd / 12 Marina Boulevard / Marina Bay Financial Centre Tower 3 / Singapore 018982
+Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
 
-Bank fees: Please make sure to tick 'OUR' in the payment bank fees details.
-Amounts received need to coincide with amounts invoiced.`
+  // Landscape width ~1122px (A4 landscape at 96dpi)
+  const PRINT_W = 1008
 
-  const COLS = [
-    { label: 'PRODUCT',       align: 'left'  },
-    { label: 'SKU (DH)',      align: 'left'  },
-    { label: 'REF. FIXMER',   align: 'left'  },
-    { label: 'PRICE/UNIT',    align: 'right' },
-    { label: 'PACKS',         align: 'right' },
-    { label: 'UNITS',         align: 'right' },
-    { label: 'TOTAL',         align: 'right' },
-  ]
+  const cell = (content: any, opts: {
+    align?: 'left'|'right'|'center',
+    mono?: boolean,
+    bold?: boolean,
+    gray?: boolean,
+    small?: boolean,
+    nowrap?: boolean,
+    width?: string,
+  } = {}) => ({
+    content,
+    textAlign: opts.align ?? 'left',
+    fontFamily: opts.mono ? 'monospace' : 'Arial, sans-serif',
+    fontWeight: opts.bold ? 'bold' : 'normal',
+    color: opts.gray ? '#888' : '#1a1a1a',
+    fontSize: opts.small ? '9px' : '10px',
+    whiteSpace: opts.nowrap ? 'nowrap' : 'normal',
+    width: opts.width,
+    padding: '8px 5px',
+  })
 
   return (
     <div>
@@ -79,72 +89,124 @@ Amounts received need to coincide with amounts invoiced.`
         Download PDF
       </button>
 
+      {/* PRINT AREA — landscape A4 = 1122px wide at 96dpi, we use 1060px + padding */}
       <div
         id={'invoice-print-area-' + order.id}
-        style={{ position: 'fixed', left: '-9999px', top: 0, width: '794px', background: '#fff', padding: '48px 56px', fontFamily: 'Arial, sans-serif', fontSize: '12px', color: '#1a1a1a', boxSizing: 'border-box' }}
+        style={{
+          position: 'fixed', left: '-9999px', top: 0,
+          width: '1122px',
+          background: '#fff',
+          padding: '57px',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '11px',
+          color: '#1a1a1a',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+        }}
       >
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>
+        {/* ── HEADER ── */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
           <div>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', letterSpacing: '-1px' }}>dh.</div>
-            <div style={{ fontSize: '10px', fontWeight: 'bold', letterSpacing: '2px', marginTop: '2px' }}>SIGNATURE</div>
-            <div style={{ fontSize: '8px', color: '#888', letterSpacing: '1px' }}>CREATING UNIQUE MOMENTS</div>
+            <div style={{ fontSize: '26px', fontWeight: 'bold', letterSpacing: '-1px' }}>dh.</div>
+            <div style={{ fontSize: '9px', fontWeight: 'bold', letterSpacing: '2px', marginTop: '2px' }}>SIGNATURE</div>
+            <div style={{ fontSize: '7px', color: '#aaa', letterSpacing: '1px' }}>CREATING UNIQUE MOMENTS</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{order.order_number}</div>
-            <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Date: {docDate}</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{order.order_number}</div>
+            <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>Date: {docDate}</div>
+            {order.shipment_date && (
+              <div style={{ fontSize: '10px', color: '#666' }}>
+                Shipment: {new Date(order.shipment_date).toLocaleDateString('en-GB')}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Bill To */}
-        <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '9px', color: '#999', letterSpacing: '1px', marginBottom: '8px' }}>
-            {isFoc || isSample ? 'DELIVER TO' : 'INVOICE TO'}
+        {/* ── BILL TO + META ── */}
+        <div style={{ display: 'flex', gap: '48px', marginBottom: '24px' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '8px', color: '#999', letterSpacing: '1px', marginBottom: '6px' }}>
+              {isFoc || isSample ? 'DELIVER TO' : 'INVOICE TO'}
+            </div>
+            <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '3px' }}>{billToName}</div>
+            {billToContact && <div style={{ color: '#444', fontSize: '10px' }}>{billToContact}</div>}
+            {billToEmail   && <div style={{ color: '#666', fontSize: '10px' }}>{billToEmail}</div>}
+            {billToPhone   && <div style={{ color: '#666', fontSize: '10px' }}>{billToPhone}</div>}
+            {billToAddress && (
+              <div style={{ color: '#666', fontSize: '10px', marginTop: '3px' }}>
+                {[billToAddress.street1, billToAddress.city, billToAddress.postal_code, billToAddress.country].filter(Boolean).join(', ')}
+              </div>
+            )}
+            {isTT && careOfName && (
+              <div style={{ marginTop: '12px' }}>
+                <div style={{ fontSize: '8px', color: '#999', letterSpacing: '1px', marginBottom: '4px' }}>C/O (END CUSTOMER)</div>
+                <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{careOfName}</div>
+              </div>
+            )}
           </div>
-          <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>{billToName}</div>
-          {billToContact && <div style={{ color: '#333' }}>{billToContact}</div>}
-          {billToEmail && <div style={{ color: '#555' }}>{billToEmail}</div>}
-          {billToPhone && <div style={{ color: '#555' }}>{billToPhone}</div>}
-          {billToAddress && (
-            <div style={{ color: '#555', marginTop: '4px' }}>
-              {[billToAddress.street1, billToAddress.city, billToAddress.postal_code, billToAddress.country].filter(Boolean).join(', ')}
-            </div>
-          )}
-
-          {isTT && careOfName && (
-            <div style={{ marginTop: '20px' }}>
-              <div style={{ fontSize: '9px', color: '#999', letterSpacing: '1px', marginBottom: '8px' }}>C/O (END CUSTOMER)</div>
-              <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px' }}>{careOfName}</div>
-            </div>
-          )}
-
-          <div style={{ marginTop: '16px', display: 'flex', gap: '40px', fontSize: '11px' }}>
-            {order.incoterms && <div><span style={{ color: '#999' }}>Incoterms: </span><span>{order.incoterms}</span></div>}
-            {order.payment_terms && <div><span style={{ color: '#999' }}>Payment: </span><span>{order.payment_terms}</span></div>}
-            {order.warehouse && <div><span style={{ color: '#999' }}>Warehouse: </span><span>{order.warehouse}</span></div>}
+          <div style={{ display: 'flex', gap: '32px', fontSize: '10px', alignItems: 'flex-start', paddingTop: '20px' }}>
+            {order.incoterms     && <div><div style={{ color: '#999', fontSize: '8px', marginBottom: '2px' }}>INCOTERMS</div><div style={{ fontWeight: 'bold' }}>{order.incoterms}</div></div>}
+            {order.payment_terms && <div><div style={{ color: '#999', fontSize: '8px', marginBottom: '2px' }}>PAYMENT</div><div style={{ fontWeight: 'bold' }}>{order.payment_terms}</div></div>}
+            {order.currency      && <div><div style={{ color: '#999', fontSize: '8px', marginBottom: '2px' }}>CURRENCY</div><div style={{ fontWeight: 'bold' }}>{order.currency}</div></div>}
+            {order.warehouse     && <div><div style={{ color: '#999', fontSize: '8px', marginBottom: '2px' }}>WAREHOUSE</div><div style={{ fontWeight: 'bold' }}>{order.warehouse}</div></div>}
           </div>
-
-          {isTT && (
-            <div style={{ marginTop: '12px', display: 'inline-block', background: '#e6f1fb', color: '#185fa5', fontSize: '9px', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
-              TRACK & TRACE
-            </div>
-          )}
         </div>
 
-        <div style={{ borderTop: '1px solid #e5e7eb', marginBottom: '24px' }} />
+        {isTT && (
+          <div style={{ marginBottom: '12px' }}>
+            <span style={{ background: '#e6f1fb', color: '#185fa5', fontSize: '8px', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>TRACK & TRACE</span>
+          </div>
+        )}
 
-        {/* Lines table */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
+        <div style={{ borderTop: '1px solid #e5e7eb', marginBottom: '16px' }} />
+
+        {/* ── LINES TABLE ── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', tableLayout: 'fixed', overflow: 'hidden' }}>
+          <colgroup>
+            <col style={{ width: '14%' }} />{/* Brand & Line */}
+            <col style={{ width: '8%' }} /> {/* Vitola */}
+            <col style={{ width: '10%' }} />{/* SKU */}
+            <col style={{ width: '7%' }} /> {/* Ref Fixmer */}
+            <col style={{ width: '5%' }} /> {/* Qty Packs */}
+            <col style={{ width: '5%' }} /> {/* Total Articles */}
+            <col style={{ width: '7%' }} /> {/* Dim */}
+            <col style={{ width: '6%' }} /> {/* Shape */}
+            <col style={{ width: '9%' }} /> {/* Wrapper */}
+            <col style={{ width: '5%' }} /> {/* Pack Type */}
+            <col style={{ width: '4%' }} /> {/* Qty/Pack */}
+            <col style={{ width: '5%' }} /> {/* Net Wt/unit */}
+            <col style={{ width: '5%' }} /> {/* Net Wt total */}
+            <col style={{ width: '5%' }} /> {/* Price/unit */}
+            <col style={{ width: '5%' }} /> {/* Price total */}
+          </colgroup>
           <thead>
-            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-              {COLS.map(col => (
-                <th key={col.label} style={{
+            <tr style={{ borderBottom: '2px solid #1a1a1a', background: '#f9fafb' }}>
+              {[
+                { label: 'BRAND & LINE',     align: 'left'  },
+                { label: 'VITOLA',            align: 'left'  },
+                { label: 'SKU (REF DH)',      align: 'left'  },
+                { label: 'REF FIXMER',        align: 'left'  },
+                { label: 'QTY\nBOXES',        align: 'right' },
+                { label: 'TOTAL\nARTICLES',   align: 'right' },
+                { label: 'DIM\n(L×CEPO)',     align: 'center'},
+                { label: 'SHAPE',             align: 'center'},
+                { label: 'WRAPPER',           align: 'left'  },
+                { label: 'PACK\nTYPE',        align: 'center'},
+                { label: 'QTY\n/PACK',        align: 'right' },
+                { label: 'NET WT\n/UNIT (g)', align: 'right' },
+                { label: 'NET WT\nTOTAL (g)', align: 'right' },
+                { label: 'PRICE\n/UNIT',      align: 'right' },
+                { label: 'PRICE\nTOTAL',      align: 'right' },
+              ].map((col, i) => (
+                <th key={i} style={{ overflow: 'hidden', wordBreak: 'break-word',
                   textAlign: col.align as any,
-                  padding: '8px 4px',
-                  fontSize: '9px',
-                  color: '#999',
-                  fontWeight: 'normal',
-                  letterSpacing: '0.5px'
+                  padding: '6px 5px',
+                  fontSize: '7.5px',
+                  color: '#555',
+                  fontWeight: 'bold',
+                  letterSpacing: '0.3px',
+                  whiteSpace: 'pre-line',
+                  lineHeight: '1.3',
                 }}>
                   {col.label}
                 </th>
@@ -152,56 +214,89 @@ Amounts received need to coincide with amounts invoiced.`
             </tr>
           </thead>
           <tbody>
-            {lines.map((line, idx) => (
-              <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '12px 4px', fontWeight: '500', maxWidth: '180px' }}>{line.product_name}</td>
-                <td style={{ padding: '12px 4px', color: '#666', fontFamily: 'monospace', fontSize: '10px' }}>{line.sku}</td>
-                <td style={{ padding: '12px 4px', color: '#666', fontFamily: 'monospace', fontSize: '10px' }}>{line.fixmer_reference ?? '—'}</td>
-                <td style={{ padding: '12px 4px', textAlign: 'right' }}>
-                  {isFoc || isSample ? '—' : Number(line.price_per_unit).toFixed(2)}
-                </td>
-                <td style={{ padding: '12px 4px', textAlign: 'right' }}>{line.quantity_packs}</td>
-                <td style={{ padding: '12px 4px', textAlign: 'right' }}>{line.quantity_units}</td>
-                <td style={{ padding: '12px 4px', textAlign: 'right', fontWeight: '500' }}>
-                  {isFoc || isSample ? '—' : Number(line.line_total).toFixed(2)}
-                </td>
-              </tr>
-            ))}
+            {lines.map((line: any, idx: number) => {
+              const dim = (line.length_inches && line.ring_gauge)
+                ? `${line.length_inches}x${line.ring_gauge}`
+                : '—'
+              const netWtTotal = line.net_weight_g && line.quantity_units
+                ? (line.net_weight_g * line.quantity_units).toFixed(0)
+                : '—'
+              const priceTotal = (!isFoc && !isSample && line.line_total)
+                ? Number(line.line_total).toFixed(2)
+                : '—'
+              const priceUnit = (!isFoc && !isSample && line.price_per_unit)
+                ? Number(line.price_per_unit).toFixed(2)
+                : '—'
+
+              // Parse brand & line from product_name (format: "Brand_Line Vitola Pack")
+              const nameParts = (line.product_name ?? '').split(' ')
+              const brandLine = nameParts[0]?.replace(/_/g, ' ') ?? line.product_name
+              const vitola    = nameParts.slice(1, -1).join(' ') || '—'
+
+              return (
+                <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '9px', fontWeight: '500' }}>{brandLine}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '9px', color: '#444' }}>{line.vitola ?? vitola}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'monospace', fontSize: '8.5px', color: '#555' }}>{line.sku}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'monospace', fontSize: '8.5px', color: '#777' }}>{line.fixmer_reference ?? '—'}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontWeight: '500' }}>{line.quantity_packs}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontWeight: '500' }}>{line.quantity_units}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontSize: '9px', fontFamily: 'monospace' }}>{dim}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontSize: '9px' }}>{line.shape ?? '—'}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '9px' }}>{line.wrapper ?? '—'}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontSize: '9px' }}>{line.pack_type ?? '—'}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: '9px' }}>{line.units_per_pack ?? '—'}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: '9px' }}>{line.net_weight_g ? Number(line.net_weight_g).toFixed(2) : '—'}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: '9px' }}>{netWtTotal}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right' }}>{priceUnit}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontWeight: '500' }}>{priceTotal}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
 
-        {/* Totals */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '32px' }}>
-          <div style={{ minWidth: '220px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: '#666', fontSize: '11px' }}>
-              <span>Total Packs</span><span>{order.total_packs}</span>
+        {/* ── TOTALS ── */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
+          <div style={{ minWidth: '240px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', color: '#666', fontSize: '10px' }}>
+              <span>Total Boxes</span><span style={{ fontWeight: '500' }}>{order.total_packs}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: '#666', fontSize: '11px' }}>
-              <span>Total Units</span><span>{order.total_units}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', color: '#666', fontSize: '10px' }}>
+              <span>Total Articles</span><span style={{ fontWeight: '500' }}>{order.total_units}</span>
             </div>
-            <div style={{ borderTop: '2px solid #1a1a1a', marginTop: '8px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px' }}>
-              <span>TOTAL</span>
-              <span>{isFoc || isSample ? 'FOC' : order.currency + ' ' + Number(order.total_amount).toFixed(2)}</span>
-            </div>
+            {!isFoc && !isSample && (
+              <>
+                <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold' }}>
+                  <span>TOTAL</span>
+                  <span>{order.currency} {Number(order.total_amount).toFixed(2)}</span>
+                </div>
+              </>
+            )}
+            {(isFoc || isSample) && (
+              <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold' }}>
+                <span>TOTAL</span><span>FOC</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Payment info */}
+        {/* ── PAYMENT INFO ── */}
         {!isFoc && !isSample && order.document_type === 'invoice' && (
-          <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', marginBottom: '32px' }}>
-            <div style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: '8px' }}>FOR PAYMENT</div>
-            <div style={{ fontSize: '10px', color: '#555', lineHeight: '1.6', whiteSpace: 'pre-line' }}>{paymentInfo}</div>
+          <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', padding: '14px', marginBottom: '24px' }}>
+            <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '6px', letterSpacing: '0.5px' }}>PAYMENT DETAILS</div>
+            <div style={{ fontSize: '9px', color: '#555', lineHeight: '1.7', whiteSpace: 'pre-line' }}>{paymentInfo}</div>
           </div>
         )}
 
         {order.notes && (
-          <div style={{ marginBottom: '24px', fontSize: '11px', color: '#666' }}>
+          <div style={{ marginBottom: '20px', fontSize: '10px', color: '#666' }}>
             <strong>Notes:</strong> {order.notes}
           </div>
         )}
 
-        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '16px', textAlign: 'center', fontSize: '10px', color: '#aaa' }}>
-          DH Signature · Generated {new Date().toLocaleDateString('en-GB')}
+        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '12px', textAlign: 'center', fontSize: '9px', color: '#bbb' }}>
+          DH Signature · {order.order_number} · Generated {new Date().toLocaleDateString('en-GB')}
         </div>
       </div>
     </div>
