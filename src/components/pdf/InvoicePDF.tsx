@@ -95,8 +95,8 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     .doc-ref { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 600; color: #8C8475; margin-top: 2px; font-variant-numeric: lining-nums; }
     .doc-date { font-size: 11px; color: #8C8475; margin-top: 6px; }
     .kpi-strip { display: flex; border: 1px solid #E6E0D5; border-radius: 6px; overflow: hidden; background: #fff; flex-shrink: 0; height: 72px; }
-    .kpi-seg { flex: 1; padding: 4px 16px; border-right: 1px solid #E6E0D5; height: 72px; display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; }
-    .kpi-seg-accent { flex: 1.2; padding: 4px 16px; background: ${accent}; height: 72px; display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; }
+    .kpi-seg { flex: 1; padding: 10px 16px; border-right: 1px solid #E6E0D5; height: 72px; display: flex; flex-direction: column; justify-content: space-between; }
+    .kpi-seg-accent { flex: 1.2; padding: 10px 16px; background: ${accent}; height: 72px; display: flex; flex-direction: column; justify-content: space-between; }
     .kpi-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; }
     .kpi-label-accent { font-size: 9px; font-weight: 600; color: ${onAccent}; letter-spacing: 0.18em; text-transform: uppercase; }
     .kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums; }
@@ -108,7 +108,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     .party-contact { font-size: 11px; color: #3A352E; line-height: 1.6; }
     .party-addr { font-size: 11px; color: #6E665A; margin-top: 2px; }
     .co-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid #E6E0D5; }
-    .tt-pill { display: inline-flex; align-items: center; justify-content: center; background: ${accent}; border-radius: 999px; padding: 0 12px; height: 20px; font-size: 9px; font-weight: 600; color: #fff; letter-spacing: 0.12em; margin-top: 6px; line-height: 20px; vertical-align: middle; }
+    .tt-pill { display: inline-block; border: 1.5px solid ${accent}; border-radius: 999px; padding: 2px 10px; font-size: 9px; font-weight: 600; color: ${accent}; letter-spacing: 0.12em; margin-top: 6px; }
     .meta-block { flex: 1.6; padding-left: 40px; border-left: 1px solid #E6E0D5; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; padding-top: 4px; }
     .meta-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 3px; }
     .meta-value { font-size: 14px; font-weight: 600; color: #221C18; }
@@ -254,7 +254,9 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
                           <div className="party-eyebrow">C/O — End Customer</div>
                           <div className="party-name">{endCustomerName}</div>
                           {salesContactLine && <div className="party-contact">{salesContactLine}</div>}
-                          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: accent, borderRadius: '999px', padding: '0 12px', height: '20px', fontSize: '9px', fontWeight: 600, color: '#fff', letterSpacing: '0.12em', marginTop: '6px', fontFamily: "'IBM Plex Sans', sans-serif", lineHeight: 'normal' }}>TRACK &amp; TRACE</div>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', background: accent, borderRadius: '999px', padding: '0 12px', height: '22px', fontSize: '9px', fontWeight: 600, color: '#fff', letterSpacing: '0.12em', marginTop: '6px', fontFamily: "'IBM Plex Sans', sans-serif" }}>
+                          <span style={{ display: 'block', lineHeight: 1, paddingTop: '1px' }}>TRACK &amp; TRACE</span>
+                        </div>
                         </div>
                       )}
                     </div>
