@@ -215,11 +215,12 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
           </thead>
           <tbody>
             {lines.map((line: any, idx: number) => {
-              const dim = (line.length_inches && line.ring_gauge)
-                ? `${line.length_inches}x${line.ring_gauge}`
+              const p = line.product ?? {}
+const dim = ((line.length_inches || p.length_inches) && (line.ring_gauge || p.ring_gauge))
+                ? `${line.length_inches || p.length_inches}x${line.ring_gauge || p.ring_gauge}`
                 : '—'
-              const netWtTotal = line.net_weight_g && line.quantity_units
-                ? (line.net_weight_g * line.quantity_units).toFixed(0)
+              const netWtTotal = (line.net_weight_g || p.net_weight_g) && line.quantity_units
+                ? ((line.net_weight_g || p.net_weight_g) * line.quantity_units).toFixed(0)
                 : '—'
               const priceTotal = (!isFoc && !isSample && line.line_total)
                 ? Number(line.line_total).toFixed(2)
@@ -231,7 +232,7 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
               // Parse brand & line from product_name (format: "Brand_Line Vitola Pack")
               const nameParts = (line.product_name ?? '').split(' ')
               const brandLine = nameParts[0]?.replace(/_/g, ' ') ?? line.product_name
-              const vitola    = nameParts.slice(1, -1).join(' ') || '—'
+              const vitola    = nameParts.slice(1, -1).join(' ') || p.vitola || '—'
 
               return (
                 <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
@@ -242,11 +243,11 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
                   <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontWeight: '500' }}>{line.quantity_packs}</td>
                   <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontWeight: '500' }}>{line.quantity_units}</td>
                   <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontSize: '9px', fontFamily: 'monospace' }}>{dim}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontSize: '9px' }}>{line.shape ?? '—'}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '9px' }}>{line.wrapper ?? '—'}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontSize: '9px' }}>{line.pack_type ?? '—'}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: '9px' }}>{line.units_per_pack ?? '—'}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: '9px' }}>{line.net_weight_g ? Number(line.net_weight_g).toFixed(2) : '—'}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontSize: '9px' }}>{line.shape || p.shape || '—'}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '9px' }}>{line.wrapper || p.wrapper || '—'}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontSize: '9px' }}>{line.pack_type || p.pack_type || '—'}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: '9px' }}>{line.units_per_pack || p.units_per_pack || '—'}</td>
+                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: '9px' }}>{(line.net_weight_g || p.net_weight_g) ? Number(line.net_weight_g || p.net_weight_g).toFixed(2) : '—'}</td>
                   <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: '9px' }}>{netWtTotal}</td>
                   <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right' }}>{priceUnit}</td>
                   <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontWeight: '500' }}>{priceTotal}</td>

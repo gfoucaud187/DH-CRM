@@ -46,7 +46,7 @@ export default function OrderDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_orders')
-        .select('*, lines:sales_order_lines(*), customer:customers(legal_name, contacts, addresses, vat_number, track_trace_enabled)')
+        .select('*, lines:sales_order_lines(*, product:products(shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, vitola)), customer:customers(legal_name, contacts, addresses, vat_number, track_trace_enabled)')
         .eq('id', id)
         .single()
       return data
@@ -58,7 +58,7 @@ export default function OrderDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_orders')
-        .select('*, lines:sales_order_lines(*)')
+        .select('*, lines:sales_order_lines(*, product:products(shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, vitola))')
         .eq('linked_order_id', id)
         .eq('is_foc', true)
         .maybeSingle()
