@@ -14,37 +14,31 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
   const handleDownload = async () => {
     const jsPDF = (await import('jspdf')).default
     const html2canvas = (await import('html2canvas')).default
-    const el = document.getElementById('invoice-print-area-' + order.id)
-    if (!el) return
-    const canvas = await html2canvas(el)
-    const imgData = canvas.toDataURL('image/png')
+    const pageEls = document.querySelectorAll(`[data-pdf-page="${order.id}"]`)
+    if (!pageEls.length) return
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-    const w = pdf.internal.pageSize.getWidth()
-    const pageHeight = pdf.internal.pageSize.getHeight()
-    const h = (canvas.height * w) / canvas.width
-    const totalPages = Math.ceil(h / pageHeight)
-    for (let i = 0; i < totalPages; i++) {
+    const pdfW = pdf.internal.pageSize.getWidth()
+    const pdfH = pdf.internal.pageSize.getHeight()
+    for (let i = 0; i < pageEls.length; i++) {
+      const el = pageEls[i] as HTMLElement
+      const canvas = await html2canvas(el)
+      const imgData = canvas.toDataURL('image/png')
+      const imgH = (canvas.height * pdfW) / canvas.width
       if (i > 0) pdf.addPage()
-      pdf.addImage(imgData, 'PNG', 0, -(i * pageHeight), w, h)
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfW, Math.min(imgH, pdfH))
     }
     pdf.save(order.order_number + '.pdf')
   }
 
-  const isTT     = (order.is_tt_order || customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') && order.document_type === 'invoice'
-  const isFoc    = order.is_foc
-  const isSample = order.is_sample
+  const isInvoice = order.document_type === 'invoice'
+  const isFoc     = order.is_foc
+  const isSample  = order.is_sample
+  const isTT      = (order.is_tt_order || customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') && isInvoice
 
-  // Calculate totals for summary boxes
-  const totalNetWeightKg = lines.reduce((sum: number, l: any) => {
-    if (l.net_weight_g && l.quantity_units) return sum + Number(l.net_weight_g) * Number(l.quantity_units)
-    return sum
-  }, 0)
-  const totalWeightKgFmt = (totalNetWeightKg / 1000).toLocaleString('en-US', {minimumFractionDigits:3, maximumFractionDigits:3})
-  const totalValueFmt = (!isFoc && !isSample && order.total_amount)
-    ? Number(order.total_amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})
-    : 'FOC'
+  const accent   = isInvoice ? '#6A1E2A' : '#1C4B3C'
+  const tint     = isInvoice ? '#F7EDED' : '#EEF3F0'
+  const onAccent = isInvoice ? '#D9A6AC' : '#9FBDB0'
 
-  // Find Sales contact and format as single line
   const salesContact = customer?.contacts?.find((c: any) => c.role === 'Sales') ?? customer?.contacts?.[0]
   const salesContactLine = salesContact
     ? [
@@ -54,60 +48,141 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
       ].filter(Boolean).join(' | ')
     : null
 
-  const fixmerName    = appSettings?.tt_company   ?? 'Fixmer Belgium S.A.'
-  const fixmerContact = appSettings?.tt_attention  ?? 'Mr Jérémy JACQUES'
-  const fixmerEmail   = appSettings?.tt_email      ?? 'jjacques@fixmer.lu'
-  const fixmerPhone   = appSettings?.tt_phone      ?? '+352 621 366 634'
+  const fixmerName        = appSettings?.tt_company   ?? 'Fixmer Belgium S.A.'
+  const fixmerContactLine = [
+    appSettings?.tt_attention ?? 'Mr Jérémy JACQUES',
+    appSettings?.tt_email     ?? 'jjacques@fixmer.lu',
+    appSettings?.tt_phone     ?? '+352 621 366 634',
+  ].join(' | ')
 
-  const billToName    = isTT ? fixmerName    : (order.bill_to_name ?? customer?.legal_name ?? order.customer_name)
-  const billToContact = isTT ? fixmerContact : customer?.contacts?.[0]?.name
-  const billToEmail   = isTT ? fixmerEmail   : customer?.contacts?.[0]?.email
-  const billToPhone   = isTT ? fixmerPhone   : customer?.contacts?.[0]?.phone
-  const careOfName    = isTT ? (order.care_of_name ?? customer?.legal_name ?? order.customer_name) : null
-  const primaryAddress = customer?.addresses?.[0]
-  const billToAddress  = isTT ? null : primaryAddress
+  const billToName        = isTT ? fixmerName        : (customer?.legal_name ?? order.customer_name)
+  const billToContactLine = isTT ? fixmerContactLine : salesContactLine
+  const endCustomerName   = isTT ? (customer?.legal_name ?? order.customer_name) : null
+  const primaryAddress    = customer?.addresses?.[0]
 
   const docDate = order.order_date
-    ? new Date(order.order_date).toLocaleDateString('en-GB')
-    : new Date().toLocaleDateString('en-GB')
+    ? new Date(order.order_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, ' / ')
+    : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, ' / ')
 
-  const paymentInfo = appSettings?.payment_info ??
-`Beneficiary: Nadir y Bohue Pte. Ltd. / 20C Sea avenue / Singapore 424243
-Account: 048-904845-0 · Swift/BIC: DBSSSGSG
-Bank: DBS Bank Ltd / 12 Marina Boulevard / Marina Bay Financial Centre Tower 3 / Singapore 018982
-Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
+  const totalNetWeightKg = lines.reduce((sum: number, l: any) =>
+    l.net_weight_g && l.quantity_units ? sum + Number(l.net_weight_g) * Number(l.quantity_units) : sum, 0)
+  const netTobaccoKg = (totalNetWeightKg / 1000).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+  const totalValue = (!isFoc && !isSample && order.total_amount)
+    ? Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : 'FOC'
 
-  // Format amounts US style: 1,650.54
-  const fmt = (n: number | string) =>
-    Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const fmt2 = (n: any) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-  // A4 landscape = 297mm = ~1122px at 96dpi. 1.5cm margin = 57px each side.
-  const HEADERS = [
-    { label: 'BRAND & LINE',     w: '13%', align: 'left'   },
-    { label: 'VITOLA',           w: '7%',  align: 'left'   },
-    { label: 'SKU (REF DH)',     w: '9%',  align: 'left'   },
-    { label: 'REF\nFIXMER',     w: '6%',  align: 'left'   },
-    { label: 'QTY\nBOXES',      w: '4%',  align: 'right'  },
-    { label: 'TOTAL\nARTICLES', w: '5%',  align: 'right'  },
-    { label: 'DIM\n(L×CEPO)',   w: '6%',  align: 'center' },
-    { label: 'SHAPE',            w: '5%',  align: 'center' },
-    { label: 'WRAPPER',          w: '9%',  align: 'left'   },
-    { label: 'PACK\nTYPE',      w: '4%',  align: 'center' },
-    { label: 'QTY\n/PACK',      w: '4%',  align: 'right'  },
-    { label: 'NET WT\n/UNIT g', w: '5%',  align: 'right'  },
-    { label: 'NET WT\nTOTAL g', w: '5%',  align: 'right'  },
-    { label: 'PRICE\n/UNIT',    w: '5%',  align: 'right'  },
-    { label: 'PRICE\nTOTAL',    w: '5%',  align: 'right'  },
-  ]
+  // Split lines into pages
+  const LINES_P1 = 10
+  const LINES_PN = 14
+  const pages: any[][] = []
+  const remaining = [...lines]
+  pages.push(remaining.splice(0, LINES_P1))
+  while (remaining.length > 0) pages.push(remaining.splice(0, LINES_PN))
+  const totalPages = pages.length
 
-  const td = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    padding: '7px 4px',
-    fontSize: '9px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    ...extra,
-  })
+  const css = `
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    .doc { width: 1123px; min-height: 794px; background: #FBF9F4; font-family: 'IBM Plex Sans', sans-serif; color: #221C18; display: flex; flex-direction: column; }
+    .accent-bar { height: 6px; background: ${accent}; width: 100%; flex-shrink: 0; }
+    .inner { padding: 38px 56px 32px; flex: 1; display: flex; flex-direction: column; gap: 18px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .logo { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 700; letter-spacing: -2px; line-height: 1; }
+    .logo-sub { font-size: 8px; font-weight: 600; letter-spacing: 0.3em; color: #6E665A; margin-top: 3px; }
+    .header-right { text-align: right; }
+    .doc-eyebrow { font-family: 'Cormorant Garamond', serif; font-size: 14px; font-weight: 600; color: ${accent}; letter-spacing: 0.34em; text-transform: uppercase; margin-bottom: 4px; }
+    .doc-number { font-family: 'Cormorant Garamond', serif; font-size: 46px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums; font-feature-settings: 'lnum' 1; }
+    .doc-ref { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 600; color: #8C8475; margin-top: 2px; font-variant-numeric: lining-nums; }
+    .doc-date { font-size: 11px; color: #8C8475; margin-top: 6px; }
+    .kpi-strip { display: flex; border: 1px solid #E6E0D5; border-radius: 6px; overflow: hidden; background: #fff; flex-shrink: 0; }
+    .kpi-seg { flex: 1; padding: 10px 16px; border-right: 1px solid #E6E0D5; }
+    .kpi-seg-accent { flex: 1.2; padding: 10px 16px; background: ${accent}; }
+    .kpi-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 4px; }
+    .kpi-label-accent { font-size: 9px; font-weight: 600; color: ${onAccent}; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 4px; }
+    .kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums; }
+    .kpi-value-accent { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600; line-height: 1; color: #fff; font-variant-numeric: lining-nums; }
+    .parties { display: flex; gap: 48px; align-items: flex-start; flex-shrink: 0; }
+    .party-block { flex: 1.5; }
+    .party-eyebrow { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 6px; }
+    .party-name { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; margin-bottom: 3px; line-height: 1.2; }
+    .party-contact { font-size: 11px; color: #3A352E; line-height: 1.6; }
+    .party-addr { font-size: 11px; color: #6E665A; margin-top: 2px; }
+    .co-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid #E6E0D5; }
+    .tt-pill { display: inline-block; border: 1.5px solid ${accent}; border-radius: 999px; padding: 2px 10px; font-size: 9px; font-weight: 600; color: ${accent}; letter-spacing: 0.12em; margin-top: 6px; }
+    .meta-block { flex: 1.6; padding-left: 40px; border-left: 1px solid #E6E0D5; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; padding-top: 4px; }
+    .meta-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 3px; }
+    .meta-value { font-size: 14px; font-weight: 600; color: #221C18; }
+    .line-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .line-table thead tr { background: ${tint}; border-bottom: 2px solid ${accent}; }
+    .line-table th { font-size: 8px; font-weight: 600; color: ${accent}; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 6px; white-space: nowrap; overflow: hidden; }
+    .line-table td { font-size: 11px; color: #3A352E; padding: 10px 6px; border-bottom: 1px solid #ECE6DB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mono { font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
+    .ink { font-weight: 600; color: #221C18; }
+    .muted { color: #6E665A; }
+    .bottom-row { display: flex; gap: 48px; align-items: flex-end; margin-top: auto; }
+    .payment-card { flex: 1; background: #fff; border: 1px solid #E6E0D5; border-radius: 6px; padding: 14px 18px; }
+    .payment-title { font-size: 9px; font-weight: 600; color: ${accent}; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 8px; }
+    .payment-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 10px; color: #3A352E; line-height: 1.5; }
+    .payment-key { color: #A39A8A; font-weight: 600; font-size: 9px; white-space: nowrap; }
+    .totals-block { width: 300px; text-align: right; }
+    .total-line { display: flex; justify-content: space-between; font-size: 11px; color: #6E665A; padding: 3px 0; }
+    .total-line span:last-child { font-family: 'IBM Plex Mono', monospace; }
+    .total-hr { border: none; border-top: 1px solid #E6E0D5; margin: 8px 0; }
+    .grand-row { display: flex; justify-content: space-between; align-items: baseline; }
+    .grand-label { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; }
+    .grand-value { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 700; color: ${accent}; font-variant-numeric: lining-nums; }
+    .footer { border-top: 1px solid #E6E0D5; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+    .footer-notes { font-size: 10px; color: #6E665A; max-width: 500px; }
+    .footer-right { font-size: 9px; color: #B3AA99; letter-spacing: 0.12em; text-transform: uppercase; text-align: right; }
+    .page-num { font-size: 9px; color: #B3AA99; letter-spacing: 0.08em; margin-top: 3px; }
+  `
+
+  const TableHead = () => (
+    <thead>
+      <tr>
+        {[
+          ['Brand & Line','left','12%'],['Vitola','left','8%'],['SKU · Ref DH','left','9%'],['Ref Fixmer','left','7%'],
+          ['Boxes','center','4%'],['Articles','center','5%'],['Dim L×Cepo','center','6%'],['Shape','left','5%'],
+          ['Wrapper','left','9%'],['Pack','center','4%'],['Net/U g','right','5%'],['Net Tot g','right','7%'],
+          ['Price/U','right','6%'],['Total','right','7%'],
+        ].map(([h, a, w], i) => (
+          <th key={i} style={{ textAlign: a as any, width: w }}>{h}</th>
+        ))}
+      </tr>
+    </thead>
+  )
+
+  const TableRow = ({ line, idx }: { line: any; idx: number }) => {
+    const dim        = (line.length_inches && line.ring_gauge) ? `${line.length_inches}×${line.ring_gauge}` : '—'
+    const netWtTotal = (line.net_weight_g && line.quantity_units)
+      ? Number((Number(line.net_weight_g) * Number(line.quantity_units)).toFixed(2)).toLocaleString('en-US')
+      : '—'
+    const priceUnit  = (!isFoc && !isSample && line.price_per_unit != null) ? fmt2(line.price_per_unit) : '—'
+    const priceTotal = (!isFoc && !isSample && line.line_total != null)     ? fmt2(line.line_total)     : '—'
+    const parts      = (line.product_name ?? '').split(' ')
+    const brandLine  = parts[0]?.replace(/_/g, ' ') ?? line.product_name
+    const vitola     = line.vitola ?? parts.slice(1, -1).join(' ') ?? '—'
+    return (
+      <tr key={idx}>
+        <td className="ink">{brandLine}</td>
+        <td>{vitola}</td>
+        <td className="mono muted">{line.sku}</td>
+        <td className="mono muted">{line.fixmer_reference ?? '—'}</td>
+        <td style={{ textAlign: 'center' }}>{line.quantity_packs}</td>
+        <td style={{ textAlign: 'center' }}>{line.quantity_units}</td>
+        <td className="mono" style={{ textAlign: 'center' }}>{dim}</td>
+        <td>{line.shape ?? '—'}</td>
+        <td>{line.wrapper ?? '—'}</td>
+        <td style={{ textAlign: 'center' }}>{line.pack_type ?? '—'}</td>
+        <td className="mono" style={{ textAlign: 'right' }}>{line.net_weight_g ? fmt2(line.net_weight_g) : '—'}</td>
+        <td className="mono" style={{ textAlign: 'right' }}>{netWtTotal}</td>
+        <td className="mono" style={{ textAlign: 'right' }}>{priceUnit}</td>
+        <td className="mono ink" style={{ textAlign: 'right' }}>{priceTotal}</td>
+      </tr>
+    )
+  }
 
   return (
     <div>
@@ -117,187 +192,152 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
         Download PDF
       </button>
 
-      <div
-        id={'invoice-print-area-' + order.id}
-        style={{
-          position: 'fixed', left: '-9999px', top: 0,
-          width: '1122px',
-          background: '#fff',
-          padding: '57px',
-          fontFamily: 'Arial, sans-serif',
-          fontSize: '11px',
-          color: '#1a1a1a',
-          boxSizing: 'border-box',
-          overflow: 'hidden',
-        }}
-      >
-        {/* HEADER */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
-          <div>
-            <div style={{ fontSize: '26px', fontWeight: 'bold', letterSpacing: '-1px' }}>dh.</div>
-            <div style={{ fontSize: '9px', fontWeight: 'bold', letterSpacing: '3px', marginTop: '2px' }}>SIGNATURE</div>
-            <div style={{ fontSize: '7px', color: '#aaa', letterSpacing: '1px' }}>CREATING UNIQUE MOMENTS</div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{order.order_number}</div>
-            <div style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>Date: {docDate}</div>
-            {order.shipment_date && <div style={{ fontSize: '10px', color: '#666' }}>Shipment: {new Date(order.shipment_date).toLocaleDateString('en-GB')}</div>}
-            {/* Summary boxes */}
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' }}>
-              {[
-                { label: 'Total Packs',    value: String(order.total_packs) },
-                { label: 'Total Articles', value: String(order.total_units) },
-                { label: 'kg net Tobacco', value: totalWeightKgFmt },
-                { label: 'Total Value',    value: totalValueFmt.startsWith('FOC') ? 'FOC' : `USD ${totalValueFmt}` },
-              ].map((box, i) => (
-                <div key={i} style={{
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '6px',
-                  padding: '6px 10px',
-                  minWidth: '80px',
-                  background: '#f9fafb',
-                  textAlign: 'center',
-                }}>
-                  <div style={{ fontSize: '7.5px', color: '#999', letterSpacing: '0.3px', marginBottom: '3px' }}>{box.label}</div>
-                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1a1a1a' }}>{box.value}</div>
+      <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
+        <style dangerouslySetInnerHTML={{ __html: css }} />
+
+        {pages.map((pageLines, pageIdx) => {
+          const isFirst = pageIdx === 0
+          const isLast  = pageIdx === pages.length - 1
+          return (
+            <div key={pageIdx} data-pdf-page={order.id} className="doc">
+              <div className="accent-bar" />
+              <div className="inner">
+
+                {/* HEADER — first page only */}
+                {isFirst && (
+                  <div className="header">
+                    <div>
+                      <div className="logo">dh.</div>
+                      <div className="logo-sub">SIGNATURE</div>
+                    </div>
+                    <div className="header-right">
+                      <div className="doc-eyebrow">{isInvoice ? 'Invoice' : 'Sales Order'}</div>
+                      <div className="doc-number">{order.order_number}</div>
+                      {isInvoice && order.promoted_from_number && <div className="doc-ref">{order.promoted_from_number}</div>}
+                      <div className="doc-date">{docDate}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* KPI STRIP — first page only */}
+                {isFirst && (
+                  <div className="kpi-strip">
+                    {[
+                      { label: 'Total Packs',    value: String(order.total_packs ?? 0), accent: false },
+                      { label: 'Total Articles', value: String(order.total_units ?? 0), accent: false },
+                      { label: 'Net Tobacco kg', value: netTobaccoKg,                   accent: false },
+                      { label: isInvoice ? 'Amount Due' : 'Total Value',
+                        value: isFoc || isSample ? 'FOC' : `USD ${totalValue}`,          accent: true  },
+                    ].map((k, i) => (
+                      <div key={i} className={k.accent ? 'kpi-seg-accent' : 'kpi-seg'}>
+                        <div className={k.accent ? 'kpi-label-accent' : 'kpi-label'}>{k.label}</div>
+                        <div className={k.accent ? 'kpi-value-accent' : 'kpi-value'}>{k.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* PARTIES + META — first page only */}
+                {isFirst && (
+                  <div className="parties">
+                    <div className="party-block">
+                      <div className="party-eyebrow">
+                        {isFoc || isSample ? 'Deliver To' : isInvoice ? 'Invoice To' : 'Sales Order To'}
+                      </div>
+                      <div className="party-name">{billToName}</div>
+                      {billToContactLine && <div className="party-contact">{billToContactLine}</div>}
+                      {!isTT && primaryAddress && (
+                        <div className="party-addr">
+                          {[primaryAddress.street1, primaryAddress.city, primaryAddress.postal_code, primaryAddress.country].filter(Boolean).join(', ')}
+                        </div>
+                      )}
+                      {isTT && endCustomerName && (
+                        <div className="co-block">
+                          <div className="party-eyebrow">C/O — End Customer</div>
+                          <div className="party-name">{endCustomerName}</div>
+                          {salesContactLine && <div className="party-contact">{salesContactLine}</div>}
+                          <div className="tt-pill">TRACK &amp; TRACE</div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="meta-block">
+                      {[
+                        { label: 'Incoterms', value: order.incoterms },
+                        { label: 'Payment',   value: order.payment_terms },
+                        { label: 'Currency',  value: order.currency },
+                        { label: 'Warehouse', value: order.warehouse },
+                      ].filter(m => m.value).map((m, i) => (
+                        <div key={i}>
+                          <div className="meta-label">{m.label}</div>
+                          <div className="meta-value">{m.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* TABLE — all pages */}
+                <table className="line-table">
+                  <TableHead />
+                  <tbody>
+                    {pageLines.map((line: any, idx: number) => (
+                      <TableRow key={idx} line={line} idx={idx} />
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* TOTALS + PAYMENT — last page only */}
+                {isLast && (
+                  <div className="bottom-row">
+                    {isInvoice && !isFoc && !isSample && (
+                      <div className="payment-card">
+                        <div className="payment-title">Payment Details</div>
+                        <div className="payment-grid">
+                          <span className="payment-key">Beneficiary</span>
+                          <span>{appSettings?.payment_beneficiary ?? 'Nadir y Bohue Pte. Ltd. · 20C Sea Avenue · Singapore 424243'}</span>
+                          <span className="payment-key">Account</span>
+                          <span className="mono">{appSettings?.payment_account ?? '048-904845-0'}</span>
+                          <span className="payment-key">Swift/BIC</span>
+                          <span className="mono">{appSettings?.payment_swift ?? 'DBSSSGSG'}</span>
+                          <span className="payment-key">Bank</span>
+                          <span>{appSettings?.payment_bank ?? 'DBS Bank Ltd · 12 Marina Blvd · MBFC Tower 3 · Singapore 018982'}</span>
+                          <span className="payment-key">Fees</span>
+                          <span>{appSettings?.payment_fees ?? "Tick 'OUR' · amounts received must match amounts invoiced"}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }} />
+                    <div className="totals-block">
+                      <div className="total-line"><span>Total Boxes</span><span>{order.total_packs}</span></div>
+                      <div className="total-line"><span>Total Articles</span><span>{order.total_units}</span></div>
+                      <hr className="total-hr" />
+                      <div className="grand-row">
+                        <span className="grand-label">{isInvoice ? 'Amount Due' : 'Total'}</span>
+                        <span className="grand-value">
+                          {isFoc || isSample ? 'FOC' : `${order.currency} ${totalValue}`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* FOOTER — all pages */}
+                <div className="footer">
+                  <div className="footer-notes">
+                    {isLast && order.notes && <span><strong>Notes:</strong> {order.notes}</span>}
+                  </div>
+                  <div className="footer-right">
+                    {isLast && `DH Signature · ${order.order_number} · Generated ${new Date().toLocaleDateString('en-GB')}`}
+                    {totalPages > 1 && (
+                      <div className="page-num">{pageIdx + 1} / {totalPages}</div>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
 
-        {/* BILL TO + META */}
-        <div style={{ display: 'flex', gap: '40px', marginBottom: '20px' }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '8px', color: '#999', letterSpacing: '1px', marginBottom: '6px' }}>
-              {isFoc || isSample ? 'DELIVER TO' : order.document_type === 'invoice' ? 'INVOICE TO' : 'SALES ORDER TO'}
-            </div>
-            <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '3px' }}>{billToName}</div>
-            {!isTT && salesContactLine && <div style={{ color: '#555', fontSize: '10px', marginTop: '2px' }}>{salesContactLine}</div>}
-            {isTT && billToContact && <div style={{ color: '#444', fontSize: '10px' }}>{billToContact}</div>}
-            {isTT && billToEmail   && <div style={{ color: '#666', fontSize: '10px' }}>{billToEmail}</div>}
-            {isTT && billToPhone   && <div style={{ color: '#666', fontSize: '10px' }}>{billToPhone}</div>}
-            {billToAddress && (
-              <div style={{ color: '#666', fontSize: '10px', marginTop: '3px' }}>
-                {[billToAddress.street1, billToAddress.city, billToAddress.postal_code, billToAddress.country].filter(Boolean).join(', ')}
               </div>
-            )}
-            {isTT && careOfName && (
-              <div style={{ marginTop: '12px' }}>
-                <div style={{ fontSize: '8px', color: '#999', letterSpacing: '1px', marginBottom: '4px' }}>C/O (END CUSTOMER)</div>
-                <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '3px' }}>{careOfName}</div>
-                {salesContactLine && <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{salesContactLine}</div>}
-              </div>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: '28px', fontSize: '10px', alignItems: 'flex-start', paddingTop: '18px' }}>
-            {order.incoterms     && <div><div style={{ color: '#999', fontSize: '8px', marginBottom: '2px' }}>INCOTERMS</div><div style={{ fontWeight: 'bold' }}>{order.incoterms}</div></div>}
-            {order.payment_terms && <div><div style={{ color: '#999', fontSize: '8px', marginBottom: '2px' }}>PAYMENT</div><div style={{ fontWeight: 'bold' }}>{order.payment_terms}</div></div>}
-            {order.currency      && <div><div style={{ color: '#999', fontSize: '8px', marginBottom: '2px' }}>CURRENCY</div><div style={{ fontWeight: 'bold' }}>{order.currency}</div></div>}
-            {order.warehouse     && <div><div style={{ color: '#999', fontSize: '8px', marginBottom: '2px' }}>WAREHOUSE</div><div style={{ fontWeight: 'bold' }}>{order.warehouse}</div></div>}
-          </div>
-        </div>
-
-        {isTT && (
-          <div style={{ marginBottom: '10px' }}>
-            <span style={{ background: '#e6f1fb', color: '#185fa5', fontSize: '8px', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>TRACK & TRACE</span>
-          </div>
-        )}
-
-        <div style={{ borderTop: '1px solid #e5e7eb', marginBottom: '14px' }} />
-
-        {/* LINES TABLE */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '18px', tableLayout: 'fixed' }}>
-          <colgroup>
-            {HEADERS.map((h, i) => <col key={i} style={{ width: h.w }} />)}
-          </colgroup>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #1a1a1a', background: '#f9fafb' }}>
-              {HEADERS.map((h, i) => (
-                <th key={i} style={{
-                  textAlign: h.align as any,
-                  padding: '6px 4px',
-                  fontSize: '7.5px',
-                  color: '#444',
-                  fontWeight: 'bold',
-                  whiteSpace: 'pre-line',
-                  lineHeight: '1.3',
-                  overflow: 'hidden',
-                }}>
-                  {h.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((line: any, idx: number) => {
-              // Fields come pre-enriched from order-detail-page.tsx
-              const dim        = (line.length_inches && line.ring_gauge) ? `${line.length_inches}×${line.ring_gauge}` : '—'
-              const netWtTotal = (line.net_weight_g && line.quantity_units) ? (Number(line.net_weight_g) * Number(line.quantity_units)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'
-              const priceUnit  = (!isFoc && !isSample && line.price_per_unit)  ? fmt(line.price_per_unit)  : '—'
-              const priceTotal = (!isFoc && !isSample && line.line_total)      ? fmt(line.line_total)      : '—'
-              // Brand & Line from product_name "Brand_Line Vitola Pack"
-              const parts     = (line.product_name ?? '').split(' ')
-              const brandLine = parts[0]?.replace(/_/g, ' ') ?? line.product_name
-              const vitola    = line.vitola ?? parts.slice(1, -1).join(' ') ?? '—'
-              const bg        = idx % 2 === 0 ? '#fff' : '#fafafa'
-
-              return (
-                <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0', background: bg }}>
-                  <td style={td({ fontWeight: '500' })}>{brandLine}</td>
-                  <td style={td({ color: '#444' })}>{vitola}</td>
-                  <td style={td({ fontFamily: 'monospace', fontSize: '8px', color: '#555' })}>{line.sku}</td>
-                  <td style={td({ fontFamily: 'monospace', fontSize: '8px', color: '#777' })}>{line.fixmer_reference ?? '—'}</td>
-                  <td style={td({ textAlign: 'right', fontWeight: '500' })}>{line.quantity_packs}</td>
-                  <td style={td({ textAlign: 'right', fontWeight: '500' })}>{line.quantity_units}</td>
-                  <td style={td({ textAlign: 'center', fontFamily: 'monospace' })}>{dim}</td>
-                  <td style={td({ textAlign: 'center' })}>{line.shape ?? '—'}</td>
-                  <td style={td()}>{line.wrapper ?? '—'}</td>
-                  <td style={td({ textAlign: 'center' })}>{line.pack_type ?? '—'}</td>
-                  <td style={td({ textAlign: 'right' })}>{line.units_per_pack ?? '—'}</td>
-                  <td style={td({ textAlign: 'right' })}>{line.net_weight_g ? fmt(line.net_weight_g) : '—'}</td>
-                  <td style={td({ textAlign: 'right' })}>{netWtTotal}</td>
-                  <td style={td({ textAlign: 'right' })}>{priceUnit}</td>
-                  <td style={td({ textAlign: 'right', fontWeight: '500' })}>{priceTotal}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-
-        {/* TOTALS */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
-          <div style={{ minWidth: '220px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', color: '#666', fontSize: '10px' }}>
-              <span>Total Boxes</span><span style={{ fontWeight: '500' }}>{order.total_packs}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', color: '#666', fontSize: '10px' }}>
-              <span>Total Articles</span><span style={{ fontWeight: '500' }}>{order.total_units}</span>
-            </div>
-            <div style={{ borderTop: '2px solid #1a1a1a', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px' }}>
-              <span>TOTAL</span>
-              <span>{(isFoc || isSample) ? 'FOC' : `${order.currency} ${fmt(order.total_amount)}`}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* PAYMENT INFO */}
-        {!isFoc && !isSample && order.document_type === 'invoice' && (
-          <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', padding: '14px', marginBottom: '20px' }}>
-            <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '6px', letterSpacing: '0.5px' }}>PAYMENT DETAILS</div>
-            <div style={{ fontSize: '9px', color: '#555', lineHeight: '1.7', whiteSpace: 'pre-line' }}>{paymentInfo}</div>
-          </div>
-        )}
-
-        {order.notes && (
-          <div style={{ marginBottom: '16px', fontSize: '10px', color: '#666' }}>
-            <strong>Notes:</strong> {order.notes}
-          </div>
-        )}
-
-        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', textAlign: 'center', fontSize: '9px', color: '#bbb' }}>
-          DH Signature · {order.order_number} · Generated {new Date().toLocaleDateString('en-GB')}
-        </div>
+          )
+        })}
       </div>
     </div>
   )
