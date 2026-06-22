@@ -97,8 +97,8 @@ export default function EditProductPage() {
     // Update product
     const { error } = await supabase.from('products').update({
       full_name: fullName, brand, line: line || null, vitola: vitola || null,
-      shape: shape || null, wrapper: wrapper || null, binder: binder || null,
-      filler: filler || null, units_per_pack: unitsPerPack ? parseInt(unitsPerPack) : null,
+      shape: shape || null, wrapper: wrapper || null,
+      units_per_pack: unitsPerPack ? parseInt(unitsPerPack) : null,
       pack_type: packType || null, fixmer_reference: fixmerReference || null,
       eu_ceg_id: euCegId || null, status, notes: notes || null,
       length_inches: lengthInches ? parseFloat(lengthInches) : null,
