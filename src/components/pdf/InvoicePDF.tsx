@@ -16,7 +16,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     const html2canvas = (await import('html2canvas')).default
     const el = document.getElementById('invoice-print-area-' + order.id)
     if (!el) return
-    const canvas = await html2canvas(el, { useCORS: true })
+    const canvas = await html2canvas(el)
     const imgData = canvas.toDataURL('image/png')
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
     const w = pdf.internal.pageSize.getWidth()
@@ -33,6 +33,16 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
   const isTT     = (order.is_tt_order || customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') && order.document_type === 'invoice'
   const isFoc    = order.is_foc
   const isSample = order.is_sample
+
+  // Calculate totals for summary boxes
+  const totalNetWeightKg = lines.reduce((sum: number, l: any) => {
+    if (l.net_weight_g && l.quantity_units) return sum + Number(l.net_weight_g) * Number(l.quantity_units)
+    return sum
+  }, 0)
+  const totalWeightKgFmt = (totalNetWeightKg / 1000).toLocaleString('en-US', {minimumFractionDigits:3, maximumFractionDigits:3})
+  const totalValueFmt = (!isFoc && !isSample && order.total_amount)
+    ? Number(order.total_amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})
+    : 'FOC'
 
   // Find Sales contact and format as single line
   const salesContact = customer?.contacts?.find((c: any) => c.role === 'Sales') ?? customer?.contacts?.[0]
@@ -66,6 +76,10 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
 Account: 048-904845-0 · Swift/BIC: DBSSSGSG
 Bank: DBS Bank Ltd / 12 Marina Boulevard / Marina Bay Financial Centre Tower 3 / Singapore 018982
 Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
+
+  // Format amounts US style: 1,650.54
+  const fmt = (n: number | string) =>
+    Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   // A4 landscape = 297mm = ~1122px at 96dpi. 1.5cm margin = 57px each side.
   const HEADERS = [
@@ -126,8 +140,29 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{order.order_number}</div>
-            <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>Date: {docDate}</div>
+            <div style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>Date: {docDate}</div>
             {order.shipment_date && <div style={{ fontSize: '10px', color: '#666' }}>Shipment: {new Date(order.shipment_date).toLocaleDateString('en-GB')}</div>}
+            {/* Summary boxes */}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' }}>
+              {[
+                { label: 'Total Packs',    value: String(order.total_packs) },
+                { label: 'Total Articles', value: String(order.total_units) },
+                { label: 'kg net Tobacco', value: totalWeightKgFmt },
+                { label: 'Total Value',    value: totalValueFmt.startsWith('FOC') ? 'FOC' : `USD ${totalValueFmt}` },
+              ].map((box, i) => (
+                <div key={i} style={{
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  minWidth: '80px',
+                  background: '#f9fafb',
+                  textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: '7.5px', color: '#999', letterSpacing: '0.3px', marginBottom: '3px' }}>{box.label}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1a1a1a' }}>{box.value}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -198,9 +233,10 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
             {lines.map((line: any, idx: number) => {
               // Fields come pre-enriched from order-detail-page.tsx
               const dim        = (line.length_inches && line.ring_gauge) ? `${line.length_inches}×${line.ring_gauge}` : '—'
-              const netWtTotal = (line.net_weight_g && line.quantity_units) ? Number((Number(line.net_weight_g) * Number(line.quantity_units)).toFixed(2)).toLocaleString('en-US') : '—'
-              const priceUnit  = (!isFoc && !isSample && line.price_per_unit != null)  ? Number(line.price_per_unit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})  : '—'
-              const priceTotal = (!isFoc && !isSample && line.line_total != null)      ? Number(line.line_total).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})      : '—'
+              const netWtTotal = (line.net_weight_g && line.quantity_units) ? (Number(line.net_weight_g) * Number(line.quantity_units)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'
+              const priceUnit  = (!isFoc && !isSample && line.price_per_unit)  ? fmt(line.price_per_unit)  : '—'
+              const priceTotal = (!isFoc && !isSample && line.line_total)      ? fmt(line.line_total)      : '—'
+              // Brand & Line from product_name "Brand_Line Vitola Pack"
               const parts     = (line.product_name ?? '').split(' ')
               const brandLine = parts[0]?.replace(/_/g, ' ') ?? line.product_name
               const vitola    = line.vitola ?? parts.slice(1, -1).join(' ') ?? '—'
@@ -219,7 +255,7 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
                   <td style={td()}>{line.wrapper ?? '—'}</td>
                   <td style={td({ textAlign: 'center' })}>{line.pack_type ?? '—'}</td>
                   <td style={td({ textAlign: 'right' })}>{line.units_per_pack ?? '—'}</td>
-                  <td style={td({ textAlign: 'right' })}>{line.net_weight_g ? Number(line.net_weight_g).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'}</td>
+                  <td style={td({ textAlign: 'right' })}>{line.net_weight_g ? fmt(line.net_weight_g) : '—'}</td>
                   <td style={td({ textAlign: 'right' })}>{netWtTotal}</td>
                   <td style={td({ textAlign: 'right' })}>{priceUnit}</td>
                   <td style={td({ textAlign: 'right', fontWeight: '500' })}>{priceTotal}</td>
@@ -240,7 +276,7 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
             </div>
             <div style={{ borderTop: '2px solid #1a1a1a', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px' }}>
               <span>TOTAL</span>
-              <span>{(isFoc || isSample) ? 'FOC' : `${order.currency} ${Number(order.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`}</span>
+              <span>{(isFoc || isSample) ? 'FOC' : `${order.currency} ${fmt(order.total_amount)}`}</span>
             </div>
           </div>
         </div>
