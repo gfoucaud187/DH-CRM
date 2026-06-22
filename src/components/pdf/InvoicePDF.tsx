@@ -254,7 +254,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
                           <div className="party-eyebrow">C/O — End Customer</div>
                           <div className="party-name">{endCustomerName}</div>
                           {salesContactLine && <div className="party-contact">{salesContactLine}</div>}
-                          <div style={{ display: 'inline-block', backgroundColor: isInvoice ? '#6A1E2A' : '#1C4B3C', borderRadius: '999px', padding: '4px 12px 5px', fontSize: '9px', fontWeight: 600, color: '#ffffff', letterSpacing: '0.12em', marginTop: '6px', fontFamily: 'Arial, sans-serif', lineHeight: '1' }}>TRACK &amp; TRACE</div>
+                          <table style={{ display: 'inline-table', backgroundColor: isInvoice ? '#6A1E2A' : '#1C4B3C', borderRadius: '999px', marginTop: '6px' }}><tbody><tr><td style={{ height: '20px', padding: '0 12px', fontSize: '9px', fontWeight: 600, color: '#ffffff', letterSpacing: '0.12em', fontFamily: 'Arial, sans-serif', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>TRACK &amp; TRACE</td></tr></tbody></table>
                         </div>
                       )}
                     </div>
