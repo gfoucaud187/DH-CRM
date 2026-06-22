@@ -142,7 +142,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     <thead>
       <tr>
         {[
-          ['Brand & Line','left','11%'],['Vitola','left','7%'],['SKU · Ref DH','left','11%'],['Ref Fixmer','left','7%'],
+          ['Brand & Line','left','8%'],['Vitola','left','6%'],['SKU · Ref DH','left','15%'],['Ref Fixmer','left','6%'],
           ['Boxes','center','4%'],['Articles','center','5%'],['Dim L×Cepo','center','6%'],['Shape','left','5%'],
           ['Wrapper','left','8%'],['Pack','center','4%'],['Net/U g','right','5%'],['Net Tot g','right','6%'],
           ['Price/U','right','6%'],['Total','right','7%'],
@@ -168,7 +168,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
       <tr key={idx}>
         <td className="ink" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{brandLine}</td>
         <td>{vitola}</td>
-        <td className="mono muted">{line.sku}</td>
+        <td className="mono muted" style={{ fontSize: '9px', whiteSpace: 'nowrap', overflow: 'visible' }}>{line.sku}</td>
         <td className="mono muted">{line.fixmer_reference ?? '—'}</td>
         <td style={{ textAlign: 'center' }}>{line.quantity_packs}</td>
         <td style={{ textAlign: 'center' }}>{line.quantity_units}</td>
