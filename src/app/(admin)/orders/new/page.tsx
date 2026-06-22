@@ -179,9 +179,7 @@ export default function NewOrderPage() {
           },
           commercial_lines: lines.map(l => ({
             ...l,
-            line_type:      'commercial',
-            price_per_unit: 0,
-            line_total:     0,
+            line_type: 'commercial',
           })),
           foc_lines: [],
         }),
