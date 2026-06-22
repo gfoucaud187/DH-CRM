@@ -480,7 +480,7 @@ export default function OrderDetailPage() {
             ))}
           </div>
 
-          {!isInt && !isPO && (
+          {!isPO && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-3">Document</h2>
               <InvoicePDF order={order} lines={enrichedLines.filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')} customer={order.customer} appSettings={appSettings} sourceDoc={sourceDoc} />
