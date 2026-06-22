@@ -30,9 +30,19 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     pdf.save(order.order_number + '.pdf')
   }
 
-  const isTT     = order.is_tt_order || customer?.track_trace_enabled
+  const isTT     = (order.is_tt_order || customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') && order.document_type === 'invoice'
   const isFoc    = order.is_foc
   const isSample = order.is_sample
+
+  // Find Sales contact and format as single line
+  const salesContact = customer?.contacts?.find((c: any) => c.role === 'Sales') ?? customer?.contacts?.[0]
+  const salesContactLine = salesContact
+    ? [
+        [salesContact.first_name, salesContact.last_name].filter(Boolean).join(' '),
+        salesContact.email,
+        salesContact.phone,
+      ].filter(Boolean).join(' | ')
+    : null
 
   const fixmerName    = appSettings?.tt_company   ?? 'Fixmer Belgium S.A.'
   const fixmerContact = appSettings?.tt_attention  ?? 'Mr Jérémy JACQUES'
@@ -128,13 +138,7 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
               {isFoc || isSample ? 'DELIVER TO' : order.document_type === 'invoice' ? 'INVOICE TO' : 'SALES ORDER TO'}
             </div>
             <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '3px' }}>{billToName}</div>
-            {!isTT && customer?.contacts?.[0] && (
-              <div style={{ color: '#444', fontSize: '10px' }}>
-                {[customer.contacts[0].first_name, customer.contacts[0].last_name].filter(Boolean).join(' ')}
-              </div>
-            )}
-            {!isTT && customer?.contacts?.[0]?.email && <div style={{ color: '#666', fontSize: '10px' }}>{customer.contacts[0].email}</div>}
-            {!isTT && customer?.contacts?.[0]?.phone && <div style={{ color: '#666', fontSize: '10px' }}>{customer.contacts[0].phone}</div>}
+            {!isTT && salesContactLine && <div style={{ color: '#555', fontSize: '10px', marginTop: '2px' }}>{salesContactLine}</div>}
             {isTT && billToContact && <div style={{ color: '#444', fontSize: '10px' }}>{billToContact}</div>}
             {isTT && billToEmail   && <div style={{ color: '#666', fontSize: '10px' }}>{billToEmail}</div>}
             {isTT && billToPhone   && <div style={{ color: '#666', fontSize: '10px' }}>{billToPhone}</div>}
@@ -147,13 +151,7 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
               <div style={{ marginTop: '12px' }}>
                 <div style={{ fontSize: '8px', color: '#999', letterSpacing: '1px', marginBottom: '4px' }}>C/O (END CUSTOMER)</div>
                 <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '3px' }}>{careOfName}</div>
-                {customer?.contacts?.[0] && (
-                  <div style={{ fontSize: '10px', color: '#444' }}>
-                    {[customer.contacts[0].first_name, customer.contacts[0].last_name].filter(Boolean).join(' ')}
-                  </div>
-                )}
-                {customer?.contacts?.[0]?.email && <div style={{ fontSize: '10px', color: '#666' }}>{customer.contacts[0].email}</div>}
-                {customer?.contacts?.[0]?.phone && <div style={{ fontSize: '10px', color: '#666' }}>{customer.contacts[0].phone}</div>}
+                {salesContactLine && <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{salesContactLine}</div>}
               </div>
             )}
           </div>
