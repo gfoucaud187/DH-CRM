@@ -113,7 +113,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     .meta-block { flex: 1.6; padding-left: 40px; border-left: 1px solid #E6E0D5; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; padding-top: 4px; }
     .meta-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 3px; }
     .meta-value { font-size: 13px; font-weight: 600; color: #221C18; }
-    .line-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .line-table { width: 100%; border-collapse: collapse; table-layout: auto; }
     .line-table thead tr { background: ${tint}; border-bottom: 2px solid ${accent}; }
     .line-table th { font-size: 8px; font-weight: 600; color: ${accent}; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 6px; white-space: nowrap; overflow: hidden; }
     .line-table td { font-size: 11px; color: #3A352E; padding: 10px 6px; border-bottom: 1px solid #ECE6DB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -142,7 +142,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     <thead>
       <tr>
         {[
-          ['Brand & Line','left','8%'],['Vitola','left','6%'],['SKU · Ref DH','left','15%'],['Ref Fixmer','left','6%'],
+          ['Brand & Line','left',undefined],['Vitola','left',undefined],['SKU · Ref DH','left',undefined],['Ref Fixmer','left',undefined],
           ['Boxes','center','4%'],['Articles','center','5%'],['Dim L×Cepo','center','6%'],['Shape','left','5%'],
           ['Wrapper','left','8%'],['Pack','center','4%'],['Net/U g','right','5%'],['Net Tot g','right','6%'],
           ['Price/U','right','6%'],['Total','right','7%'],
@@ -168,7 +168,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
       <tr key={idx}>
         <td className="ink" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{brandLine}</td>
         <td>{vitola}</td>
-        <td className="mono muted" style={{ fontSize: '9px', whiteSpace: 'nowrap', overflow: 'visible' }}>{line.sku}</td>
+        <td className="mono muted" style={{ whiteSpace: 'nowrap' }}>{line.sku}</td>
         <td className="mono muted">{line.fixmer_reference ?? '—'}</td>
         <td style={{ textAlign: 'center' }}>{line.quantity_packs}</td>
         <td style={{ textAlign: 'center' }}>{line.quantity_units}</td>
