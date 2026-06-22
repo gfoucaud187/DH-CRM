@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     // 1. Generate document numbers
     const { data: docNum } = await supabase.rpc('fn_generate_doc_number', {
       p_doc_type: order.document_type,
-      p_is_foc: false,
+      p_is_foc: order.is_foc ?? false,
     })
 
     let focDocNum = null
