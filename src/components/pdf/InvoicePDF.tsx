@@ -16,7 +16,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     const html2canvas = (await import('html2canvas')).default
     const el = document.getElementById('invoice-print-area-' + order.id)
     if (!el) return
-    const canvas = await html2canvas(el, { background: '#ffffff' })
+    const canvas = await html2canvas(el, { useCORS: true })
     const imgData = canvas.toDataURL('image/png')
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
     const w = pdf.internal.pageSize.getWidth()
