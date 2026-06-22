@@ -94,7 +94,7 @@ export default async function PortalOrdersPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{new Date(o.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3 text-right text-gray-600">{o.total_units ?? 0} u</td>
-                  <td className="px-4 py-3 text-right font-medium text-gray-900">{o.currency} {Number(o.total_amount).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-medium text-gray-900">{o.currency} {Number(o.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                   <td className="px-4 py-3">
                     <span className={'inline-flex px-2 py-0.5 rounded-full text-xs font-medium ' + (STATUS_COLORS[o.status] ?? 'bg-gray-100 text-gray-500')}>
                       {STATUS_LABELS[o.status] ?? o.status}

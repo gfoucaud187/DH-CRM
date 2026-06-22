@@ -293,7 +293,7 @@ export default function PortalNewOrderPage() {
                 <div className="flex justify-between"><span className="text-gray-400">Units</span><span>{totalUnits.toLocaleString()}</span></div>
                 <div className="border-t border-gray-700 pt-2 mt-2 flex justify-between font-semibold text-lg">
                   <span>Total</span>
-                  <span>{customer?.currency} {total.toFixed(2)}</span>
+                  <span>{customer?.currency} {Number(total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
                 </div>
               </div>
             </div>
@@ -321,7 +321,7 @@ export default function PortalNewOrderPage() {
                       <p className="text-xs text-gray-400 font-mono">{p.sku}</p>
                     </div>
                     <div className="flex items-center gap-4 flex-shrink-0">
-                      {price > 0 && <span className="text-sm font-semibold text-gray-900">{price.toFixed(2)} {customer?.currency}</span>}
+                      {price > 0 && <span className="text-sm font-semibold text-gray-900">{Number(price).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} {customer?.currency}</span>}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stock === 0 ? 'bg-red-100 text-red-600' : stock < 5 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
                         {stock === 0 ? 'Out of stock' : `${stock} pk`}
                       </span>
@@ -362,8 +362,8 @@ export default function PortalNewOrderPage() {
                             className={`w-20 h-8 rounded border px-2 text-center text-sm ${overStock ? 'border-amber-300 bg-amber-50' : 'border-gray-200'}`} />
                         </td>
                         <td className="px-3 py-3 text-center text-gray-600">{line.quantity_units}</td>
-                        <td className="px-3 py-3 text-right text-gray-600">{line.price_per_unit.toFixed(2)}</td>
-                        <td className="px-3 py-3 text-right font-semibold text-gray-900">{line.line_total.toFixed(2)}</td>
+                        <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                        <td className="px-3 py-3 text-right font-semibold text-gray-900">{Number(line.line_total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                         <td className="px-3 py-3 text-center">
                           {overStock ? (
                             <span className="text-xs text-amber-600 flex items-center justify-center gap-1">
@@ -385,7 +385,7 @@ export default function PortalNewOrderPage() {
                 <tfoot className="bg-gray-50 border-t border-gray-200">
                   <tr>
                     <td colSpan={4} className="px-4 py-3 text-right font-semibold text-gray-900">Total</td>
-                    <td className="px-3 py-3 text-right font-bold text-gray-900">{customer?.currency} {total.toFixed(2)}</td>
+                    <td className="px-3 py-3 text-right font-bold text-gray-900">{customer?.currency} {Number(total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                     <td colSpan={2} />
                   </tr>
                 </tfoot>

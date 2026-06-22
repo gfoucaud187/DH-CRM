@@ -49,7 +49,7 @@ export default function PortalInvoiceDetailPage() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">{order.order_number}</h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            {order.currency} {Number(order.total_amount).toFixed(2)} ·{' '}
+            {order.currency} {Number(order.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} ·{' '}
             {new Date(order.order_date ?? order.created_at).toLocaleDateString()}
           </p>
         </div>
@@ -88,8 +88,8 @@ export default function PortalInvoiceDetailPage() {
                 </td>
                 <td className="px-3 py-3 text-center text-gray-600">{line.quantity_packs}</td>
                 <td className="px-3 py-3 text-center text-gray-600">{line.quantity_units}</td>
-                <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toFixed(2)}</td>
-                <td className="px-5 py-3 text-right font-semibold text-gray-900">{Number(line.line_total).toFixed(2)}</td>
+                <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                <td className="px-5 py-3 text-right font-semibold text-gray-900">{Number(line.line_total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
               </tr>
             ))}
           </tbody>
@@ -97,7 +97,7 @@ export default function PortalInvoiceDetailPage() {
             <tr>
               <td colSpan={4} className="px-5 py-3 text-right font-semibold text-gray-900">Total</td>
               <td className="px-5 py-3 text-right font-bold text-gray-900">
-                {order.currency} {Number(order.total_amount).toFixed(2)}
+                {order.currency} {Number(order.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
               </td>
             </tr>
           </tfoot>

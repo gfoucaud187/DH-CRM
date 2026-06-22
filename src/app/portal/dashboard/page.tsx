@@ -82,7 +82,7 @@ export default async function PortalDashboardPage() {
             <span className="text-sm text-gray-500">Outstanding</span>
           </div>
           <p className="text-3xl font-bold text-gray-900">
-            {customer?.currency} {totalOutstanding.toFixed(2)}
+            {customer?.currency} {Number(totalOutstanding).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
           </p>
           <p className="text-xs text-gray-400 mt-1">total due</p>
         </div>
@@ -113,7 +113,7 @@ export default async function PortalDashboardPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-gray-600">{o.total_units} u</span>
-                    <span className="text-sm font-semibold text-gray-900">{o.currency} {Number(o.total_amount).toFixed(2)}</span>
+                    <span className="text-sm font-semibold text-gray-900">{o.currency} {Number(o.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
                     <span className={'text-xs px-2 py-0.5 rounded-full font-medium ' + (STATUS_COLORS[o.status] ?? 'bg-gray-100 text-gray-500')}>
                       {o.status?.replace(/_/g,' ')}
                     </span>
@@ -144,7 +144,7 @@ export default async function PortalDashboardPage() {
                       <p className="text-xs text-gray-400 mt-0.5">{new Date(o.created_at).toLocaleDateString()}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-gray-900">{o.currency} {Number(o.total_amount).toFixed(2)}</span>
+                      <span className="text-sm font-semibold text-gray-900">{o.currency} {Number(o.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
                       {isPaid ? (
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">Paid</span>
                       ) : (

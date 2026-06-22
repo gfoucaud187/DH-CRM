@@ -45,7 +45,7 @@ export default async function PortalInvoicesPage() {
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500 mb-1">Total outstanding</p>
-          <p className="text-2xl font-bold text-gray-900">{customer?.currency} {totalOutstanding.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-gray-900">{customer?.currency} {Number(totalOutstanding).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500 mb-1">Overdue</p>
@@ -86,7 +86,7 @@ export default async function PortalInvoicesPage() {
                     <td className="px-5 py-3 font-mono text-xs font-semibold text-gray-900">{o.order_number}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{new Date(o.order_date ?? o.created_at).toLocaleDateString()}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{dueDate.toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-gray-900">{o.currency} {Number(o.total_amount).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-900">{o.currency} {Number(o.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                     <td className="px-4 py-3">
                       {paid ? (
                         <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Paid</span>

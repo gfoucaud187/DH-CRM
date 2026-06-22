@@ -320,7 +320,7 @@ export default function EditOrderPage() {
                   <span>Total</span>
                   {isInt
                     ? <span className="text-teal-400">{warehouse} → {warehouseDestination}</span>
-                    : <span>{order.is_foc || order.is_sample ? 'FOC' : order.currency + ' ' + total.toFixed(2)}</span>
+                    : <span>{order.is_foc || order.is_sample ? 'FOC' : order.currency + ' ' + Number(total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
                   }
                 </div>
               </div>
@@ -385,8 +385,8 @@ export default function EditOrderPage() {
                       <td className="px-3 py-3 text-center text-gray-600">{line.quantity_units}</td>
                       {!order.is_foc && !order.is_sample && !isInt && (
                         <>
-                          <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toFixed(2)}</td>
-                          <td className="px-3 py-3 text-right font-medium">{Number(line.line_total).toFixed(2)}</td>
+                          <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                          <td className="px-3 py-3 text-right font-medium">{Number(line.line_total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                         </>
                       )}
                       <td className="px-3 py-3">

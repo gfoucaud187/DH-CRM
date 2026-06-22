@@ -198,7 +198,7 @@ export default function OrdersPage() {
       <td className="px-4 py-3 text-right font-medium text-gray-900 text-sm">
         {o.is_foc || o.is_sample ? <span className="text-green-600 text-xs">FOC</span>
           : o.document_type === 'so_int' ? <span className="text-teal-600 text-xs">INT</span>
-          : o.currency + ' ' + Number(o.total_amount).toFixed(2)}
+          : o.currency + ' ' + Number(o.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
       </td>
       <td className="px-4 py-3">
         <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (STATUS_COLORS[o.status] ?? 'bg-gray-100 text-gray-500')}>
@@ -295,7 +295,7 @@ export default function OrdersPage() {
                     <td className="px-4 py-3 font-medium text-gray-900">{po.customer_name}</td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{new Date(po.created_at).toLocaleDateString()}</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900">{po.total_units ?? 0} u</td>
-                    <td className="px-4 py-3 text-right font-semibold text-gray-900">{po.currency} {Number(po.total_amount).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-900">{po.currency} {Number(po.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (STATUS_COLORS[po.status] ?? 'bg-gray-100 text-gray-500')}>

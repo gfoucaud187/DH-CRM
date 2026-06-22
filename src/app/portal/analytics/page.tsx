@@ -338,11 +338,11 @@ export default function PortalAnalyticsPage() {
           <h2 className="font-semibold text-gray-900 mb-4">Period summary</h2>
           <div className="space-y-3 text-sm">
             {[
-              { label: 'Total order value',  value: `${customer?.currency} ${orderValue.toFixed(2)}` },
+              { label: 'Total order value',  value: `${customer?.currency} ${Number(orderValue).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` },
               { label: 'Units ordered',      value: units.toLocaleString() },
               { label: 'Invoices issued',    value: filteredInvoices.length.toString() },
               { label: 'POs submitted',      value: filteredPOs.length.toString() },
-              { label: 'Avg order value',    value: filteredInvoices.length ? `${customer?.currency} ${avgOrder.toFixed(2)}` : '—' },
+              { label: 'Avg order value',    value: filteredInvoices.length ? `${customer?.currency} ${Number(avgOrder).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—' },
               { label: 'Products ordered',   value: productMap.length.toString() },
               { label: 'Brands ordered',     value: brandMap.length.toString() },
             ].map(({ label, value }) => (

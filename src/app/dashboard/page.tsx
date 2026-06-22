@@ -155,7 +155,7 @@ export default function DashboardPage() {
                     ? <span className="text-green-600 text-xs">FOC</span>
                     : o.document_type === 'so_int'
                     ? <span className="text-teal-600 text-xs">INT</span>
-                    : `${o.currency} ${Number(o.total_amount).toFixed(2)}`}
+                    : `${o.currency} ${Number(o.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`}
                 </td>
                 <td className="px-4 py-3">
                   <span className={'inline-flex px-2 py-0.5 rounded-full text-xs font-medium ' + (STATUS_COLORS[o.status] ?? 'bg-gray-100 text-gray-500')}>

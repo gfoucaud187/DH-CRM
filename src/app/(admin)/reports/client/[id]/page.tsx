@@ -328,7 +328,7 @@ export default function ClientReportPage() {
                   <td style={{ padding: '8px 4px', fontSize: '10px', color: '#666' }}>{new Date(o.order_date ?? o.created_at).toLocaleDateString('en-GB')}</td>
                   <td style={{ padding: '8px 4px', fontSize: '11px' }}>{o.total_units}</td>
                   <td style={{ padding: '8px 4px', fontSize: '11px', fontWeight: '500' }}>
-                    {o.is_foc ? 'FOC' : `${o.currency} ${Number(o.total_amount).toFixed(2)}`}
+                    {o.is_foc ? 'FOC' : `${o.currency} ${Number(o.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`}
                   </td>
                   <td style={{ padding: '8px 4px', fontSize: '10px', color: o.status === 'completed' ? '#3B6D11' : o.status === 'cancelled' ? '#A32D2D' : '#666' }}>
                     {o.status.replace(/_/g,' ')}

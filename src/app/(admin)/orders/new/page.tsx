@@ -353,7 +353,7 @@ export default function NewOrderPage() {
                 {!isInt && (
                   <div className="border-t border-gray-700 pt-2 mt-2 flex justify-between font-semibold text-lg">
                     <span>Total</span>
-                    <span>{priceIsZero ? 'FOC' : currency + ' ' + total.toFixed(2)}</span>
+                    <span>{priceIsZero ? 'FOC' : currency + ' ' + Number(total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
                   </div>
                 )}
               </div>
@@ -382,7 +382,7 @@ export default function NewOrderPage() {
                       <span className="ml-2 text-xs text-gray-400 font-mono">{p.sku}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      {!priceIsZero && price > 0 && <span className="text-xs text-gray-500">{price.toFixed(2)} {currency}</span>}
+                      {!priceIsZero && price > 0 && <span className="text-xs text-gray-500">{Number(price).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} {currency}</span>}
                       {alreadyAdded ? <span className="text-xs text-gray-400">Added</span> : <Plus className="h-4 w-4 text-gray-400" />}
                     </div>
                   </button>
@@ -423,8 +423,8 @@ export default function NewOrderPage() {
                       <td className="px-3 py-3 text-center text-gray-600">{line.quantity_units}</td>
                       {!priceIsZero && (
                         <>
-                          <td className="px-3 py-3 text-right text-gray-600">{line.price_per_unit.toFixed(2)}</td>
-                          <td className="px-3 py-3 text-right font-medium">{line.line_total.toFixed(2)}</td>
+                          <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                          <td className="px-3 py-3 text-right font-medium">{Number(line.line_total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                         </>
                       )}
                       <td className="px-3 py-3">
