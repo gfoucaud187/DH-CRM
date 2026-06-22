@@ -30,7 +30,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     pdf.save(order.order_number + '.pdf')
   }
 
-  const isTT     = order.is_tt_order || customer?.track_trace_enabled
+  const isTT = (order.is_tt_order || customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') && order.document_type === 'invoice'
   const isFoc    = order.is_foc
   const isSample = order.is_sample
 
