@@ -142,7 +142,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     <thead>
       <tr>
         {[
-          ['Brand & Line','left','14%'],['Vitola','left','8%'],['SKU · Ref DH','left','9%'],['Ref Fixmer','left','7%'],
+          ['Brand & Line','left','11%'],['Vitola','left','7%'],['SKU · Ref DH','left','11%'],['Ref Fixmer','left','7%'],
           ['Boxes','center','4%'],['Articles','center','5%'],['Dim L×Cepo','center','6%'],['Shape','left','5%'],
           ['Wrapper','left','8%'],['Pack','center','4%'],['Net/U g','right','5%'],['Net Tot g','right','6%'],
           ['Price/U','right','6%'],['Total','right','7%'],
@@ -156,7 +156,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
   const TableRow = ({ line, idx }: { line: any; idx: number }) => {
     const dim        = (line.length_inches && line.ring_gauge) ? `${line.length_inches}×${line.ring_gauge}` : '—'
     const netWtTotal = (line.net_weight_g && line.quantity_units)
-      ? Number((Number(line.net_weight_g) * Number(line.quantity_units)).toFixed(2)).toLocaleString('en-US')
+      ? Math.round(Number(line.net_weight_g) * Number(line.quantity_units)).toLocaleString('en-US')
       : '—'
     const priceUnit  = (!isFoc && !isSample && line.price_per_unit != null) ? fmt2(line.price_per_unit) : '—'
     const priceTotal = (!isFoc && !isSample && line.line_total != null)     ? fmt2(line.line_total)     : '—'
