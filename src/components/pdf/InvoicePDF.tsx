@@ -187,8 +187,8 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
               // Fields come pre-enriched from order-detail-page.tsx
               const dim        = (line.length_inches && line.ring_gauge) ? `${line.length_inches}×${line.ring_gauge}` : '—'
               const netWtTotal = (line.net_weight_g && line.quantity_units) ? (Number(line.net_weight_g) * Number(line.quantity_units)).toFixed(0) : '—'
-              const priceUnit  = (!isFoc && !isSample && line.price_per_unit)  ? Number(line.price_per_unit).toFixed(2)  : '—'
-              const priceTotal = (!isFoc && !isSample && line.line_total)      ? Number(line.line_total).toFixed(2)      : '—'
+              const priceUnit  = (!isFoc && !isSample && line.price_per_unit != null)  ? Number(line.price_per_unit).toFixed(2)  : '—'
+              const priceTotal = (!isFoc && !isSample && line.line_total != null)      ? Number(line.line_total).toFixed(2)      : '—'
               // Brand & Line from product_name "Brand_Line Vitola Pack"
               const parts     = (line.product_name ?? '').split(' ')
               const brandLine = parts[0]?.replace(/_/g, ' ') ?? line.product_name
