@@ -21,7 +21,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     const pdfH = pdf.internal.pageSize.getHeight()
     for (let i = 0; i < pageEls.length; i++) {
       const el = pageEls[i] as HTMLElement
-      const canvas = await html2canvas(el)
+      const canvas = await html2canvas(el, { useCORS: true, allowTaint: false })
       const imgData = canvas.toDataURL('image/png')
       const imgH = (canvas.height * pdfW) / canvas.width
       if (i > 0) pdf.addPage()
@@ -228,8 +228,12 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
                         value: isFoc || isSample ? 'FOC' : `USD ${totalValue}`,          accent: true  },
                     ].map((k, i) => (
                       <div key={i} className={k.accent ? 'kpi-seg-accent' : 'kpi-seg'}>
-                        <div className={k.accent ? 'kpi-label-accent' : 'kpi-label'}>{k.label}</div>
-                        <div className={k.accent ? 'kpi-value-accent' : 'kpi-value'}>{k.value}</div>
+                        <div className="kpi-label-row">
+                          <div className={k.accent ? 'kpi-label-accent' : 'kpi-label'}>{k.label}</div>
+                        </div>
+                        <div className="kpi-value-row">
+                          <div className={k.accent ? 'kpi-value-accent' : 'kpi-value'}>{k.value}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
