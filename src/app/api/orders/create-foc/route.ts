@@ -6,7 +6,6 @@ export async function POST(request: NextRequest) {
     const { so_id } = await request.json()
     const supabase = createClient()
 
-    // Load the source SO
     const { data: so } = await supabase
       .from('sales_orders')
       .select('*')
@@ -14,28 +13,14 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (!so) return NextResponse.json({ error: 'SO not found' }, { status: 404 })
-    if (so.is_foc) return NextResponse.json({ error: 'Cannot create FOC from a FOC document' }, { status: 400 })
+    if (so.is_foc) return NextResponse.json({ error: 'Cannot create SO(DO) from a SO(DO)' }, { status: 400 })
 
-    // Check if FOC already exists for this SO
-    const { data: existing } = await supabase
-      .from('sales_orders')
-      .select('id, order_number')
-      .eq('linked_order_id', so_id)
-      .eq('is_foc', true)
-      .maybeSingle()
-
-    if (existing) return NextResponse.json({ 
-      error: `FOC document already exists: ${existing.order_number}`,
-      existing_id: existing.id 
-    }, { status: 409 })
-
-    // Generate SO(DO) number
+    // No longer block if FOC already exists — multiple SO(DO) allowed
     const { data: focNum } = await supabase.rpc('fn_generate_doc_number', {
       p_doc_type: so.document_type,
       p_is_foc: true,
     })
 
-    // Create the SO(DO)
     const { data: focOrder, error } = await supabase
       .from('sales_orders')
       .insert({
@@ -55,13 +40,12 @@ export async function POST(request: NextRequest) {
         payment_terms:   so.payment_terms,
         order_date:      so.order_date,
         shipment_date:   so.shipment_date,
-        notes:           `FOC document — ref. ${so.order_number}`,
+        notes:           `SO(DO) — ref. ${so.order_number}`,
       })
       .select()
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
     return NextResponse.json({ success: true, foc_order: focOrder })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })

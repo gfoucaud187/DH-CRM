@@ -61,7 +61,7 @@ export default function OrderDetailPage() {
       const skus = order.lines.map((l: any) => l.sku).filter(Boolean)
       const { data } = await supabase
         .from('products')
-        .select('sku, brand, line, shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, vitola')
+        .select('sku, shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, vitola')
         .in('sku', skus)
       return data ?? []
     },
@@ -81,8 +81,6 @@ export default function OrderDetailPage() {
       length_inches: line.length_inches ?? product.length_inches,
       ring_gauge:    line.ring_gauge    ?? product.ring_gauge,
       vitola:        line.vitola        ?? product.vitola,
-      brand:     line.brand     ?? product.brand,
-      line_name: line.line_name ?? product.line,
     }
   })
 
@@ -96,6 +94,44 @@ export default function OrderDetailPage() {
         .eq('is_foc', true)
         .maybeSingle()
       return data
+    },
+    enabled: !!id
+  })
+
+  // Fetch ALL SO(DO) linked to this SO (multiple allowed)
+  const { data: allFocOrders = [] } = useQuery({
+    queryKey: ['order-all-foc', id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('sales_orders')
+        .select('id, order_number, status, document_type, is_foc, promoted_from, linked_order_id')
+        .eq('linked_order_id', id)
+        .eq('is_foc', true)
+        .order('created_at', { ascending: true })
+      return data ?? []
+    },
+    enabled: !!id
+  })
+
+  // Fetch invoices generated from SO(DO) — their promoted_from points to the SO(DO)
+  const { data: docInvoices = [] } = useQuery({
+    queryKey: ['order-doc-invoices', id],
+    queryFn: async () => {
+      if (!id) return []
+      // Get all DO invoices whose promoted_from is one of the SO(DO)s linked to this SO
+      const { data: focs } = await supabase
+        .from('sales_orders')
+        .select('id')
+        .eq('linked_order_id', id)
+        .eq('is_foc', true)
+      if (!focs || focs.length === 0) return []
+      const focIds = focs.map((f: any) => f.id)
+      const { data: invs } = await supabase
+        .from('sales_orders')
+        .select('id, order_number, status, document_type, is_foc, promoted_from')
+        .in('promoted_from', focIds)
+        .eq('document_type', 'invoice')
+      return invs ?? []
     },
     enabled: !!id
   })
@@ -222,7 +258,7 @@ export default function OrderDetailPage() {
   const currentStatus = statuses.find((s: any) => s.value === order.status) ?? statuses[0]
   const commercialLines = (order.lines ?? []).filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')
   const alreadyHasInvoice = isSO && !!linkedDoc && linkedDoc.document_type === 'invoice'
-  const alreadyHasFoc = isSO && !!focOrder
+  const alreadyHasFoc = false // Multiple SO(DO) always allowed
 
   const getDocLabel = () => {
     if (isInt) return 'SO(INT)'
@@ -333,21 +369,38 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {(sourceDoc || linkedDoc) && (
+          {(sourceDoc || linkedDoc || allFocOrders.length > 0) && (
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-2">
               <h2 className="font-semibold text-blue-800 text-sm">Linked Documents</h2>
               {sourceDoc && (
                 <button onClick={() => router.push('/orders/' + sourceDoc.id)}
-                  className="w-full text-left text-sm text-blue-700 hover:underline">
-                  From: {sourceDoc.document_type.toUpperCase()} {sourceDoc.order_number}
+                  className="w-full text-left text-sm text-blue-700 hover:underline flex items-center gap-1">
+                  <span className="text-blue-400">↑</span> From: {sourceDoc.order_number}
                 </button>
               )}
               {linkedDoc && linkedDoc.document_type === 'invoice' && (
                 <button onClick={() => router.push('/orders/' + linkedDoc.id)}
-                  className="w-full text-left text-sm text-blue-700 hover:underline">
-                  Invoice: {linkedDoc.order_number}
+                  className="w-full text-left text-sm text-blue-700 hover:underline flex items-center gap-1">
+                  <span className="text-blue-400">→</span> {linkedDoc.order_number}
                 </button>
               )}
+              {(allFocOrders as any[]).map((foc: any) => {
+                const focInvoice = (docInvoices as any[]).find((inv: any) => inv.promoted_from === foc.id)
+                return (
+                  <div key={foc.id} className="pl-2 border-l-2 border-blue-200">
+                    <button onClick={() => router.push('/orders/' + foc.id)}
+                      className="w-full text-left text-sm text-blue-700 hover:underline flex items-center gap-1">
+                      <span className="text-blue-400">→</span> {foc.order_number}
+                    </button>
+                    {focInvoice && (
+                      <button onClick={() => router.push('/orders/' + focInvoice.id)}
+                        className="w-full text-left text-sm text-blue-600 hover:underline flex items-center gap-1 pl-4">
+                        <span className="text-blue-300">→</span> {focInvoice.order_number}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
 
@@ -382,7 +435,18 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {isSO && !order.is_foc && !alreadyHasFoc && (
+          {isSO && order.is_foc && !(docInvoices as any[]).find((inv: any) => inv.promoted_from === order.id) && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h2 className="font-semibold text-gray-900 mb-1">Generate Invoice (FOC)</h2>
+              <p className="text-xs text-gray-500 mb-3">Creates INV(DO) with total 0 USD.</p>
+              <button onClick={handlePromote}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition-colors">
+                <FileText className="h-4 w-4" /> Generate Invoice (FOC)
+              </button>
+            </div>
+          )}
+
+          {isSO && !order.is_foc && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-1">Create FOC Document</h2>
               <p className="text-xs text-gray-500 mb-3">Creates SO(DO) linked to {order.order_number}.</p>
@@ -480,7 +544,7 @@ export default function OrderDetailPage() {
             ))}
           </div>
 
-          {!isPO && (
+          {!isInt && !isPO && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-3">Document</h2>
               <InvoicePDF order={order} lines={enrichedLines.filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')} customer={order.customer} appSettings={appSettings} sourceDoc={sourceDoc} />
