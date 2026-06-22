@@ -94,13 +94,15 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     .doc-number { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; line-height: 1.2; letter-spacing: 0.04em; margin-bottom: 4px; }
     .doc-ref { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 600; color: #8C8475; margin-top: 2px; font-variant-numeric: lining-nums; }
     .doc-date { font-size: 11px; color: #8C8475; margin-top: 6px; }
-    .kpi-strip { display: flex; border: 1px solid #E6E0D5; border-radius: 6px; overflow: hidden; background: #fff; flex-shrink: 0; min-height: 80px; }
-    .kpi-seg { flex: 1; padding: 14px 16px; border-right: 1px solid #E6E0D5; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
-    .kpi-seg-accent { flex: 1.2; padding: 14px 16px; background: ${accent}; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
-    .kpi-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 4px; }
-    .kpi-label-accent { font-size: 9px; font-weight: 600; color: ${onAccent}; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 4px; }
-    .kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1.2; font-variant-numeric: lining-nums; }
-    .kpi-value-accent { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1.2; color: #fff; font-variant-numeric: lining-nums; }
+    .kpi-strip { display: flex; border: 1px solid #E6E0D5; border-radius: 6px; overflow: hidden; background: #fff; flex-shrink: 0; }
+    .kpi-seg { flex: 1; border-right: 1px solid #E6E0D5; display: flex; flex-direction: column; }
+    .kpi-seg-accent { flex: 1.2; background: ${accent}; display: flex; flex-direction: column; }
+    .kpi-label-row { padding: 8px 16px 2px; }
+    .kpi-value-row { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 0 16px 10px; }
+    .kpi-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; }
+    .kpi-label-accent { font-size: 9px; font-weight: 600; color: ${onAccent}; letter-spacing: 0.18em; text-transform: uppercase; }
+    .kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums; }
+    .kpi-value-accent { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1; color: #fff; font-variant-numeric: lining-nums; }
     .parties { display: flex; gap: 48px; align-items: flex-start; flex-shrink: 0; }
     .party-block { flex: 1.5; }
     .party-eyebrow { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 6px; }
