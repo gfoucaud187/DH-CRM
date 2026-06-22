@@ -19,14 +19,19 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     if (!pageEls.length) return
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
     const pdfW = pdf.internal.pageSize.getWidth()
-    const pdfH = pdf.internal.pageSize.getHeight()
     for (let i = 0; i < pageEls.length; i++) {
       const el = pageEls[i] as HTMLElement
       const canvas = await html2canvas(el, { useCORS: true, allowTaint: false })
       const imgData = canvas.toDataURL('image/png')
       const imgH = (canvas.height * pdfW) / canvas.width
-      if (i > 0) pdf.addPage()
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfW, Math.min(imgH, pdfH))
+      if (i > 0) {
+        // Add page with exact height of this content — no stretch
+        pdf.addPage([pdfW, imgH], 'landscape')
+      } else {
+        // Resize first page to match content height
+        pdf.internal.pageSize.height = imgH
+      }
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfW, imgH)
     }
     pdf.save(order.order_number + '.pdf')
   }
