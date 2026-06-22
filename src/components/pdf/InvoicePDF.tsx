@@ -30,7 +30,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     pdf.save(order.order_number + '.pdf')
   }
 
-  const isTT = (order.is_tt_order || customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') && order.document_type === 'invoice'
+  const isTT     = order.is_tt_order || customer?.track_trace_enabled
   const isFoc    = order.is_foc
   const isSample = order.is_sample
 
@@ -125,12 +125,19 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
         <div style={{ display: 'flex', gap: '40px', marginBottom: '20px' }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '8px', color: '#999', letterSpacing: '1px', marginBottom: '6px' }}>
-              {isFoc || isSample ? 'DELIVER TO' : 'INVOICE TO'}
+              {isFoc || isSample ? 'DELIVER TO' : order.document_type === 'invoice' ? 'INVOICE TO' : 'SALES ORDER TO'}
             </div>
             <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '3px' }}>{billToName}</div>
-            {billToContact && <div style={{ color: '#444', fontSize: '10px' }}>{billToContact}</div>}
-            {billToEmail   && <div style={{ color: '#666', fontSize: '10px' }}>{billToEmail}</div>}
-            {billToPhone   && <div style={{ color: '#666', fontSize: '10px' }}>{billToPhone}</div>}
+            {!isTT && customer?.contacts?.[0] && (
+              <div style={{ color: '#444', fontSize: '10px' }}>
+                {[customer.contacts[0].first_name, customer.contacts[0].last_name].filter(Boolean).join(' ')}
+              </div>
+            )}
+            {!isTT && customer?.contacts?.[0]?.email && <div style={{ color: '#666', fontSize: '10px' }}>{customer.contacts[0].email}</div>}
+            {!isTT && customer?.contacts?.[0]?.phone && <div style={{ color: '#666', fontSize: '10px' }}>{customer.contacts[0].phone}</div>}
+            {isTT && billToContact && <div style={{ color: '#444', fontSize: '10px' }}>{billToContact}</div>}
+            {isTT && billToEmail   && <div style={{ color: '#666', fontSize: '10px' }}>{billToEmail}</div>}
+            {isTT && billToPhone   && <div style={{ color: '#666', fontSize: '10px' }}>{billToPhone}</div>}
             {billToAddress && (
               <div style={{ color: '#666', fontSize: '10px', marginTop: '3px' }}>
                 {[billToAddress.street1, billToAddress.city, billToAddress.postal_code, billToAddress.country].filter(Boolean).join(', ')}
@@ -139,7 +146,14 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
             {isTT && careOfName && (
               <div style={{ marginTop: '12px' }}>
                 <div style={{ fontSize: '8px', color: '#999', letterSpacing: '1px', marginBottom: '4px' }}>C/O (END CUSTOMER)</div>
-                <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{careOfName}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '3px' }}>{careOfName}</div>
+                {customer?.contacts?.[0] && (
+                  <div style={{ fontSize: '10px', color: '#444' }}>
+                    {[customer.contacts[0].first_name, customer.contacts[0].last_name].filter(Boolean).join(' ')}
+                  </div>
+                )}
+                {customer?.contacts?.[0]?.email && <div style={{ fontSize: '10px', color: '#666' }}>{customer.contacts[0].email}</div>}
+                {customer?.contacts?.[0]?.phone && <div style={{ fontSize: '10px', color: '#666' }}>{customer.contacts[0].phone}</div>}
               </div>
             )}
           </div>
@@ -187,8 +201,8 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
               // Fields come pre-enriched from order-detail-page.tsx
               const dim        = (line.length_inches && line.ring_gauge) ? `${line.length_inches}×${line.ring_gauge}` : '—'
               const netWtTotal = (line.net_weight_g && line.quantity_units) ? (Number(line.net_weight_g) * Number(line.quantity_units)).toFixed(0) : '—'
-              const priceUnit  = (!isFoc && !isSample && line.price_per_unit != null)  ? Number(line.price_per_unit).toFixed(2)  : '—'
-              const priceTotal = (!isFoc && !isSample && line.line_total != null)      ? Number(line.line_total).toFixed(2)      : '—'
+              const priceUnit  = (!isFoc && !isSample && line.price_per_unit)  ? Number(line.price_per_unit).toFixed(2)  : '—'
+              const priceTotal = (!isFoc && !isSample && line.line_total)      ? Number(line.line_total).toFixed(2)      : '—'
               // Brand & Line from product_name "Brand_Line Vitola Pack"
               const parts     = (line.product_name ?? '').split(' ')
               const brandLine = parts[0]?.replace(/_/g, ' ') ?? line.product_name
