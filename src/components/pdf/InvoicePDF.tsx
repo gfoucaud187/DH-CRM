@@ -74,7 +74,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
 
   const fmt2 = (n: any) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-  // Split lines into pages
   const LINES_P1 = 10
   const LINES_PN = 14
   const pages: any[][] = []
@@ -93,7 +92,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     .header-right { text-align: right; }
     .doc-eyebrow { font-family: 'Cormorant Garamond', serif; font-size: 14px; font-weight: 600; color: ${accent}; letter-spacing: 0.34em; text-transform: uppercase; margin-bottom: 4px; }
     .doc-number { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; line-height: 1.2; letter-spacing: 0.04em; margin-bottom: 4px; }
-    .doc-ref { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 600; color: #8C8475; margin-top: 2px; font-variant-numeric: lining-nums; }
     .doc-date { font-size: 11px; color: #8C8475; margin-top: 6px; }
     .kpi-strip { display: flex; border: 1px solid #E6E0D5; border-radius: 6px; overflow: hidden; background: #fff; flex-shrink: 0; height: 72px; }
     .kpi-seg { flex: 1; padding: 4px 16px; border-right: 1px solid #E6E0D5; height: 72px; display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; }
@@ -102,21 +100,17 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     .kpi-label-accent { font-size: 9px; font-weight: 600; color: ${onAccent}; letter-spacing: 0.18em; text-transform: uppercase; }
     .kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums; }
     .kpi-value-accent { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1; color: #fff; font-variant-numeric: lining-nums; }
-    .parties { display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
-    .party-block { flex: 1; }
     .party-eyebrow { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 6px; }
     .party-name { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; margin-bottom: 3px; line-height: 1.2; }
     .party-contact { font-size: 11px; color: #3A352E; line-height: 1.6; }
     .party-addr { font-size: 11px; color: #6E665A; margin-top: 2px; }
     .co-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid #E6E0D5; }
-; border-radius: 999px; padding: 2px 10px; font-size: 9px; font-weight: 600; color: ${accent}; letter-spacing: 0.12em; margin-top: 6px; }
-    .meta-block { flex: 1.6; padding-left: 40px; border-left: 1px solid #E6E0D5; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; padding-top: 4px; }
     .meta-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 3px; }
     .meta-value { font-size: 13px; font-weight: 600; color: #221C18; }
     .line-table { width: 100%; border-collapse: collapse; table-layout: auto; }
     .line-table thead tr { background: ${tint}; border-bottom: 2px solid ${accent}; }
-    .line-table th { font-size: 8px; font-weight: 600; color: ${accent}; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 6px; white-space: nowrap; overflow: hidden; }
-    .line-table td { font-size: 11px; color: #3A352E; padding: 10px 6px; border-bottom: 1px solid #ECE6DB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .line-table th { font-size: 8px; font-weight: 600; color: ${accent}; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 6px; white-space: nowrap; }
+    .line-table td { font-size: 11px; color: #3A352E; padding: 10px 6px; border-bottom: 1px solid #ECE6DB; overflow: hidden; text-overflow: ellipsis; }
     .mono { font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
     .ink { font-weight: 600; color: #221C18; }
     .muted { color: #6E665A; }
@@ -142,12 +136,23 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     <thead>
       <tr>
         {[
-          ['Brand & Line','left',undefined],['Vitola','left',undefined],['SKU · Ref DH','left',undefined],['Ref Fixmer','left',undefined],
-          ['Boxes','center','4%'],['Articles','center','5%'],['Dim L×Cepo','center','6%'],['Shape','left','5%'],
-          ['Wrapper','left','8%'],['Pack','center','4%'],['Net/U g','right','5%'],['Net Tot g','right','6%'],
-          ['Price/U','right','6%'],['Total','right','7%'],
-        ].map(([h, a, w], i) => (
-          <th key={i} style={{ textAlign: a as any, width: w }}>{h}</th>
+          ['Brand & Line', 'left'],
+          ['Vitola', 'left'],
+          ['SKU · Ref DH', 'left'],
+          ['Ref Fixmer', 'left'],
+          ['Boxes', 'center'],
+          ['Articles', 'center'],
+          ['Dim L×Cepo', 'center'],
+          ['Shape', 'left'],
+          ['Wrapper', 'left'],
+          ['Pack Type', 'center'],
+          ['Qty/Pack', 'right'],
+          ['Net/U g', 'right'],
+          ['Net Tot g', 'right'],
+          ['Price/U', 'right'],
+          ['Total', 'right'],
+        ].map(([h, a], i) => (
+          <th key={i} style={{ textAlign: a as any }}>{h}</th>
         ))}
       </tr>
     </thead>
@@ -163,19 +168,20 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     const brandLine  = line.brand
       ? (line.line_name ? line.brand + ' ' + line.line_name : line.brand)
       : (line.product_name ?? '').split(' ')[0]?.replace(/_/g, ' ') ?? line.product_name
-    const vitola     = line.vitola ?? '—'
+    const vitola = line.vitola ?? '—'
     return (
       <tr key={idx}>
-        <td className="ink" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{brandLine}</td>
-        <td>{vitola}</td>
+        <td className="ink" style={{ whiteSpace: 'normal', wordBreak: 'break-word', textAlign: 'center' }}>{brandLine}</td>
+        <td style={{ whiteSpace: 'nowrap' }}>{vitola}</td>
         <td className="mono muted" style={{ whiteSpace: 'nowrap' }}>{line.sku}</td>
-        <td className="mono muted">{line.fixmer_reference ?? '—'}</td>
+        <td className="mono muted" style={{ whiteSpace: 'nowrap' }}>{line.fixmer_reference ?? '—'}</td>
         <td style={{ textAlign: 'center' }}>{line.quantity_packs}</td>
         <td style={{ textAlign: 'center' }}>{line.quantity_units}</td>
-        <td className="mono" style={{ textAlign: 'center' }}>{dim}</td>
-        <td>{line.shape ?? '—'}</td>
-        <td>{line.wrapper ?? '—'}</td>
-        <td style={{ textAlign: 'center' }}>{line.pack_type ?? '—'}</td>
+        <td className="mono" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{dim}</td>
+        <td style={{ whiteSpace: 'nowrap' }}>{line.shape ?? '—'}</td>
+        <td style={{ whiteSpace: 'nowrap' }}>{line.wrapper ?? '—'}</td>
+        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{line.pack_type ?? '—'}</td>
+        <td className="mono" style={{ textAlign: 'right' }}>{line.units_per_pack ?? '—'}</td>
         <td className="mono" style={{ textAlign: 'right' }}>{line.net_weight_g ? fmt2(line.net_weight_g) : '—'}</td>
         <td className="mono" style={{ textAlign: 'right' }}>{netWtTotal}</td>
         <td className="mono" style={{ textAlign: 'right' }}>{priceUnit}</td>
@@ -244,7 +250,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                 {/* PARTIES + META — first page only */}
                 {isFirst && (
                   <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start', flexShrink: 0 }}>
-                    <div className="party-block">
+                    <div style={{ flex: 1 }}>
                       <div className="party-eyebrow">
                         {isFoc || isSample ? 'Deliver To' : isInvoice ? 'Invoice To' : 'Sales Order To'}
                       </div>
