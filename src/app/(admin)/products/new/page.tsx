@@ -26,8 +26,6 @@ export default function NewProductPage() {
   const [vitola, setVitola] = useState('')
   const [shape, setShape] = useState('')
   const [wrapper, setWrapper] = useState('')
-  const [binder, setBinder] = useState('')
-  const [filler, setFiller] = useState('')
   const [unitsPerPack, setUnitsPerPack] = useState('')
   const [packType, setPackType] = useState('Box')
   const [fixmerReference, setFixmerReference] = useState('')
@@ -37,6 +35,7 @@ export default function NewProductPage() {
   const [lengthInches, setLengthInches] = useState('')
   const [ringGauge, setRingGauge] = useState('')
   const [netWeightG, setNetWeightG] = useState('')
+  const [gtin, setGtin] = useState('')
   const [prices, setPrices] = useState<Record<string, string>>({ G: '', G1: '', A1: '', SPECIAL: '' })
   const [saving, setSaving] = useState(false)
 
@@ -52,8 +51,6 @@ export default function NewProductPage() {
       vitola: vitola || null,
       shape: shape || null,
       wrapper: wrapper || null,
-      binder: binder || null,
-      filler: filler || null,
       units_per_pack: unitsPerPack ? parseInt(unitsPerPack) : null,
       pack_type: packType || null,
       fixmer_reference: fixmerReference || null,
@@ -61,6 +58,7 @@ export default function NewProductPage() {
       status,
       notes: notes || null,
       product_role: 'original',
+      gtin: gtin || null,
       length_inches: lengthInches ? parseFloat(lengthInches) : null,
       ring_gauge: ringGauge ? parseFloat(ringGauge) : null,
       net_weight_g: netWeightG ? parseFloat(netWeightG) : null,
@@ -139,26 +137,9 @@ export default function NewProductPage() {
                 {SHAPES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-          </div>
-        </div>
-
-        {/* Blend */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">Blend</h2>
-          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Wrapper</label>
               <input value={wrapper} onChange={e => setWrapper(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Binder</label>
-              <input value={binder} onChange={e => setBinder(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Filler</label>
-              <input value={filler} onChange={e => setFiller(e.target.value)}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
             </div>
           </div>
@@ -232,6 +213,12 @@ export default function NewProductPage() {
               <label className="text-xs font-medium text-gray-500 uppercase">EU-CEG ID</label>
               <input value={euCegId} onChange={e => setEuCegId(e.target.value)}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">GTIN (Barcode)</label>
+              <input value={gtin} onChange={e => setGtin(e.target.value)}
+                placeholder="e.g. 5404021000011"
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none font-mono" />
             </div>
           </div>
           <div className="mt-4">
