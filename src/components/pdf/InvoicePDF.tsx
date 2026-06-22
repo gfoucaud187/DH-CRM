@@ -94,13 +94,13 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     .doc-number { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; line-height: 1.2; letter-spacing: 0.04em; margin-bottom: 4px; }
     .doc-ref { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 600; color: #8C8475; margin-top: 2px; font-variant-numeric: lining-nums; }
     .doc-date { font-size: 11px; color: #8C8475; margin-top: 6px; }
-    .kpi-strip { display: flex; border: 1px solid #E6E0D5; border-radius: 6px; overflow: hidden; background: #fff; flex-shrink: 0; }
-    .kpi-seg { flex: 1; padding: 12px 16px 8px; border-right: 1px solid #E6E0D5; display: flex; flex-direction: column; justify-content: center; }
-    .kpi-seg-accent { flex: 1.2; padding: 12px 16px 8px; background: ${accent}; display: flex; flex-direction: column; justify-content: center; }
-    .kpi-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 4px; }
-    .kpi-label-accent { font-size: 9px; font-weight: 600; color: ${onAccent}; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 4px; }
-    .kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums; }
-    .kpi-value-accent { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600; line-height: 1; color: #fff; font-variant-numeric: lining-nums; }
+    .kpi-strip { display: flex; border: 1px solid #E6E0D5; border-radius: 6px; overflow: hidden; background: #fff; flex-shrink: 0; height: 72px; }
+    .kpi-seg { flex: 1; padding: 10px 16px; border-right: 1px solid #E6E0D5; height: 72px; display: flex; flex-direction: column; justify-content: space-between; }
+    .kpi-seg-accent { flex: 1.2; padding: 10px 16px; background: ${accent}; height: 72px; display: flex; flex-direction: column; justify-content: space-between; }
+    .kpi-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; }
+    .kpi-label-accent { font-size: 9px; font-weight: 600; color: ${onAccent}; letter-spacing: 0.18em; text-transform: uppercase; }
+    .kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums; }
+    .kpi-value-accent { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1; color: #fff; font-variant-numeric: lining-nums; }
     .parties { display: flex; gap: 48px; align-items: flex-start; flex-shrink: 0; }
     .party-block { flex: 1.5; }
     .party-eyebrow { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 6px; }
@@ -228,12 +228,8 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
                         value: isFoc || isSample ? 'FOC' : `USD ${totalValue}`,          accent: true  },
                     ].map((k, i) => (
                       <div key={i} className={k.accent ? 'kpi-seg-accent' : 'kpi-seg'}>
-                        <div className="kpi-label-row">
-                          <div className={k.accent ? 'kpi-label-accent' : 'kpi-label'}>{k.label}</div>
-                        </div>
-                        <div className="kpi-value-row">
-                          <div className={k.accent ? 'kpi-value-accent' : 'kpi-value'}>{k.value}</div>
-                        </div>
+                        <div className={k.accent ? 'kpi-label-accent' : 'kpi-label'}>{k.label}</div>
+                        <div className={k.accent ? 'kpi-value-accent' : 'kpi-value'}>{k.value}</div>
                       </div>
                     ))}
                   </div>
