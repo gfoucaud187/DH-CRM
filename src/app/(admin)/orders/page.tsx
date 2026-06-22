@@ -80,7 +80,7 @@ export default function OrdersPage() {
       const { data } = await supabase
         .from('sales_orders')
         .select('*')
-        .order('order_date', { ascending: false })
+        .order('created_at', { ascending: false })
       return data ?? []
     }
   })
@@ -119,7 +119,7 @@ export default function OrdersPage() {
 
     // Sort filtered by date desc
     const sorted = [...filtered].sort((a: any, b: any) =>
-      new Date(b.order_date ?? b.created_at).getTime() - new Date(a.order_date ?? a.created_at).getTime()
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
 
     sorted.forEach((o: any) => {
@@ -142,7 +142,7 @@ export default function OrdersPage() {
         // Find children (docs promoted from this one)
         filtered
           .filter((d: any) => d.promoted_from === doc.id)
-          .sort((a: any, b: any) => getDocOrder(a) - getDocOrder(b))
+
           .forEach(addToChain)
       }
       addToChain(root)
