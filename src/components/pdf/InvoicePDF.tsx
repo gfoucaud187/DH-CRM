@@ -198,10 +198,9 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
             {lines.map((line: any, idx: number) => {
               // Fields come pre-enriched from order-detail-page.tsx
               const dim        = (line.length_inches && line.ring_gauge) ? `${line.length_inches}×${line.ring_gauge}` : '—'
-              const netWtTotal = (line.net_weight_g && line.quantity_units) ? (Number(line.net_weight_g) * Number(line.quantity_units)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})
-              const priceUnit  = (!isFoc && !isSample && line.price_per_unit)  ? Number(line.price_per_unit).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})  : '—'
-              const priceTotal = (!isFoc && !isSample && line.line_total)      ? Number(line.line_total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})      : '—'
-              // Brand & Line from product_name "Brand_Line Vitola Pack"
+              const netWtTotal = (line.net_weight_g && line.quantity_units) ? Number((Number(line.net_weight_g) * Number(line.quantity_units)).toFixed(2)).toLocaleString('en-US') : '—'
+              const priceUnit  = (!isFoc && !isSample && line.price_per_unit != null)  ? Number(line.price_per_unit).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})  : '—'
+              const priceTotal = (!isFoc && !isSample && line.line_total != null)      ? Number(line.line_total).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})      : '—'
               const parts     = (line.product_name ?? '').split(' ')
               const brandLine = parts[0]?.replace(/_/g, ' ') ?? line.product_name
               const vitola    = line.vitola ?? parts.slice(1, -1).join(' ') ?? '—'
