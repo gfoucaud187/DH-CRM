@@ -40,6 +40,8 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
   const isFoc     = order.is_foc
   const isSample  = order.is_sample
   const isTT      = (order.is_tt_order || customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') && isInvoice
+  const isInt     = order.document_type === 'so_int'
+  const isDO      = order.is_foc && !isInvoice && !isInt
 
   const accent   = isInvoice ? '#6A1E2A' : '#1C4B3C'
   const tint     = isInvoice ? '#F7EDED' : '#EEF3F0'
@@ -73,9 +75,9 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
   const totalNetWeightKg = lines.reduce((sum: number, l: any) =>
     l.net_weight_g && l.quantity_units ? sum + Number(l.net_weight_g) * Number(l.quantity_units) : sum, 0)
   const netTobaccoKg = (totalNetWeightKg / 1000).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
-  const totalValue = (!isFoc && !isSample && order.total_amount)
-    ? Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : 'FOC'
+  const totalValue = isInt ? 'INT' : (isFoc || isSample)
+    ? 'FOC'
+    : Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   const fmt2 = (n: any) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -137,43 +139,50 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     .page-num { font-size: 9px; color: #B3AA99; letter-spacing: 0.08em; margin-top: 3px; }
   `
 
-  const TableHead = () => (
-    <thead>
-      <tr>
-        {[
-          ['Brand & Line', 'left'],
-          ['Vitola', 'left'],
-          ['SKU · Ref DH', 'left'],
-          ['Ref Fixmer', 'left'],
-          ['Boxes', 'center'],
-          ['Articles', 'center'],
-          ['Dim L×Cepo', 'center'],
-          ['Shape', 'left'],
-          ['Wrapper', 'left'],
-          ['Pack Type', 'center'],
-          ['Qty/Pack', 'right'],
-          ['Net/U g', 'right'],
-          ['Net Tot g', 'right'],
-          ['Price/U', 'right'],
-          ['Total', 'right'],
-        ].map(([h, a], i) => (
-          <th key={i} style={{ textAlign: a as any }}>{h}</th>
-        ))}
-      </tr>
-    </thead>
-  )
+  const TableHead = () => {
+    const cols = isInt
+      ? [
+          ['Brand & Line', 'left'],['Vitola', 'left'],['SKU · Ref DH', 'left'],
+          ['Boxes', 'center'],['Articles', 'center'],
+        ]
+      : [
+          ['Brand & Line', 'left'],['Vitola', 'left'],['SKU · Ref DH', 'left'],['Ref Fixmer', 'left'],
+          ['Boxes', 'center'],['Articles', 'center'],['Dim L×Cepo', 'center'],['Shape', 'left'],
+          ['Wrapper', 'left'],['Pack Type', 'center'],['Qty/Pack', 'left'],['Net/U g', 'right'],
+          ['Net Tot g', 'right'],['Price/U', 'right'],
+          ...(!isDO ? [['Total', 'right']] : []),
+        ]
+    return (
+      <thead>
+        <tr>
+          {cols.map(([h, a], i) => (
+            <th key={i} style={{ textAlign: a as any }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+    )
+  }
 
   const TableRow = ({ line, idx }: { line: any; idx: number }) => {
     const dim        = (line.length_inches && line.ring_gauge) ? `${line.length_inches}×${line.ring_gauge}` : '—'
     const netWtTotal = (line.net_weight_g && line.quantity_units)
       ? Math.round(Number(line.net_weight_g) * Number(line.quantity_units)).toLocaleString('en-US')
       : '—'
-    const priceUnit  = (!isFoc && !isSample && line.price_per_unit != null) ? fmt2(line.price_per_unit) : '—'
-    const priceTotal = (!isFoc && !isSample && line.line_total != null)     ? fmt2(line.line_total)     : '—'
+    const priceUnit  = (!isInt && line.price_per_unit != null) ? fmt2(line.price_per_unit) : null
+    const priceTotal = (!isInt && !isDO && line.line_total != null) ? fmt2(line.line_total) : null
     const brandLine  = line.brand
       ? (line.line_name ? line.brand + ' ' + line.line_name : line.brand)
       : (line.product_name ?? '').split(' ')[0]?.replace(/_/g, ' ') ?? line.product_name
     const vitola = line.vitola ?? '—'
+    if (isInt) return (
+      <tr key={idx}>
+        <td className="ink" style={{ whiteSpace: 'nowrap' }}>{brandLine}</td>
+        <td style={{ whiteSpace: 'nowrap' }}>{vitola}</td>
+        <td className="mono muted" style={{ whiteSpace: 'nowrap' }}>{line.sku}</td>
+        <td style={{ textAlign: 'center' }}>{line.quantity_packs}</td>
+        <td style={{ textAlign: 'center' }}>{line.quantity_units}</td>
+      </tr>
+    )
     return (
       <tr key={idx}>
         <td className="ink" style={{ whiteSpace: 'nowrap' }}>{brandLine}</td>
@@ -189,8 +198,8 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
         <td className="mono" style={{ textAlign: 'left' }}>{line.units_per_pack ?? '—'}</td>
         <td className="mono" style={{ textAlign: 'right' }}>{line.net_weight_g ? fmt2(line.net_weight_g) : '—'}</td>
         <td className="mono" style={{ textAlign: 'right' }}>{netWtTotal}</td>
-        <td className="mono" style={{ textAlign: 'right' }}>{priceUnit}</td>
-        <td className="mono ink" style={{ textAlign: 'right' }}>{priceTotal}</td>
+        {priceUnit !== null && <td className="mono" style={{ textAlign: 'right' }}>{priceUnit}</td>}
+        {priceTotal !== null && <td className="mono ink" style={{ textAlign: 'right' }}>{priceTotal}</td>}
       </tr>
     )
   }
@@ -221,7 +230,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                       <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/Logo_DH_signature_color_white_background.png" alt="DH Signature" style={{ height: '72px', width: 'auto' }} />
                     </div>
                     <div className="header-right">
-                      <div className="doc-eyebrow">{isInvoice ? 'Invoice' : 'Sales Order'}</div>
+                      <div className="doc-eyebrow">{isInvoice ? 'Invoice' : isInt ? 'Internal Transfer' : isDO ? 'Delivery Order' : 'Sales Order'}</div>
                       <div className="doc-number">{order.order_number}</div>
                       {isInvoice && sourceDoc?.order_number && (
                         <div style={{ fontSize: '15px', fontFamily: "'IBM Plex Mono', monospace", color: '#8C8475', marginTop: '2px', lineHeight: 1.2 }}>
@@ -241,8 +250,8 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                       { label: 'Total Packs',    value: String(order.total_packs ?? 0), accent: false },
                       { label: 'Total Articles', value: String(order.total_units ?? 0), accent: false },
                       { label: 'Net Tobacco kg', value: netTobaccoKg,                   accent: false },
-                      { label: isInvoice ? 'Amount Due' : 'Total Value',
-                        value: isFoc || isSample ? 'FOC' : `USD ${totalValue}`,          accent: true  },
+                      { label: isInvoice ? 'Amount Due' : isInt ? 'Transfer' : 'Total Value',
+                        value: isInt ? 'INT' : (isFoc || isSample) ? 'FOC' : `USD ${totalValue}`, accent: true  },
                     ].map((k, i) => (
                       <div key={i} className={k.accent ? 'kpi-seg-accent' : 'kpi-seg'}>
                         <div className={k.accent ? 'kpi-label-accent' : 'kpi-label'}>{k.label}</div>
@@ -256,15 +265,30 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                 {isFirst && (
                   <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start', flexShrink: 0 }}>
                     <div style={{ flex: 1 }}>
-                      <div className="party-eyebrow">
-                        {isFoc || isSample ? 'Deliver To' : isInvoice ? 'Invoice To' : 'Sales Order To'}
-                      </div>
-                      <div className="party-name">{billToName}</div>
-                      {billToContactLine && <div className="party-contact">{billToContactLine}</div>}
-                      {!isTT && primaryAddress && (
-                        <div className="party-addr">
-                          {[primaryAddress.street1, primaryAddress.city, primaryAddress.postal_code, primaryAddress.country].filter(Boolean).join(', ')}
+                      {isInt ? (
+                        <div style={{ display: 'flex', gap: '40px' }}>
+                          <div>
+                            <div className="party-eyebrow">From Warehouse</div>
+                            <div className="party-name" style={{ fontSize: '18px' }}>{order.warehouse ?? '—'}</div>
+                          </div>
+                          <div>
+                            <div className="party-eyebrow">To Warehouse</div>
+                            <div className="party-name" style={{ fontSize: '18px' }}>{order.warehouse_destination ?? '—'}</div>
+                          </div>
                         </div>
+                      ) : (
+                        <>
+                          <div className="party-eyebrow">
+                            {isDO ? 'Delivery Order To' : isInvoice ? 'Invoice To' : 'Sales Order To'}
+                          </div>
+                          <div className="party-name">{billToName}</div>
+                          {billToContactLine && <div className="party-contact">{billToContactLine}</div>}
+                          {!isTT && primaryAddress && (
+                            <div className="party-addr">
+                              {[primaryAddress.street1, primaryAddress.city, primaryAddress.postal_code, primaryAddress.country].filter(Boolean).join(', ')}
+                            </div>
+                          )}
+                        </>
                       )}
                       {isTT && endCustomerName && (
                         <div className="co-block">
@@ -304,7 +328,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                 {/* TOTALS + PAYMENT — last page only */}
                 {isLast && (
                   <div className="bottom-row">
-                    {isInvoice && !isFoc && !isSample && (
+                    {isInvoice && !isFoc && !isSample && !isInt && (
                       <div className="payment-card">
                         <div className="payment-title">Payment Details</div>
                         <div className="payment-grid">
@@ -326,12 +350,14 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                       <div className="total-line"><span>Total Boxes</span><span>{Number(order.total_packs).toLocaleString('en-US')}</span></div>
                       <div className="total-line"><span>Total Articles</span><span>{Number(order.total_units).toLocaleString('en-US')}</span></div>
                       <hr className="total-hr" />
-                      <div className="grand-row">
-                        <span className="grand-label">{isInvoice ? 'Amount Due' : 'Total'}</span>
-                        <span className="grand-value">
-                          {isFoc || isSample ? 'FOC' : `${order.currency} ${totalValue}`}
-                        </span>
-                      </div>
+                      {!isInt && (
+                        <div className="grand-row">
+                          <span className="grand-label">{isInvoice ? 'Amount Due' : isDO ? 'Delivery Order' : 'Total'}</span>
+                          <span className="grand-value">
+                            {isDO ? 'FOC' : `${order.currency} ${totalValue}`}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
