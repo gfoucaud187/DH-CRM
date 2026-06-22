@@ -46,10 +46,41 @@ export default function OrderDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_orders')
-        .select('*, lines:sales_order_lines(*, product:products(shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, vitola)), customer:customers(legal_name, contacts, addresses, vat_number, track_trace_enabled)')
+        .select('*, lines:sales_order_lines(*), customer:customers(legal_name, contacts, addresses, vat_number, track_trace_enabled)')
         .eq('id', id)
         .single()
       return data
+    }
+  })
+
+  // Fetch product data for PDF enrichment
+  const { data: productData = [] } = useQuery({
+    queryKey: ['order-products', order?.lines?.map((l: any) => l.sku)],
+    queryFn: async () => {
+      if (!order?.lines?.length) return []
+      const skus = order.lines.map((l: any) => l.sku).filter(Boolean)
+      const { data } = await supabase
+        .from('products')
+        .select('sku, shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, vitola')
+        .in('sku', skus)
+      return data ?? []
+    },
+    enabled: !!order?.lines?.length,
+  })
+
+  // Enrich lines with product data
+  const enrichedLines = (order?.lines ?? []).map((line: any) => {
+    const product = (productData as any[]).find((p: any) => p.sku === line.sku) ?? {}
+    return {
+      ...line,
+      shape:         line.shape         ?? product.shape,
+      wrapper:       line.wrapper       ?? product.wrapper,
+      pack_type:     line.pack_type     ?? product.pack_type,
+      units_per_pack:line.units_per_pack?? product.units_per_pack,
+      net_weight_g:  line.net_weight_g  ?? product.net_weight_g,
+      length_inches: line.length_inches ?? product.length_inches,
+      ring_gauge:    line.ring_gauge    ?? product.ring_gauge,
+      vitola:        line.vitola        ?? product.vitola,
     }
   })
 
@@ -58,7 +89,7 @@ export default function OrderDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_orders')
-        .select('*, lines:sales_order_lines(*, product:products(shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, vitola))')
+        .select('*, lines:sales_order_lines(*)')
         .eq('linked_order_id', id)
         .eq('is_foc', true)
         .maybeSingle()
@@ -450,7 +481,7 @@ export default function OrderDetailPage() {
           {!isInt && !isPO && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-3">Document</h2>
-              <InvoicePDF order={order} lines={commercialLines} customer={order.customer} appSettings={appSettings} />
+              <InvoicePDF order={order} lines={enrichedLines.filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')} customer={order.customer} appSettings={appSettings} />
             </div>
           )}
 

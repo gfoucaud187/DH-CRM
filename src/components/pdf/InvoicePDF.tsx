@@ -44,7 +44,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
   const billToEmail   = isTT ? fixmerEmail   : customer?.contacts?.[0]?.email
   const billToPhone   = isTT ? fixmerPhone   : customer?.contacts?.[0]?.phone
   const careOfName    = isTT ? (order.care_of_name ?? customer?.legal_name ?? order.customer_name) : null
-
   const primaryAddress = customer?.addresses?.[0]
   const billToAddress  = isTT ? null : primaryAddress
 
@@ -53,32 +52,37 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     : new Date().toLocaleDateString('en-GB')
 
   const paymentInfo = appSettings?.payment_info ??
-    `Beneficiary: Nadir y Bohue Pte. Ltd. / 20C Sea avenue / Singapore 424243
+`Beneficiary: Nadir y Bohue Pte. Ltd. / 20C Sea avenue / Singapore 424243
 Account: 048-904845-0 · Swift/BIC: DBSSSGSG
 Bank: DBS Bank Ltd / 12 Marina Boulevard / Marina Bay Financial Centre Tower 3 / Singapore 018982
 Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
 
-  // Landscape width ~1122px (A4 landscape at 96dpi)
-  const PRINT_W = 1008
+  // A4 landscape = 297mm = ~1122px at 96dpi. 1.5cm margin = 57px each side.
+  const HEADERS = [
+    { label: 'BRAND & LINE',     w: '13%', align: 'left'   },
+    { label: 'VITOLA',           w: '7%',  align: 'left'   },
+    { label: 'SKU (REF DH)',     w: '9%',  align: 'left'   },
+    { label: 'REF\nFIXMER',     w: '6%',  align: 'left'   },
+    { label: 'QTY\nBOXES',      w: '4%',  align: 'right'  },
+    { label: 'TOTAL\nARTICLES', w: '5%',  align: 'right'  },
+    { label: 'DIM\n(L×CEPO)',   w: '6%',  align: 'center' },
+    { label: 'SHAPE',            w: '5%',  align: 'center' },
+    { label: 'WRAPPER',          w: '9%',  align: 'left'   },
+    { label: 'PACK\nTYPE',      w: '4%',  align: 'center' },
+    { label: 'QTY\n/PACK',      w: '4%',  align: 'right'  },
+    { label: 'NET WT\n/UNIT g', w: '5%',  align: 'right'  },
+    { label: 'NET WT\nTOTAL g', w: '5%',  align: 'right'  },
+    { label: 'PRICE\n/UNIT',    w: '5%',  align: 'right'  },
+    { label: 'PRICE\nTOTAL',    w: '5%',  align: 'right'  },
+  ]
 
-  const cell = (content: any, opts: {
-    align?: 'left'|'right'|'center',
-    mono?: boolean,
-    bold?: boolean,
-    gray?: boolean,
-    small?: boolean,
-    nowrap?: boolean,
-    width?: string,
-  } = {}) => ({
-    content,
-    textAlign: opts.align ?? 'left',
-    fontFamily: opts.mono ? 'monospace' : 'Arial, sans-serif',
-    fontWeight: opts.bold ? 'bold' : 'normal',
-    color: opts.gray ? '#888' : '#1a1a1a',
-    fontSize: opts.small ? '9px' : '10px',
-    whiteSpace: opts.nowrap ? 'nowrap' : 'normal',
-    width: opts.width,
-    padding: '8px 5px',
+  const td = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+    padding: '7px 4px',
+    fontSize: '9px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    ...extra,
   })
 
   return (
@@ -89,7 +93,6 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
         Download PDF
       </button>
 
-      {/* PRINT AREA — landscape A4 = 1122px wide at 96dpi, we use 1060px + padding */}
       <div
         id={'invoice-print-area-' + order.id}
         style={{
@@ -104,26 +107,22 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
           overflow: 'hidden',
         }}
       >
-        {/* ── HEADER ── */}
+        {/* HEADER */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
           <div>
             <div style={{ fontSize: '26px', fontWeight: 'bold', letterSpacing: '-1px' }}>dh.</div>
-            <div style={{ fontSize: '9px', fontWeight: 'bold', letterSpacing: '2px', marginTop: '2px' }}>SIGNATURE</div>
+            <div style={{ fontSize: '9px', fontWeight: 'bold', letterSpacing: '3px', marginTop: '2px' }}>SIGNATURE</div>
             <div style={{ fontSize: '7px', color: '#aaa', letterSpacing: '1px' }}>CREATING UNIQUE MOMENTS</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{order.order_number}</div>
             <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>Date: {docDate}</div>
-            {order.shipment_date && (
-              <div style={{ fontSize: '10px', color: '#666' }}>
-                Shipment: {new Date(order.shipment_date).toLocaleDateString('en-GB')}
-              </div>
-            )}
+            {order.shipment_date && <div style={{ fontSize: '10px', color: '#666' }}>Shipment: {new Date(order.shipment_date).toLocaleDateString('en-GB')}</div>}
           </div>
         </div>
 
-        {/* ── BILL TO + META ── */}
-        <div style={{ display: 'flex', gap: '48px', marginBottom: '24px' }}>
+        {/* BILL TO + META */}
+        <div style={{ display: 'flex', gap: '40px', marginBottom: '20px' }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '8px', color: '#999', letterSpacing: '1px', marginBottom: '6px' }}>
               {isFoc || isSample ? 'DELIVER TO' : 'INVOICE TO'}
@@ -144,7 +143,7 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', gap: '32px', fontSize: '10px', alignItems: 'flex-start', paddingTop: '20px' }}>
+          <div style={{ display: 'flex', gap: '28px', fontSize: '10px', alignItems: 'flex-start', paddingTop: '18px' }}>
             {order.incoterms     && <div><div style={{ color: '#999', fontSize: '8px', marginBottom: '2px' }}>INCOTERMS</div><div style={{ fontWeight: 'bold' }}>{order.incoterms}</div></div>}
             {order.payment_terms && <div><div style={{ color: '#999', fontSize: '8px', marginBottom: '2px' }}>PAYMENT</div><div style={{ fontWeight: 'bold' }}>{order.payment_terms}</div></div>}
             {order.currency      && <div><div style={{ color: '#999', fontSize: '8px', marginBottom: '2px' }}>CURRENCY</div><div style={{ fontWeight: 'bold' }}>{order.currency}</div></div>}
@@ -153,150 +152,103 @@ Bank fees: tick 'OUR'. Amounts received must match amounts invoiced.`
         </div>
 
         {isTT && (
-          <div style={{ marginBottom: '12px' }}>
+          <div style={{ marginBottom: '10px' }}>
             <span style={{ background: '#e6f1fb', color: '#185fa5', fontSize: '8px', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>TRACK & TRACE</span>
           </div>
         )}
 
-        <div style={{ borderTop: '1px solid #e5e7eb', marginBottom: '16px' }} />
+        <div style={{ borderTop: '1px solid #e5e7eb', marginBottom: '14px' }} />
 
-        {/* ── LINES TABLE ── */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', tableLayout: 'fixed', overflow: 'hidden' }}>
+        {/* LINES TABLE */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '18px', tableLayout: 'fixed' }}>
           <colgroup>
-            <col style={{ width: '14%' }} />{/* Brand & Line */}
-            <col style={{ width: '8%' }} /> {/* Vitola */}
-            <col style={{ width: '10%' }} />{/* SKU */}
-            <col style={{ width: '7%' }} /> {/* Ref Fixmer */}
-            <col style={{ width: '5%' }} /> {/* Qty Packs */}
-            <col style={{ width: '5%' }} /> {/* Total Articles */}
-            <col style={{ width: '7%' }} /> {/* Dim */}
-            <col style={{ width: '6%' }} /> {/* Shape */}
-            <col style={{ width: '9%' }} /> {/* Wrapper */}
-            <col style={{ width: '5%' }} /> {/* Pack Type */}
-            <col style={{ width: '4%' }} /> {/* Qty/Pack */}
-            <col style={{ width: '5%' }} /> {/* Net Wt/unit */}
-            <col style={{ width: '5%' }} /> {/* Net Wt total */}
-            <col style={{ width: '5%' }} /> {/* Price/unit */}
-            <col style={{ width: '5%' }} /> {/* Price total */}
+            {HEADERS.map((h, i) => <col key={i} style={{ width: h.w }} />)}
           </colgroup>
           <thead>
             <tr style={{ borderBottom: '2px solid #1a1a1a', background: '#f9fafb' }}>
-              {[
-                { label: 'BRAND & LINE',     align: 'left'  },
-                { label: 'VITOLA',            align: 'left'  },
-                { label: 'SKU (REF DH)',      align: 'left'  },
-                { label: 'REF FIXMER',        align: 'left'  },
-                { label: 'QTY\nBOXES',        align: 'right' },
-                { label: 'TOTAL\nARTICLES',   align: 'right' },
-                { label: 'DIM\n(L×CEPO)',     align: 'center'},
-                { label: 'SHAPE',             align: 'center'},
-                { label: 'WRAPPER',           align: 'left'  },
-                { label: 'PACK\nTYPE',        align: 'center'},
-                { label: 'QTY\n/PACK',        align: 'right' },
-                { label: 'NET WT\n/UNIT (g)', align: 'right' },
-                { label: 'NET WT\nTOTAL (g)', align: 'right' },
-                { label: 'PRICE\n/UNIT',      align: 'right' },
-                { label: 'PRICE\nTOTAL',      align: 'right' },
-              ].map((col, i) => (
-                <th key={i} style={{ overflow: 'hidden', wordBreak: 'break-word',
-                  textAlign: col.align as any,
-                  padding: '6px 5px',
+              {HEADERS.map((h, i) => (
+                <th key={i} style={{
+                  textAlign: h.align as any,
+                  padding: '6px 4px',
                   fontSize: '7.5px',
-                  color: '#555',
+                  color: '#444',
                   fontWeight: 'bold',
-                  letterSpacing: '0.3px',
                   whiteSpace: 'pre-line',
                   lineHeight: '1.3',
+                  overflow: 'hidden',
                 }}>
-                  {col.label}
+                  {h.label}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {lines.map((line: any, idx: number) => {
-              const p = line.product ?? {}
-const dim = ((line.length_inches || p.length_inches) && (line.ring_gauge || p.ring_gauge))
-                ? `${line.length_inches || p.length_inches}x${line.ring_gauge || p.ring_gauge}`
-                : '—'
-              const netWtTotal = (line.net_weight_g || p.net_weight_g) && line.quantity_units
-                ? ((line.net_weight_g || p.net_weight_g) * line.quantity_units).toFixed(0)
-                : '—'
-              const priceTotal = (!isFoc && !isSample && line.line_total)
-                ? Number(line.line_total).toFixed(2)
-                : '—'
-              const priceUnit = (!isFoc && !isSample && line.price_per_unit)
-                ? Number(line.price_per_unit).toFixed(2)
-                : '—'
-
-              // Parse brand & line from product_name (format: "Brand_Line Vitola Pack")
-              const nameParts = (line.product_name ?? '').split(' ')
-              const brandLine = nameParts[0]?.replace(/_/g, ' ') ?? line.product_name
-              const vitola    = nameParts.slice(1, -1).join(' ') || p.vitola || '—'
+              // Fields come pre-enriched from order-detail-page.tsx
+              const dim        = (line.length_inches && line.ring_gauge) ? `${line.length_inches}×${line.ring_gauge}` : '—'
+              const netWtTotal = (line.net_weight_g && line.quantity_units) ? (Number(line.net_weight_g) * Number(line.quantity_units)).toFixed(0) : '—'
+              const priceUnit  = (!isFoc && !isSample && line.price_per_unit)  ? Number(line.price_per_unit).toFixed(2)  : '—'
+              const priceTotal = (!isFoc && !isSample && line.line_total)      ? Number(line.line_total).toFixed(2)      : '—'
+              // Brand & Line from product_name "Brand_Line Vitola Pack"
+              const parts     = (line.product_name ?? '').split(' ')
+              const brandLine = parts[0]?.replace(/_/g, ' ') ?? line.product_name
+              const vitola    = line.vitola ?? parts.slice(1, -1).join(' ') ?? '—'
+              const bg        = idx % 2 === 0 ? '#fff' : '#fafafa'
 
               return (
-                <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '9px', fontWeight: '500' }}>{brandLine}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '9px', color: '#444' }}>{line.vitola ?? vitola}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'monospace', fontSize: '8.5px', color: '#555' }}>{line.sku}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'monospace', fontSize: '8.5px', color: '#777' }}>{line.fixmer_reference ?? '—'}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontWeight: '500' }}>{line.quantity_packs}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontWeight: '500' }}>{line.quantity_units}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontSize: '9px', fontFamily: 'monospace' }}>{dim}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontSize: '9px' }}>{line.shape || p.shape || '—'}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '9px' }}>{line.wrapper || p.wrapper || '—'}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontSize: '9px' }}>{line.pack_type || p.pack_type || '—'}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: '9px' }}>{line.units_per_pack || p.units_per_pack || '—'}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: '9px' }}>{(line.net_weight_g || p.net_weight_g) ? Number(line.net_weight_g || p.net_weight_g).toFixed(2) : '—'}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontSize: '9px' }}>{netWtTotal}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right' }}>{priceUnit}</td>
-                  <td style={{ padding: '7px 5px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'right', fontWeight: '500' }}>{priceTotal}</td>
+                <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0', background: bg }}>
+                  <td style={td({ fontWeight: '500' })}>{brandLine}</td>
+                  <td style={td({ color: '#444' })}>{vitola}</td>
+                  <td style={td({ fontFamily: 'monospace', fontSize: '8px', color: '#555' })}>{line.sku}</td>
+                  <td style={td({ fontFamily: 'monospace', fontSize: '8px', color: '#777' })}>{line.fixmer_reference ?? '—'}</td>
+                  <td style={td({ textAlign: 'right', fontWeight: '500' })}>{line.quantity_packs}</td>
+                  <td style={td({ textAlign: 'right', fontWeight: '500' })}>{line.quantity_units}</td>
+                  <td style={td({ textAlign: 'center', fontFamily: 'monospace' })}>{dim}</td>
+                  <td style={td({ textAlign: 'center' })}>{line.shape ?? '—'}</td>
+                  <td style={td()}>{line.wrapper ?? '—'}</td>
+                  <td style={td({ textAlign: 'center' })}>{line.pack_type ?? '—'}</td>
+                  <td style={td({ textAlign: 'right' })}>{line.units_per_pack ?? '—'}</td>
+                  <td style={td({ textAlign: 'right' })}>{line.net_weight_g ? Number(line.net_weight_g).toFixed(2) : '—'}</td>
+                  <td style={td({ textAlign: 'right' })}>{netWtTotal}</td>
+                  <td style={td({ textAlign: 'right' })}>{priceUnit}</td>
+                  <td style={td({ textAlign: 'right', fontWeight: '500' })}>{priceTotal}</td>
                 </tr>
               )
             })}
           </tbody>
         </table>
 
-        {/* ── TOTALS ── */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
-          <div style={{ minWidth: '240px' }}>
+        {/* TOTALS */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+          <div style={{ minWidth: '220px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', color: '#666', fontSize: '10px' }}>
               <span>Total Boxes</span><span style={{ fontWeight: '500' }}>{order.total_packs}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', color: '#666', fontSize: '10px' }}>
               <span>Total Articles</span><span style={{ fontWeight: '500' }}>{order.total_units}</span>
             </div>
-            {!isFoc && !isSample && (
-              <>
-                <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold' }}>
-                  <span>TOTAL</span>
-                  <span>{order.currency} {Number(order.total_amount).toFixed(2)}</span>
-                </div>
-              </>
-            )}
-            {(isFoc || isSample) && (
-              <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold' }}>
-                <span>TOTAL</span><span>FOC</span>
-              </div>
-            )}
+            <div style={{ borderTop: '2px solid #1a1a1a', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px' }}>
+              <span>TOTAL</span>
+              <span>{(isFoc || isSample) ? 'FOC' : `${order.currency} ${Number(order.total_amount).toFixed(2)}`}</span>
+            </div>
           </div>
         </div>
 
-        {/* ── PAYMENT INFO ── */}
+        {/* PAYMENT INFO */}
         {!isFoc && !isSample && order.document_type === 'invoice' && (
-          <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', padding: '14px', marginBottom: '24px' }}>
+          <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', padding: '14px', marginBottom: '20px' }}>
             <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '6px', letterSpacing: '0.5px' }}>PAYMENT DETAILS</div>
             <div style={{ fontSize: '9px', color: '#555', lineHeight: '1.7', whiteSpace: 'pre-line' }}>{paymentInfo}</div>
           </div>
         )}
 
         {order.notes && (
-          <div style={{ marginBottom: '20px', fontSize: '10px', color: '#666' }}>
+          <div style={{ marginBottom: '16px', fontSize: '10px', color: '#666' }}>
             <strong>Notes:</strong> {order.notes}
           </div>
         )}
 
-        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '12px', textAlign: 'center', fontSize: '9px', color: '#bbb' }}>
+        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', textAlign: 'center', fontSize: '9px', color: '#bbb' }}>
           DH Signature · {order.order_number} · Generated {new Date().toLocaleDateString('en-GB')}
         </div>
       </div>
