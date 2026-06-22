@@ -136,17 +136,20 @@ export default function OrderDetailPage() {
     enabled: !!id
   })
 
+  // Find invoice promoted FROM this SO
   const { data: linkedDoc } = useQuery({
-    queryKey: ['order-linked', order?.linked_order_id],
+    queryKey: ['order-linked-invoice', id],
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_orders')
         .select('id, order_number, document_type, status')
-        .eq('id', order.linked_order_id)
-        .single()
+        .eq('promoted_from', id)
+        .eq('document_type', 'invoice')
+        .eq('is_foc', false)
+        .maybeSingle()
       return data
     },
-    enabled: !!order?.linked_order_id
+    enabled: !!id && !order?.is_foc
   })
 
   const { data: sourceDoc } = useQuery({
@@ -257,7 +260,7 @@ export default function OrderDetailPage() {
 
   const currentStatus = statuses.find((s: any) => s.value === order.status) ?? statuses[0]
   const commercialLines = (order.lines ?? []).filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')
-  const alreadyHasInvoice = isSO && !!linkedDoc && linkedDoc.document_type === 'invoice'
+  const alreadyHasInvoice = isSO && !!linkedDoc
   const alreadyHasFoc = false // Multiple SO(DO) always allowed
 
   const getDocLabel = () => {
