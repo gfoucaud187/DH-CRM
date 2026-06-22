@@ -7,9 +7,10 @@ interface InvoicePDFProps {
   lines: any[]
   customer?: any
   appSettings?: any
+  sourceDoc?: any
 }
 
-export default function InvoicePDF({ order, lines, customer, appSettings }: InvoicePDFProps) {
+export default function InvoicePDF({ order, lines, customer, appSettings, sourceDoc }: InvoicePDFProps) {
 
   const handleDownload = async () => {
     const jsPDF = (await import('jspdf')).default
@@ -211,7 +212,12 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
                     <div className="header-right">
                       <div className="doc-eyebrow">{isInvoice ? 'Invoice' : 'Sales Order'}</div>
                       <div className="doc-number">{order.order_number}</div>
-                      {isInvoice && order.promoted_from_number && <div className="doc-ref">{order.promoted_from_number}</div>}
+                      {isInvoice && sourceDoc?.order_number && (
+                        <div style={{ fontSize: '15px', fontFamily: "'IBM Plex Mono', monospace", color: '#8C8475', marginTop: '2px', lineHeight: 1.2 }}>
+                          <span style={{ fontFamily: 'Arial, sans-serif', fontSize: '9px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A39A8A' }}>Internal SO reference: </span>
+                          {sourceDoc.order_number}
+                        </div>
+                      )}
                       <div className="doc-date">{docDate}</div>
                     </div>
                   </div>

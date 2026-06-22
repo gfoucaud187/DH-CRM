@@ -61,7 +61,7 @@ export default function OrderDetailPage() {
       const skus = order.lines.map((l: any) => l.sku).filter(Boolean)
       const { data } = await supabase
         .from('products')
-        .select('sku, brand, line, shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, vitola')
+        .select('sku, shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, vitola')
         .in('sku', skus)
       return data ?? []
     },
@@ -81,8 +81,6 @@ export default function OrderDetailPage() {
       length_inches: line.length_inches ?? product.length_inches,
       ring_gauge:    line.ring_gauge    ?? product.ring_gauge,
       vitola:        line.vitola        ?? product.vitola,
-      brand:     line.brand     ?? product.brand,
-      line_name: line.line_name ?? product.line,
     }
   })
 
@@ -471,7 +469,7 @@ export default function OrderDetailPage() {
             {[
               { label: 'Total Packs',  value: order.total_packs },
               { label: 'Total Units',  value: order.total_units },
-              { label: 'Total Amount', value: isInt ? 'INT' : (order.is_foc || order.is_sample ? 'FOC' : order.currency + ' ' + Number(order.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})) },
+              { label: 'Total Amount', value: isInt ? 'INT' : (order.is_foc || order.is_sample ? 'FOC' : order.currency + ' ' + Number(order.total_amount).toFixed(2)) },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
                 <p className="text-2xl font-bold text-gray-900">{value}</p>
@@ -483,7 +481,7 @@ export default function OrderDetailPage() {
           {!isInt && !isPO && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-3">Document</h2>
-              <InvoicePDF order={order} lines={enrichedLines.filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')} customer={order.customer} appSettings={appSettings} />
+              <InvoicePDF order={order} lines={enrichedLines.filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')} customer={order.customer} appSettings={appSettings} sourceDoc={sourceDoc} />
             </div>
           )}
 
@@ -522,8 +520,8 @@ export default function OrderDetailPage() {
                     <td className="px-3 py-3 text-center">{line.quantity_units}</td>
                     {!order.is_foc && !order.is_sample && !isInt && (
                       <>
-                        <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-                        <td className="px-4 py-3 text-right font-medium">{Number(line.line_total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                        <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right font-medium">{Number(line.line_total).toFixed(2)}</td>
                       </>
                     )}
                   </tr>
@@ -534,7 +532,7 @@ export default function OrderDetailPage() {
                   <tr>
                     <td colSpan={4} className="px-4 py-3 text-right font-semibold">Total</td>
                     <td className="px-4 py-3 text-right font-bold">
-                      {order.currency} {Number(order.total_amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
+                      {order.currency} {Number(order.total_amount).toFixed(2)}
                     </td>
                   </tr>
                 </tfoot>
