@@ -177,10 +177,10 @@ export default function NewOrderPage() {
             total_units:           totalUnits,
             total_packs:           totalPacks,
           },
-          commercial_lines: (() => { console.log('LINES BEING SENT:', JSON.stringify(lines.map(l=>({sku:l.sku,price:l.price_per_unit})))); return lines.map(l => ({
+          commercial_lines: lines.map(l => ({
             ...l,
             line_type: 'commercial',
-          }))})(),
+          })),
           foc_lines: [],
         }),
       })
