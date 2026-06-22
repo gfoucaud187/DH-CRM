@@ -186,7 +186,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
         <td style={{ whiteSpace: 'nowrap' }}>{line.shape ?? '—'}</td>
         <td style={{ whiteSpace: 'nowrap' }}>{line.wrapper ?? '—'}</td>
         <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{line.pack_type ?? '—'}</td>
-        <td className="mono" style={{ textAlign: 'right' }}>{line.units_per_pack ?? '—'}</td>
+        <td className="mono" style={{ textAlign: 'left' }}>{line.units_per_pack ?? '—'}</td>
         <td className="mono" style={{ textAlign: 'right' }}>{line.net_weight_g ? fmt2(line.net_weight_g) : '—'}</td>
         <td className="mono" style={{ textAlign: 'right' }}>{netWtTotal}</td>
         <td className="mono" style={{ textAlign: 'right' }}>{priceUnit}</td>
