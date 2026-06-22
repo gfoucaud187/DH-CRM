@@ -93,12 +93,12 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     .logo-sub { font-size: 8px; font-weight: 600; letter-spacing: 0.3em; color: #6E665A; margin-top: 3px; }
     .header-right { text-align: right; }
     .doc-eyebrow { font-family: 'Cormorant Garamond', serif; font-size: 14px; font-weight: 600; color: ${accent}; letter-spacing: 0.34em; text-transform: uppercase; margin-bottom: 4px; }
-    .doc-number { font-family: 'Cormorant Garamond', serif; font-size: 46px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums; font-feature-settings: 'lnum' 1; }
+    .doc-number { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; line-height: 1.2; letter-spacing: 0.04em; margin-bottom: 4px; }
     .doc-ref { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 600; color: #8C8475; margin-top: 2px; font-variant-numeric: lining-nums; }
     .doc-date { font-size: 11px; color: #8C8475; margin-top: 6px; }
     .kpi-strip { display: flex; border: 1px solid #E6E0D5; border-radius: 6px; overflow: hidden; background: #fff; flex-shrink: 0; }
-    .kpi-seg { flex: 1; padding: 10px 16px; border-right: 1px solid #E6E0D5; }
-    .kpi-seg-accent { flex: 1.2; padding: 10px 16px; background: ${accent}; }
+    .kpi-seg { flex: 1; padding: 12px 16px 8px; border-right: 1px solid #E6E0D5; display: flex; flex-direction: column; justify-content: center; }
+    .kpi-seg-accent { flex: 1.2; padding: 12px 16px 8px; background: ${accent}; display: flex; flex-direction: column; justify-content: center; }
     .kpi-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 4px; }
     .kpi-label-accent { font-size: 9px; font-weight: 600; color: ${onAccent}; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 4px; }
     .kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums; }
@@ -121,7 +121,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     .mono { font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
     .ink { font-weight: 600; color: #221C18; }
     .muted { color: #6E665A; }
-    .bottom-row { display: flex; gap: 48px; align-items: flex-end; margin-top: auto; }
+    .bottom-row { display: flex; gap: 48px; align-items: flex-end; margin-top: 16px; }
     .payment-card { flex: 1; background: #fff; border: 1px solid #E6E0D5; border-radius: 6px; padding: 14px 18px; }
     .payment-title { font-size: 9px; font-weight: 600; color: ${accent}; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 8px; }
     .payment-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 10px; color: #3A352E; line-height: 1.5; }
@@ -143,9 +143,9 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     <thead>
       <tr>
         {[
-          ['Brand & Line','left','12%'],['Vitola','left','8%'],['SKU · Ref DH','left','9%'],['Ref Fixmer','left','7%'],
+          ['Brand & Line','left','14%'],['Vitola','left','8%'],['SKU · Ref DH','left','9%'],['Ref Fixmer','left','7%'],
           ['Boxes','center','4%'],['Articles','center','5%'],['Dim L×Cepo','center','6%'],['Shape','left','5%'],
-          ['Wrapper','left','9%'],['Pack','center','4%'],['Net/U g','right','5%'],['Net Tot g','right','7%'],
+          ['Wrapper','left','8%'],['Pack','center','4%'],['Net/U g','right','5%'],['Net Tot g','right','6%'],
           ['Price/U','right','6%'],['Total','right','7%'],
         ].map(([h, a, w], i) => (
           <th key={i} style={{ textAlign: a as any, width: w }}>{h}</th>
@@ -166,7 +166,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings }: Invo
     const vitola     = line.vitola ?? parts.slice(1, -1).join(' ') ?? '—'
     return (
       <tr key={idx}>
-        <td className="ink">{brandLine}</td>
+        <td className="ink" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{brandLine}</td>
         <td>{vitola}</td>
         <td className="mono muted">{line.sku}</td>
         <td className="mono muted">{line.fixmer_reference ?? '—'}</td>
