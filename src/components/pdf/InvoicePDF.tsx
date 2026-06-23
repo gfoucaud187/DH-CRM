@@ -1,7 +1,7 @@
 'use client'
 
 import { Download } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   getFolderName,
@@ -20,8 +20,6 @@ interface InvoicePDFProps {
 }
 
 export default function InvoicePDF({ order, lines, customer, appSettings, sourceDoc }: InvoicePDFProps) {
-  const autoSavedRef = useRef(false)
-
   // ─── Génère le PDF en blob (sans déclencher le téléchargement) ───────────────
   const generatePdfBlob = async (): Promise<Blob | null> => {
     const jsPDF = (await import('jspdf')).default
@@ -126,19 +124,15 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     }
   }
 
-  // ─── Auto-save à la création (1 seule fois par montage) ─────────────────────
+  // ─── Auto-save à chaque montage — nouvelle version après chaque edit ───────
   useEffect(() => {
-    if (autoSavedRef.current) return
-    autoSavedRef.current = true
-
-    // Délai pour laisser le DOM se rendre
     const timer = setTimeout(async () => {
       const blob = await generatePdfBlob()
       if (blob) await savePdfToStorage(blob)
-    }, 1500)
+    }, 2000)
 
     return () => clearTimeout(timer)
-  }, [order.id])
+  }, [order.id, order.total_amount, order.total_units, order.total_packs])
 
   // ─── Download + save nouvelle version ────────────────────────────────────────
   const handleDownload = async () => {
@@ -347,7 +341,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                 {isFirst && (
                   <div className="header">
                     <div>
-                      <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_white_background.png" alt="DH Signature" style={{ height: '72px', width: 'auto' }} />
+                      <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/Logo_DH_signature_color_white_background.png" alt="DH Signature" style={{ height: '72px', width: 'auto' }} />
                     </div>
                     <div className="header-right">
                       <div className="doc-eyebrow">{isInvoice ? 'Invoice' : isInt ? 'Internal Transfer' : isDO ? 'Delivery Order' : 'Sales Order'}</div>
