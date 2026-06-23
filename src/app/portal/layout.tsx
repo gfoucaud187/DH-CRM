@@ -43,16 +43,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   return (
     <div className="min-h-screen flex" style={{ background: '#f8f7ff' }}>
       {/* Sidebar */}
-      <div className="w-56 flex flex-col fixed h-full"
+      <div className="w-56 flex flex-col fixed h-full overflow-hidden"
         style={{ background: 'linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%)', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-white/10">
+        <div className="px-5 py-5 border-b border-white/10 flex-shrink-0">
           <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_dark_background.png" alt="DH Signature" style={{ height: '48px', width: 'auto' }} />
         </div>
 
         {/* Customer info */}
         {customerName && (
-          <div className="px-5 py-3 border-b border-white/10">
+          <div className="px-5 py-3 border-b border-white/10 flex-shrink-0">
             <p className="text-xs text-white/30">Logged in as</p>
             <p className="text-sm font-medium text-white truncate mt-0.5">{customerName}</p>
             {priceList && <span className="text-xs text-white/30 font-mono">{priceList}</span>}
@@ -60,7 +60,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         )}
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {navItems.map(({ label, href, icon: Icon }) => {
             const active = pathname === href || (href !== '/portal/dashboard' && pathname.startsWith(href))
             return (
@@ -79,7 +79,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         </nav>
 
         {/* Logout */}
-        <div className="px-3 py-4 border-t border-white/10">
+        <div className="px-3 py-4 border-t border-white/10 flex-shrink-0">
           <button onClick={handleLogout}
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/30 hover:text-white/70 hover:bg-white/5 transition-all w-full">
             <LogOut className="h-4 w-4" />
