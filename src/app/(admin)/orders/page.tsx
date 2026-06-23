@@ -45,13 +45,13 @@ const getDocColor = (o: any) => {
   return 'bg-gray-100 text-gray-600'
 }
 
-// Doc type order for grouping: proforma=0, so=1, invoice=2, others=3
 const getDocOrder = (o: any) => {
   if (o.document_type === 'proforma') return 0
   if (o.document_type === 'so' && !o.is_foc) return 1
   if (o.document_type === 'invoice' && !o.is_foc) return 2
-  if (o.is_foc) return 3
-  return 4
+  if (o.is_foc && o.document_type === 'so') return 3
+  if (o.is_foc && o.document_type === 'invoice') return 4
+  return 5
 }
 
 const DOC_FILTER_OPTIONS = [
@@ -104,20 +104,19 @@ export default function OrdersPage() {
     return matchDoc && matchSearch
   })
 
-  // Group linked documents together
   const groupedOrders = useMemo(() => {
     const filtered = applyFilters(active)
 
-    // Build a map of all orders by id
+    // Build a map of all ACTIVE orders by id (not just filtered) for relationship lookup
+    const byIdAll: Record<string, any> = {}
+    active.forEach((o: any) => { byIdAll[o.id] = o })
+
     const byId: Record<string, any> = {}
     filtered.forEach((o: any) => { byId[o.id] = o })
 
-    // Find root documents (not promoted from anything in the filtered set)
-    // A root is: has no promoted_from, OR its promoted_from is not in filtered
     const groups: any[][] = []
     const visited = new Set<string>()
 
-    // Sort filtered by date desc
     const sorted = [...filtered].sort((a: any, b: any) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
@@ -125,31 +124,53 @@ export default function OrdersPage() {
     sorted.forEach((o: any) => {
       if (visited.has(o.id)) return
 
-      // Find the root of this chain
+      // Find the root of this chain via promoted_from
       let root = o
-      while (root.promoted_from && byId[root.promoted_from]) {
-        root = byId[root.promoted_from]
+      while (root.promoted_from && byIdAll[root.promoted_from]) {
+        root = byIdAll[root.promoted_from]
+      }
+
+      // If it's a SO(DO) linked to a parent SO, use that parent as root
+      if (root.is_foc && root.document_type === 'so' && root.linked_order_id && byIdAll[root.linked_order_id]) {
+        root = byIdAll[root.linked_order_id]
+      }
+
+      // If root not in filtered, add it as standalone if it's not visited
+      if (!byId[root.id]) {
+        // root is not in filter — just show the current doc alone
+        if (!visited.has(o.id)) {
+          visited.add(o.id)
+          groups.push([o])
+        }
+        return
       }
 
       if (visited.has(root.id)) return
 
-      // Build the chain from root
       const chain: any[] = []
       const addToChain = (doc: any) => {
         if (!doc || visited.has(doc.id)) return
+        // Only add if in filtered set
+        if (!byId[doc.id]) return
         visited.add(doc.id)
         chain.push(doc)
-        // Find children (docs promoted from this one)
+        // Children via promoted_from
         filtered
           .filter((d: any) => d.promoted_from === doc.id)
-
+          .forEach(addToChain)
+        // Children via linked_order_id (SO(DO) children)
+        filtered
+          .filter((d: any) => d.linked_order_id === doc.id && d.is_foc && d.document_type === 'so')
+          .forEach(addToChain)
+        // Invoices promoted from SO(DO) children
+        filtered
+          .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'invoice')
           .forEach(addToChain)
       }
       addToChain(root)
 
-      // Sort chain: proforma → SO → INV
       chain.sort((a: any, b: any) => getDocOrder(a) - getDocOrder(b))
-      groups.push(chain)
+      if (chain.length > 0) groups.push(chain)
     })
 
     return groups
@@ -224,7 +245,6 @@ export default function OrdersPage() {
     </tr>
   )
 
-  // Separator row between groups
   const GroupSeparator = () => (
     <tr className="h-1">
       <td colSpan={9} className="p-0">
