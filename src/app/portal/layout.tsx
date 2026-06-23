@@ -1,5 +1,4 @@
 'use client'
-
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -16,7 +15,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
+      if (!user) { router.push('/portal/login'); return }
       const { data: profile } = await supabase
         .from('user_profiles').select('role, customer_id').eq('id', user.id).single()
       if (!profile || profile.role !== 'client') { router.push('/login'); return }
@@ -29,7 +28,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    window.location.href = '/portal-login'
+    window.location.href = '/login'
   }
 
   const navItems = [
@@ -42,41 +41,62 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <div className="w-56 bg-gray-900 text-white flex flex-col fixed h-full">
-        <div className="p-5 border-b border-gray-700">
-          <div className="text-xl font-bold tracking-tight">dh. <span className="text-gray-400 text-sm font-normal">SIGNATURE</span></div>
-          <div className="text-xs text-gray-500 mt-0.5">Client Portal</div>
+    <div className="min-h-screen flex" style={{ background: '#f8f7ff' }}>
+      {/* Sidebar */}
+      <div className="w-56 flex flex-col fixed h-full"
+        style={{ background: 'linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%)', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+        {/* Logo */}
+        <div className="px-5 py-5 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+              <span className="text-white text-xs font-bold">S</span>
+            </div>
+            <div>
+              <div className="text-white font-bold text-sm tracking-tight">Stellar</div>
+              <div className="text-white/30 text-xs">by DH Signature</div>
+            </div>
+          </div>
         </div>
+
+        {/* Customer info */}
         {customerName && (
-          <div className="p-4 border-b border-gray-700">
-            <p className="text-xs text-gray-400">Logged in as</p>
+          <div className="px-5 py-3 border-b border-white/10">
+            <p className="text-xs text-white/30">Logged in as</p>
             <p className="text-sm font-medium text-white truncate mt-0.5">{customerName}</p>
-            {priceList && <span className="text-xs text-gray-500 font-mono">{priceList} price list</span>}
+            {priceList && <span className="text-xs text-white/30 font-mono">{priceList}</span>}
           </div>
         )}
-        <nav className="flex-1 p-3 space-y-1">
+
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-4 space-y-0.5">
           {navItems.map(({ label, href, icon: Icon }) => {
             const active = pathname === href || (href !== '/portal/dashboard' && pathname.startsWith(href))
             return (
               <Link key={href} href={href}
-                className={'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ' + (
-                  active ? 'bg-white text-gray-900 font-medium' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                )}>
-                <Icon className="h-4 w-4" />
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
+                  active
+                    ? 'text-white font-medium'
+                    : 'text-white/40 hover:text-white/80 hover:bg-white/5'
+                }`}
+                style={active ? { background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.3))', border: '1px solid rgba(99,102,241,0.3)' } : {}}>
+                <Icon className="h-4 w-4 flex-shrink-0" />
                 {label}
               </Link>
             )
           })}
         </nav>
-        <div className="p-3 border-t border-gray-700">
+
+        {/* Logout */}
+        <div className="px-3 py-4 border-t border-white/10">
           <button onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors w-full">
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/30 hover:text-white/70 hover:bg-white/5 transition-all w-full">
             <LogOut className="h-4 w-4" />
             Sign out
           </button>
         </div>
       </div>
+
+      {/* Main content */}
       <div className="ml-56 flex-1 p-8">{children}</div>
     </div>
   )

@@ -4,28 +4,27 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Package, Users, Handshake, DollarSign,
   ShoppingCart, Warehouse, BarChart3, FolderOpen, Settings,
-  ListChecks, LogOut, ExternalLink, Target, Store
+  ListChecks, LogOut, Target, Store
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 
 const nav = [
-  { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
-  { label: 'Products',     href: '/products',     icon: Package },
-  { label: 'Distributors', href: '/customers',    icon: Users },
-  { label: 'Retailers',     href: '/retailers',   icon: Store },
-  { label: 'Partners',     href: '/partners',     icon: Handshake },
-  { label: 'Price Lists',  href: '/price-lists',  icon: DollarSign },
-  { label: 'Orders',       href: '/orders',       icon: ShoppingCart, badge: true },
-  { label: 'Inventory',    href: '/inventory',    icon: Warehouse },
-  { label: 'Finance',      href: '/finance',      icon: DollarSign },
-  { label: 'Documents',    href: '/documents',    icon: FolderOpen },
-  { label: 'Reports',      href: '/reports',      icon: BarChart3 },
-  { label: 'Targets',      href: '/targets',      icon: Target },
-  { label: 'Tracking Log', href: '/tracking',     icon: ListChecks },
-  { label: 'Settings',     href: '/settings',     icon: Settings },
-  { label: 'Client Portal', href: '/portal-login', icon: ExternalLink },
+  { label: 'Dashboard',    href: '/dashboard',   icon: LayoutDashboard },
+  { label: 'Products',     href: '/products',    icon: Package },
+  { label: 'Distributors', href: '/customers',   icon: Users },
+  { label: 'Retailers',    href: '/retailers',   icon: Store },
+  { label: 'Partners',     href: '/partners',    icon: Handshake },
+  { label: 'Price Lists',  href: '/price-lists', icon: DollarSign },
+  { label: 'Orders',       href: '/orders',      icon: ShoppingCart, badge: true },
+  { label: 'Inventory',    href: '/inventory',   icon: Warehouse },
+  { label: 'Finance',      href: '/finance',     icon: DollarSign },
+  { label: 'Documents',    href: '/documents',   icon: FolderOpen },
+  { label: 'Reports',      href: '/reports',     icon: BarChart3 },
+  { label: 'Targets',      href: '/targets',     icon: Target },
+  { label: 'Tracking Log', href: '/tracking',    icon: ListChecks },
+  { label: 'Settings',     href: '/settings',    icon: Settings },
 ]
 
 export default function Sidebar() {
@@ -54,8 +53,8 @@ export default function Sidebar() {
   return (
     <aside className="w-56 min-h-screen bg-gray-900 text-white flex flex-col">
       <div className="px-5 py-5 border-b border-gray-700">
-        <h1 className="font-bold text-lg tracking-tight">DH Signature</h1>
-        <p className="text-gray-400 text-xs mt-0.5">Trade Cockpit</p>
+        <h1 className="font-bold text-lg tracking-tight">Stellar</h1>
+        <p className="text-gray-400 text-xs mt-0.5">DH Signature</p>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {nav.map(({ label, href, icon: Icon, badge }) => {
