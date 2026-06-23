@@ -150,13 +150,16 @@ export default function InventoryPage() {
         {WAREHOUSES.map(wh => {
           const whKey = wh.toLowerCase()
           const packs = inventory.reduce((s: number, r: any) => s + (r[`packs_${whKey}`] ?? 0), 0)
+          const units = inventory.reduce((s: number, r: any) => s + (r[`units_${whKey}`] ?? 0), 0)
           return (
             <div key={wh} className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-2">
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${WH_COLORS[wh]}`}>{wh}</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{packs}</p>
-              <p className="text-xs text-gray-400 mt-0.5">packs</p>
+              <p className="text-2xl font-bold text-gray-900">{units.toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-0.5">units</p>
+              <p className="text-sm font-semibold text-gray-500 mt-1">{packs.toLocaleString()}</p>
+              <p className="text-xs text-gray-400">packs</p>
             </div>
           )
         })}
