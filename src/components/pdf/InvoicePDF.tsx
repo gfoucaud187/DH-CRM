@@ -347,7 +347,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                 {isFirst && (
                   <div className="header">
                     <div>
-                      <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/Logo_DH_signature_color_white_background.png" alt="DH Signature" style={{ height: '72px', width: 'auto' }} />
+                      <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_dark_background.png" alt="DH Signature" style={{ height: '72px', width: 'auto' }} />
                     </div>
                     <div className="header-right">
                       <div className="doc-eyebrow">{isInvoice ? 'Invoice' : isInt ? 'Internal Transfer' : isDO ? 'Delivery Order' : 'Sales Order'}</div>
