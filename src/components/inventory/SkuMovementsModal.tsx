@@ -28,7 +28,7 @@ export default function SkuMovementsModal({ sku, productName, onClose }: SkuMove
   })
 
   // Fetch orders linked to these movements
-  const referenceIds = [...new Set((movements as any[]).map((m: any) => m.reference_id).filter(Boolean))]
+  const referenceIds = Array.from(new Set((movements as any[]).map((m: any) => m.reference_id).filter(Boolean)))
 
   const { data: orders = [] } = useQuery({
     queryKey: ['sku-orders', sku],
