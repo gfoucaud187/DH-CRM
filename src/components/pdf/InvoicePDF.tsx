@@ -64,7 +64,11 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
         .eq('id', order.promoted_from)
         .single()
       if (data) rootSO = data
+      // sinon rootSO reste = order (fallback)
     }
+
+    // Sécurité : rootSO doit avoir customer_name
+    if (!rootSO.customer_name) rootSO = order
 
     const folderName = getFolderName(rootSO)
 

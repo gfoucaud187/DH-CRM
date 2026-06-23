@@ -49,9 +49,10 @@ export function getFolderName(so: {
   warehouse: string
   created_at: string
 }): string {
+  if (!so || !so.order_number) return 'unknown'
   const year = new Date(so.created_at).getFullYear()
   const num = extractNumeric(so.order_number)
-  const customer = so.customer_name.trim()
+  const customer = (so.customer_name ?? 'Unknown').trim()
   const warehouse = so.warehouse ?? ''
   return `${year}-${num} to ${customer} ${warehouse}`.trim()
 }
