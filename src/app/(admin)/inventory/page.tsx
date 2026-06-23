@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Warehouse, Plus, Search, ArrowRightLeft } from 'lucide-react'
+import { Warehouse, Plus, Search } from 'lucide-react'
+import SkuMovementsModal from '@/components/inventory/SkuMovementsModal'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 
@@ -22,6 +23,7 @@ export default function InventoryPage() {
   const [showAddStock, setShowAddStock] = useState(false)
   const [addForm, setAddForm] = useState({ sku: '', product_name: '', brand: '', warehouse: 'T1', quantity_packs: 0, quantity_units: 0, notes: '' })
   const [saving, setSaving] = useState(false)
+  const [selectedSku, setSelectedSku] = useState<{ sku: string; name: string } | null>(null)
   const queryClient = useQueryClient()
 
   const { data: inventory = [], isLoading } = useQuery({
@@ -185,7 +187,11 @@ export default function InventoryPage() {
               {filtered.map((row: any) => {
                 const stock = getStock(row)
                 return (
-                  <tr key={row.sku} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={row.sku}
+                    className="hover:bg-blue-50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedSku({ sku: row.sku, name: row.product_name })}
+                  >
                     <td className="px-4 py-3 font-mono text-xs text-gray-500">{row.sku}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{row.product_name}</td>
                     <td className="px-4 py-3 text-gray-600">{row.brand}</td>
@@ -219,6 +225,15 @@ export default function InventoryPage() {
           </table>
         )}
       </div>
+
+      {/* SKU Movements Modal */}
+      {selectedSku && (
+        <SkuMovementsModal
+          sku={selectedSku.sku}
+          productName={selectedSku.name}
+          onClose={() => setSelectedSku(null)}
+        />
+      )}
 
       {/* Add Stock Modal */}
       {showAddStock && (
