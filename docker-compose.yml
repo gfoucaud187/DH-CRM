@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  stellar:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stellar-crm
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.production
+    environment:
+      - NODE_ENV=production
