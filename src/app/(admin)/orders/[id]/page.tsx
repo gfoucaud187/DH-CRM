@@ -109,7 +109,6 @@ export default function OrderDetailPage() {
         .eq('linked_order_id', id)
         .eq('is_foc', true)
         .order('created_at', { ascending: true })
-      console.log('allFocOrders result:', data, 'for id:', id)
       return data ?? []
     },
     enabled: !!id
