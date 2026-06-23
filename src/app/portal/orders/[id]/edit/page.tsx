@@ -63,7 +63,7 @@ export default function PortalEditOrderPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('customers')
-        .select('id, legal_name, assigned_price_list, currency, incoterms, payment_terms')
+        .select('id, legal_name, assigned_price_list, currency, incoterms, payment_terms, track_trace_enabled, eu_compliance_type')
         .eq('id', profile!.customer_id)
         .single()
       return data
