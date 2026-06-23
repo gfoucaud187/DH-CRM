@@ -2,15 +2,41 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { ShoppingCart, Package, User, LogOut, LayoutDashboard, FileText, BarChart3 } from 'lucide-react'
+import Image from 'next/image'
+import { ShoppingCart, Package, User, LogOut, LayoutDashboard, FileText, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+
+function StarLogo({ size = 30 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 100 100" width={size} height={size} style={{ overflow: 'visible', filter: 'drop-shadow(0 0 8px rgba(124,92,255,.55))' }}>
+      <defs>
+        <linearGradient id="portalStar" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#B89CFF" />
+          <stop offset="1" stopColor="#7C5CFF" />
+        </linearGradient>
+      </defs>
+      <path d="M50 3 C53.5 35 64 46.5 97 50 C64 53.5 53.5 64 50 97 C46.5 64 36 53.5 3 50 C36 46.5 46.5 35 50 3 Z" fill="url(#portalStar)" />
+    </svg>
+  )
+}
+
+const DH_LOGO = 'https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_dark_background.png'
+
+const navItems = [
+  { label: 'Dashboard', href: '/portal/dashboard', icon: LayoutDashboard },
+  { label: 'My Orders',  href: '/portal/orders',    icon: ShoppingCart },
+  { label: 'Invoices',   href: '/portal/invoices',  icon: FileText },
+  { label: 'Analytics',  href: '/portal/analytics', icon: BarChart3 },
+  { label: 'New Order',  href: '/portal/orders/new',icon: Package },
+  { label: 'My Profile', href: '/portal/profile',   icon: User },
+]
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
   const [customerName, setCustomerName] = useState('')
-  const [priceList, setPriceList] = useState('')
+  const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -20,8 +46,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         .from('user_profiles').select('role, customer_id').eq('id', user.id).single()
       if (!profile || profile.role !== 'client') { router.push('/login'); return }
       const { data: customer } = await supabase
-        .from('customers').select('legal_name, assigned_price_list').eq('id', profile.customer_id).single()
-      if (customer) { setCustomerName(customer.legal_name); setPriceList(customer.assigned_price_list ?? '') }
+        .from('customers').select('legal_name').eq('id', profile.customer_id).single()
+      if (customer) { setCustomerName(customer.legal_name) }
     }
     load()
   }, [])
@@ -31,101 +57,150 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     window.location.href = '/login'
   }
 
-  const navItems = [
-    { label: 'Dashboard', href: '/portal/dashboard', icon: LayoutDashboard },
-    { label: 'My Orders',  href: '/portal/orders',    icon: ShoppingCart },
-    { label: 'Invoices',   href: '/portal/invoices',  icon: FileText },
-    { label: 'Analytics',  href: '/portal/analytics', icon: BarChart3 },
-    { label: 'New Order',  href: '/portal/orders/new',icon: Package },
-    { label: 'My Profile', href: '/portal/profile',   icon: User },
-  ]
+  const isActive = (href: string) =>
+    pathname === href || (href !== '/portal/dashboard' && pathname.startsWith(href))
+
+  const sidebarWidth = collapsed ? 72 : 248
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: '#f8f7ff' }}>
+
       {/* Sidebar */}
-      <div style={{
-        width: '224px',
+      <aside style={{
+        width: `${sidebarWidth}px`,
         display: 'flex',
         flexDirection: 'column',
         position: 'fixed',
         height: '100%',
         overflow: 'hidden',
-        background: 'linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%)',
-        borderRight: '1px solid rgba(255,255,255,0.06)',
+        background: '#0e1a2b',
+        transition: 'width 0.25s ease',
+        flexShrink: 0,
+        padding: collapsed ? '22px 0' : '24px 18px 22px',
+        alignItems: collapsed ? 'center' : 'stretch',
       }}>
-        {/* Logo */}
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
-          <img
-            src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_dark_background.png"
-            alt="DH Signature"
-            style={{ height: '48px', width: 'auto' }}
-          />
+
+        {/* Header */}
+        <div style={{ marginBottom: '20px', padding: collapsed ? '0' : '4px 6px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '11px', marginBottom: collapsed ? 0 : '9px' }}>
+            <StarLogo size={30} />
+            {!collapsed && (
+              <span style={{ font: '700 22px/1 Space Grotesk, sans-serif', letterSpacing: '-0.02em', color: '#fff', whiteSpace: 'nowrap' }}>
+                Stellar
+              </span>
+            )}
+          </div>
+          {!collapsed && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '1px' }}>
+              <span style={{ font: '500 11px/1 Space Grotesk, sans-serif', letterSpacing: '0.04em', color: '#6b7689', whiteSpace: 'nowrap' }}>by</span>
+              <Image src={DH_LOGO} alt="DH Signature" width={80} height={15} style={{ height: 15, width: 'auto', display: 'block', opacity: 0.95 }} />
+            </div>
+          )}
         </div>
 
         {/* Customer info */}
-        {customerName && (
-          <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
-            <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', margin: 0 }}>Logged in as</p>
-            <p style={{ fontSize: '14px', fontWeight: 500, color: '#fff', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customerName}</p>
-            {priceList && <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>{priceList}</span>}
+        {customerName && !collapsed && (
+          <div style={{ padding: '10px 8px', marginBottom: '12px', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+            <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Logged in as</p>
+            <p style={{ fontSize: '13px', fontWeight: 500, color: '#fff', margin: '3px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customerName}</p>
           </div>
         )}
 
+        {/* Divider */}
+        <div style={{ height: '1px', background: 'rgba(255,255,255,.08)', marginBottom: '14px', flexShrink: 0, width: collapsed ? '42px' : '100%' }} />
+
         {/* Nav */}
-        <div style={{ flex: 1, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, overflowY: 'auto' }}>
           {navItems.map(({ label, href, icon: Icon }) => {
-            const active = pathname === href || (href !== '/portal/dashboard' && pathname.startsWith(href))
+            const active = isActive(href)
             return (
-              <Link key={href} href={href} style={{
+              <Link key={href} href={href} title={collapsed ? label : undefined} style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '12px',
-                padding: '10px 12px',
-                borderRadius: '12px',
-                fontSize: '14px',
+                gap: collapsed ? 0 : '13px',
+                height: collapsed ? '52px' : '40px',
+                width: collapsed ? '52px' : '100%',
+                padding: collapsed ? '0' : '0 14px',
+                borderRadius: collapsed ? '14px' : '12px',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                font: '500 14px/1 Space Grotesk, sans-serif',
+                color: active ? '#0c1320' : '#9aa5ba',
                 textDecoration: 'none',
-                transition: 'all 0.15s',
-                color: active ? '#fff' : 'rgba(255,255,255,0.4)',
-                fontWeight: active ? 500 : 400,
-                background: active ? 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.3))' : 'transparent',
-                border: active ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
-              }}>
-                <Icon style={{ width: '16px', height: '16px', flexShrink: 0 }} />
-                {label}
+                transition: 'background 0.15s, color 0.15s',
+                background: active ? '#fff' : 'transparent',
+                fontWeight: active ? 600 : 500,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,.05)'; e.currentTarget.style.color = '#cfd6e3' } }}
+              onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9aa5ba' } }}
+              >
+                <Icon size={20} style={{ flexShrink: 0 }} />
+                {!collapsed && <span style={{ overflow: 'hidden' }}>{label}</span>}
               </Link>
             )
           })}
-        </div>
+        </nav>
 
         {/* Logout */}
-        <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
-          <button
-            onClick={handleLogout}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '10px 12px',
-              borderRadius: '12px',
-              fontSize: '14px',
-              color: 'rgba(255,255,255,0.3)',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              width: '100%',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; e.currentTarget.style.background = 'transparent' }}
+        <div style={{ flexShrink: 0, paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,.08)', marginTop: '8px', display: 'flex', justifyContent: collapsed ? 'center' : 'stretch' }}>
+          <button onClick={handleLogout} title={collapsed ? 'Sign out' : undefined} style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: collapsed ? 0 : '13px',
+            height: collapsed ? '52px' : '40px',
+            width: collapsed ? '52px' : '100%',
+            padding: collapsed ? '0' : '0 14px',
+            borderRadius: collapsed ? '14px' : '12px',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            font: '500 14px/1 Space Grotesk, sans-serif',
+            color: '#6b7689',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'background 0.15s, color 0.15s',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,.05)'; e.currentTarget.style.color = '#cfd6e3' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b7689' }}
           >
-            <LogOut style={{ width: '16px', height: '16px' }} />
-            Sign out
+            <LogOut size={18} style={{ flexShrink: 0 }} />
+            {!collapsed && <span>Sign out</span>}
           </button>
         </div>
-      </div>
+
+        {/* Collapse toggle */}
+        <button onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expand' : 'Collapse'} style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '36px',
+          height: '36px',
+          borderRadius: '10px',
+          border: '1px solid rgba(255,255,255,.1)',
+          background: 'transparent',
+          color: '#6b7689',
+          cursor: 'pointer',
+          marginTop: '8px',
+          alignSelf: collapsed ? 'center' : 'flex-end',
+          flexShrink: 0,
+          transition: 'background 0.15s, color 0.15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,.06)'; e.currentTarget.style.color = '#9aa5ba' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6b7689' }}
+        >
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
+
+      </aside>
 
       {/* Main content */}
-      <div style={{ marginLeft: '224px', flex: 1, padding: '32px' }}>{children}</div>
+      <div style={{ marginLeft: `${sidebarWidth}px`, flex: 1, padding: '32px', transition: 'margin-left 0.25s ease' }}>
+        {children}
+      </div>
+
     </div>
   )
 }
