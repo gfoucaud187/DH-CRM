@@ -87,8 +87,8 @@ export default function OrdersPage() {
 
   const pendingPOs  = allOrders.filter((o: any) => o.document_type === 'po' && o.status === 'pending_approval')
   const rejectedPOs = allOrders.filter((o: any) => o.document_type === 'po' && o.status === 'rejected')
-  const active      = allOrders.filter((o: any) => o.status !== 'cancelled' && o.document_type !== 'po' && !(o.is_foc && o.document_type === 'so' && !!o.linked_order_id))
-  const cancelled   = allOrders.filter((o: any) => o.status === 'cancelled' && !(o.is_foc && o.document_type === 'so' && !!o.linked_order_id))
+  const active      = allOrders.filter((o: any) => o.status !== 'cancelled' && o.document_type !== 'po')
+  const cancelled   = allOrders.filter((o: any) => o.status === 'cancelled')
 
   const applyFilters = (list: any[]) => list.filter((o: any) => {
     const matchDoc =
