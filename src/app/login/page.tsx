@@ -1,34 +1,29 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 interface Star {
-  style: React.CSSProperties;
+  top: string;
+  left: string;
+  size: string;
+  opacity: number;
+  duration: string;
+  delay: string;
 }
 
 function generateStars(count: number): Star[] {
   const stars: Star[] = [];
   for (let i = 0; i < count; i++) {
     const size = Math.random() * 2.5 + 0.5;
-    const opacity = Math.random() * 0.65 + 0.15;
-    const top = Math.random() * 100;
-    const left = Math.random() * 100;
-    const delay = Math.random() * 4;
-    const duration = Math.random() * 3 + 2;
     stars.push({
-      style: {
-        position: 'absolute',
-        borderRadius: '50%',
-        width: `${size}px`,
-        height: `${size}px`,
-        top: `${top}%`,
-        left: `${left}%`,
-        background: 'white',
-        opacity,
-        animation: `twinkle ${duration}s ${delay}s infinite alternate ease-in-out`,
-      },
+      top: `${Math.random() * 100}%`,
+      left: `${Math.random() * 100}%`,
+      size: `${size}px`,
+      opacity: Math.random() * 0.65 + 0.15,
+      duration: `${Math.random() * 3 + 2}s`,
+      delay: `${Math.random() * 4}s`,
     });
   }
   return stars;
@@ -43,10 +38,11 @@ export default function LoginPage() {
   const [stars, setStars] = useState<Star[]>([]);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
-  const [btnHover, setBtnHover] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setStars(generateStars(160));
+    setMounted(true);
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -67,7 +63,6 @@ export default function LoginPage() {
     }
 
     if (data?.user) {
-      // Check if admin or portal user
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
@@ -86,14 +81,12 @@ export default function LoginPage() {
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
         * { box-sizing: border-box; margin: 0; padding: 0; }
-
         body { background: #080612; }
 
         @keyframes twinkle {
-          0%   { opacity: var(--op-from); transform: scale(1); }
-          100% { opacity: var(--op-to);   transform: scale(1.4); }
+          0%   { opacity: var(--op-from, 0.2); transform: scale(1); }
+          100% { opacity: var(--op-to, 0.7);   transform: scale(1.4); }
         }
 
         .login-root {
@@ -111,22 +104,17 @@ export default function LoginPage() {
 
         .orbit-rings {
           position: absolute;
-          left: 50%;
-          top: 55%;
-          width: 900px;
-          height: 900px;
+          left: 50%; top: 55%;
+          width: 900px; height: 900px;
           transform: translate(-50%, -50%);
-          z-index: 1;
-          opacity: 0.55;
+          z-index: 1; opacity: 0.55;
           pointer-events: none;
         }
 
         .atmosphere-glow {
           position: absolute;
-          left: 50%;
-          top: -8%;
-          width: 380px;
-          height: 440px;
+          left: 50%; top: -8%;
+          width: 380px; height: 440px;
           transform: translateX(-50%);
           z-index: 1;
           background: radial-gradient(50% 60% at 50% 0%, rgba(167,139,250,.18), transparent 70%);
@@ -142,6 +130,13 @@ export default function LoginPage() {
           pointer-events: none;
         }
 
+        .star {
+          position: absolute;
+          border-radius: 50%;
+          background: white;
+          animation: twinkle var(--dur) var(--del) infinite alternate ease-in-out;
+        }
+
         .content {
           position: relative;
           z-index: 3;
@@ -152,7 +147,6 @@ export default function LoginPage() {
           padding: 40px 20px;
         }
 
-        /* ---- Logo block ---- */
         .logo-block {
           display: flex;
           flex-direction: column;
@@ -179,8 +173,7 @@ export default function LoginPage() {
 
         .logo-icon {
           position: relative;
-          width: 98px;
-          height: 98px;
+          width: 98px; height: 98px;
           border-radius: 27px;
           background: linear-gradient(155deg, #B89CFF 0%, #7C5CFF 46%, #5B30D6 100%);
           box-shadow:
@@ -210,7 +203,6 @@ export default function LoginPage() {
           line-height: 1;
         }
 
-        /* ---- Card ---- */
         .card {
           width: 100%;
           max-width: 500px;
@@ -249,12 +241,9 @@ export default function LoginPage() {
           display: block;
         }
 
-        .field-input::placeholder {
-          color: rgba(255,255,255,.28);
-        }
+        .field-input::placeholder { color: rgba(255,255,255,.28); }
 
-        .field-input:focus,
-        .field-input.focused {
+        .field-input:focus {
           border: 1px solid rgba(167,139,250,.8);
           background: rgba(124,92,255,.12);
           box-shadow: 0 0 0 4px rgba(124,92,255,.18);
@@ -286,15 +275,10 @@ export default function LoginPage() {
 
         .btn-signin:hover:not(:disabled) {
           filter: brightness(1.08);
-          box-shadow:
-            0 18px 44px -8px rgba(124,92,255,1),
-            inset 0 1px 0 rgba(255,255,255,.45);
+          box-shadow: 0 18px 44px -8px rgba(124,92,255,1), inset 0 1px 0 rgba(255,255,255,.45);
         }
 
-        .btn-signin:disabled {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
+        .btn-signin:disabled { opacity: 0.7; cursor: not-allowed; }
 
         .error-msg {
           margin-bottom: 18px;
@@ -316,10 +300,8 @@ export default function LoginPage() {
           text-align: center;
         }
 
-        /* Spinner */
         .spinner {
-          width: 18px;
-          height: 18px;
+          width: 18px; height: 18px;
           border: 2px solid rgba(255,255,255,.3);
           border-top-color: #fff;
           border-radius: 50%;
@@ -335,7 +317,6 @@ export default function LoginPage() {
       `}</style>
 
       <div className="login-root">
-        {/* Orbit rings */}
         <svg className="orbit-rings" viewBox="0 0 1000 1000">
           <g fill="none" stroke="rgba(167,139,250,.1)" strokeWidth="1.2">
             <circle cx="500" cy="500" r="230" />
@@ -344,19 +325,30 @@ export default function LoginPage() {
           </g>
         </svg>
 
-        {/* Atmosphere glow */}
         <div className="atmosphere-glow" />
 
-        {/* Stars */}
-        <div className="stars-layer">
-          {stars.map((star, i) => (
-            <div key={i} style={star.style} />
-          ))}
-        </div>
+        {/* Étoiles — seulement après mount pour éviter hydration error */}
+        {mounted && (
+          <div className="stars-layer">
+            {stars.map((star, i) => (
+              <div
+                key={i}
+                className="star"
+                style={{
+                  top: star.top,
+                  left: star.left,
+                  width: star.size,
+                  height: star.size,
+                  opacity: star.opacity,
+                  ['--dur' as string]: star.duration,
+                  ['--del' as string]: star.delay,
+                }}
+              />
+            ))}
+          </div>
+        )}
 
-        {/* Content */}
         <div className="content">
-          {/* Logo */}
           <div className="logo-block">
             <div className="logo-icon-wrap">
               <div className="logo-aura" />
@@ -371,22 +363,17 @@ export default function LoginPage() {
             <div className="logo-subtitle">DH Signature</div>
           </div>
 
-          {/* Card */}
           <div className="card">
-            {error && (
-              <div className="error-msg">{error}</div>
-            )}
+            {error && <div className="error-msg">{error}</div>}
 
             <form onSubmit={handleLogin}>
               <label className="field-label">Email</label>
               <input
                 type="email"
-                className={`field-input${emailFocused ? ' focused' : ''}`}
+                className="field-input"
                 placeholder="your@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                onFocus={() => setEmailFocused(true)}
-                onBlur={() => setEmailFocused(false)}
                 required
                 autoComplete="email"
               />
@@ -396,12 +383,10 @@ export default function LoginPage() {
               <label className="field-label">Password</label>
               <input
                 type="password"
-                className={`field-input${passwordFocused ? ' focused' : ''}`}
+                className="field-input"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                onFocus={() => setPasswordFocused(true)}
-                onBlur={() => setPasswordFocused(false)}
                 required
                 autoComplete="current-password"
               />
