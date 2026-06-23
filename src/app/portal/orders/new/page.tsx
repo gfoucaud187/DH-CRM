@@ -135,7 +135,7 @@ export default function PortalNewOrderPage() {
       customer_id: customer?.id,
       customer_name: customer?.legal_name,
       currency: customer?.currency ?? 'USD',
-      warehouse: 'T1',
+      warehouse: (customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') ? 'Central' : 'T1',
       incoterms: customer?.incoterms ?? 'EXW',
       payment_terms: customer?.payment_terms ?? 'Net 30',
       price_list: customer?.assigned_price_list,
