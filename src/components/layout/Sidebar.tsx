@@ -100,8 +100,7 @@ export default function Sidebar() {
   const DH_LOGO = 'https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_dark_background.png';
 
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : 'expanded'}`}>
-      {/* Header */}
+    <aside className={`admin-sidebar ${collapsed ? 'collapsed' : 'expanded'}`}>
       <div className="sb-header" style={{ padding: collapsed ? '0' : '4px 6px 0' }}>
         <div className="sb-brand-row">
           <StarLogo size={30} />
@@ -119,10 +118,8 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Divider */}
       <div className="sb-divider" />
 
-      {/* Nav */}
       <nav className="sb-nav">
         {NAV_ITEMS.map((item) => (
           <Link
@@ -137,7 +134,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Collapse toggle */}
       <button className="sb-toggle" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expand' : 'Collapse'}>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
           {collapsed
