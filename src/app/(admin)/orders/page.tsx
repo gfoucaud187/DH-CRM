@@ -114,7 +114,7 @@ export default function OrdersPage() {
     const byId: Record<string, any> = {}
     filtered.forEach((o: any) => { byId[o.id] = o })
 
-    const groups: any[][] = []
+    const groups: { doc: any; depth: number }[][] = []
     const visited = new Set<string>()
 
     const sorted = [...filtered].sort((a: any, b: any) =>
@@ -147,29 +147,29 @@ export default function OrdersPage() {
 
       if (visited.has(root.id)) return
 
-      const chain: any[] = []
-      const addToChain = (doc: any) => {
+      const chain: { doc: any; depth: number }[] = []
+      const addToChain = (doc: any, depth: number) => {
         if (!doc || visited.has(doc.id)) return
-        // Only add if in filtered set
         if (!byId[doc.id]) return
         visited.add(doc.id)
-        chain.push(doc)
-        // Children via promoted_from
+        chain.push({ doc, depth })
+        // Invoice promoted from this doc (depth+1)
         filtered
-          .filter((d: any) => d.promoted_from === doc.id)
-          .forEach(addToChain)
-        // Children via linked_order_id (SO(DO) children)
+          .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'invoice' && !d.is_foc)
+          .forEach((d: any) => addToChain(d, depth + 1))
+        // SO(DO) children via linked_order_id (depth+1)
         filtered
           .filter((d: any) => d.linked_order_id === doc.id && d.is_foc && d.document_type === 'so')
-          .forEach(addToChain)
-        // Invoices promoted from SO(DO) children
-        filtered
-          .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'invoice')
-          .forEach(addToChain)
+          .forEach((d: any) => {
+            addToChain(d, depth + 1)
+            // INV(DO) under each SO(DO) (depth+2)
+            filtered
+              .filter((inv: any) => inv.promoted_from === d.id && inv.document_type === 'invoice')
+              .forEach((inv: any) => addToChain(inv, depth + 2))
+          })
       }
-      addToChain(root)
+      addToChain(root, 0)
 
-      chain.sort((a: any, b: any) => getDocOrder(a) - getDocOrder(b))
       if (chain.length > 0) groups.push(chain)
     })
 
@@ -189,13 +189,13 @@ export default function OrdersPage() {
     queryClient.invalidateQueries({ queryKey: ['orders'] })
   }
 
-  const OrderRow = ({ o, isChild = false, isLast = false, cancelled = false }: { o: any; isChild?: boolean; isLast?: boolean; cancelled?: boolean }) => (
+  const OrderRow = ({ o, depth = 0, isLast = false, cancelled = false }: { o: any; depth?: number; isLast?: boolean; cancelled?: boolean }) => (
     <tr onClick={() => router.push('/orders/' + o.id)}
       className={'cursor-pointer transition-colors ' + (cancelled ? 'opacity-50 bg-gray-50 hover:opacity-70' : 'hover:bg-gray-50')}>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
-          {isChild && (
-            <div className="flex items-center gap-1 flex-shrink-0">
+          {depth > 0 && (
+            <div className="flex items-center gap-1 flex-shrink-0" style={{ paddingLeft: `${(depth - 1) * 16}px` }}>
               <div className="w-4 border-l-2 border-b-2 border-gray-200 h-4 rounded-bl" />
               <ChevronRight className="h-3 w-3 text-gray-300 flex-shrink-0" />
             </div>
@@ -204,7 +204,7 @@ export default function OrdersPage() {
         </div>
       </td>
       <td className="px-4 py-3 font-medium text-gray-900 text-sm">
-        {isChild ? <span className="text-gray-400">↳</span> : o.customer_name}
+        {depth > 0 ? <span className="text-gray-400">↳</span> : o.customer_name}
       </td>
       <td className="px-4 py-3">
         <span className={'text-xs px-2 py-0.5 rounded font-mono font-medium ' + getDocColor(o)}>{getDocLabel(o)}</span>
@@ -389,8 +389,8 @@ export default function OrdersPage() {
             <tbody>
               {groupedOrders.map((group, gi) => (
                 <>
-                  {group.map((o, idx) => (
-                    <OrderRow key={o.id} o={o} isChild={idx > 0} isLast={idx === group.length - 1} />
+                  {group.map(({ doc: o, depth }, idx) => (
+                    <OrderRow key={o.id} o={o} depth={depth} isLast={idx === group.length - 1} />
                   ))}
                   {gi < groupedOrders.length - 1 && <GroupSeparator key={`sep-${gi}`} />}
                 </>
