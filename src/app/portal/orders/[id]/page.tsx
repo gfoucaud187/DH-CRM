@@ -2,9 +2,10 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { ArrowLeft, Download, Edit, ShoppingCart } from 'lucide-react'
 import Link from 'next/link'
+import PurchaseOrderPDF from '@/components/pdf/PurchaseOrderPDF'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:            'bg-gray-100 text-gray-500',
@@ -30,7 +31,6 @@ export default function PortalOrderDetailPage() {
   const params = useParams()
   const id = Array.isArray(params.id) ? params.id[0] : params.id
   const supabase = createClient()
-  const router = useRouter()
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['portal-order-detail', id],
@@ -50,7 +50,7 @@ export default function PortalOrderDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('customers')
-        .select('legal_name, currency, incoterms, payment_terms, assigned_price_list')
+        .select('legal_name, currency, incoterms, payment_terms, contacts, addresses')
         .eq('id', order!.customer_id)
         .single()
       return data
@@ -58,47 +58,45 @@ export default function PortalOrderDetailPage() {
     enabled: !!order?.customer_id
   })
 
+  // Enrich lines with product data for PDF
+  const { data: productDetails = [] } = useQuery({
+    queryKey: ['portal-order-products', id],
+    queryFn: async () => {
+      if (!order?.lines?.length) return []
+      const skus = [...new Set(order.lines.map((l: any) => l.sku))]
+      const { data } = await supabase
+        .from('products')
+        .select('sku, vitola, shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, line, brand')
+        .in('sku', skus as string[])
+      return data ?? []
+    },
+    enabled: !!order?.lines?.length
+  })
+
   const handleExport = async () => {
     if (!order) return
     const XLSX = await import('xlsx')
     const wb = XLSX.utils.book_new()
-
-    // Header info
     const headerRows = [
       ['Purchase Order', order.order_number ?? ''],
       ['Date', order.order_date ? new Date(order.order_date).toLocaleDateString('en-GB') : new Date(order.created_at).toLocaleDateString('en-GB')],
+      ['Submitted', order.created_at ? new Date(order.created_at).toLocaleString('en-GB') : ''],
       ['Customer', customer?.legal_name ?? order.customer_name],
       ['Status', STATUS_LABELS[order.status] ?? order.status],
-      ['Currency', customer?.currency ?? order.currency],
-      ['Incoterms', customer?.incoterms ?? ''],
-      ['Payment Terms', customer?.payment_terms ?? ''],
-      ['Price List', customer?.assigned_price_list ?? ''],
+      ['Currency', order.currency],
+      ['Incoterms', order.incoterms ?? ''],
+      ['Payment Terms', order.payment_terms ?? ''],
       ['Notes', order.notes ?? ''],
       [],
       ['SKU', 'Product', 'Brand', 'Units/Pack', 'Packs', 'Units', 'Price/Unit', 'Total'],
     ]
-
     const lineRows = (order.lines ?? []).map((l: any) => [
-      l.sku,
-      l.product_name,
-      l.brand,
-      l.units_per_pack,
-      l.quantity_packs,
-      l.quantity_units,
-      l.price_per_unit,
-      l.line_total,
+      l.sku, l.product_name, l.brand, l.units_per_pack,
+      l.quantity_packs, l.quantity_units, l.price_per_unit, l.line_total,
     ])
-
     const totalRow = ['', '', '', '', '', '', 'TOTAL', order.total_amount]
-
     const ws = XLSX.utils.aoa_to_sheet([...headerRows, ...lineRows, [], totalRow])
-
-    // Column widths
-    ws['!cols'] = [
-      { wch: 20 }, { wch: 35 }, { wch: 15 }, { wch: 12 },
-      { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 },
-    ]
-
+    ws['!cols'] = [{ wch: 20 }, { wch: 35 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }]
     XLSX.utils.book_append_sheet(wb, ws, 'Purchase Order')
     XLSX.writeFile(wb, `${order.order_number ?? 'PO'}_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
@@ -111,6 +109,15 @@ export default function PortalOrderDetailPage() {
   const total = lines.reduce((s: number, l: any) => s + (l.line_total ?? 0), 0)
   const totalUnits = lines.reduce((s: number, l: any) => s + (l.quantity_units ?? 0), 0)
   const totalPacks = lines.reduce((s: number, l: any) => s + (l.quantity_packs ?? 0), 0)
+
+  // Enrich lines with product details for PDF
+  const productMap: Record<string, any> = {}
+  ;(productDetails as any[]).forEach((p: any) => { productMap[p.sku] = p })
+  const enrichedLines = lines.map((l: any) => ({
+    ...l,
+    ...productMap[l.sku],
+    line_name: productMap[l.sku]?.line ?? null,
+  }))
 
   return (
     <div className="max-w-4xl">
@@ -135,6 +142,7 @@ export default function PortalOrderDetailPage() {
             className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
             <Download className="h-4 w-4" /> Export Excel
           </button>
+          <PurchaseOrderPDF order={order} lines={enrichedLines} customer={customer} />
           {canEdit && (
             <Link href={`/portal/orders/${id}/edit`}
               className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
@@ -154,17 +162,16 @@ export default function PortalOrderDetailPage() {
       )}
 
       <div className="grid grid-cols-3 gap-6 mb-6">
-        {/* Order info */}
         <div className="col-span-2 bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="font-semibold text-gray-900 mb-4">Order Details</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             {[
-              { label: 'Currency',      value: customer?.currency ?? order.currency },
-              { label: 'Incoterms',     value: customer?.incoterms ?? '—' },
-              { label: 'Payment Terms', value: customer?.payment_terms ?? '—' },
-              { label: 'Price List',    value: customer?.assigned_price_list ?? '—' },
+              { label: 'Currency',      value: order.currency },
+              { label: 'Incoterms',     value: order.incoterms ?? '—' },
+              { label: 'Payment Terms', value: order.payment_terms ?? '—' },
               { label: 'Warehouse',     value: order.warehouse ?? '—' },
               { label: 'Order Date',    value: order.order_date ? new Date(order.order_date).toLocaleDateString('en-GB') : '—' },
+              { label: 'Submitted',     value: order.created_at ? new Date(order.created_at).toLocaleString('en-GB') : '—' },
             ].map(({ label, value }) => (
               <div key={label}>
                 <p className="text-xs text-gray-400 uppercase tracking-wide">{label}</p>
@@ -180,10 +187,9 @@ export default function PortalOrderDetailPage() {
           </div>
         </div>
 
-        {/* KPIs */}
         <div className="space-y-3">
-          <div className="bg-gray-900 rounded-xl p-4 text-white">
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Total</p>
+          <div className="rounded-xl p-4 text-white" style={{ background: '#4F3A8A' }}>
+            <p className="text-xs text-purple-200 uppercase tracking-wide mb-1">Total</p>
             <p className="text-2xl font-bold">{order.currency} {Number(total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
