@@ -41,55 +41,91 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   ]
 
   return (
-    <div className="min-h-screen flex" style={{ background: '#f8f7ff' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', background: '#f8f7ff' }}>
       {/* Sidebar */}
-      <div className="w-56 flex flex-col fixed h-full overflow-hidden"
-        style={{ background: 'linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%)', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{
+        width: '224px',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'fixed',
+        height: '100%',
+        overflow: 'hidden',
+        background: 'linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%)',
+        borderRight: '1px solid rgba(255,255,255,0.06)',
+      }}>
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-white/10 flex-shrink-0">
-          <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_dark_background.png" alt="DH Signature" style={{ height: '48px', width: 'auto' }} />
+        <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
+          <img
+            src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_dark_background.png"
+            alt="DH Signature"
+            style={{ height: '48px', width: 'auto' }}
+          />
         </div>
 
         {/* Customer info */}
         {customerName && (
-          <div className="px-5 py-3 border-b border-white/10 flex-shrink-0">
-            <p className="text-xs text-white/30">Logged in as</p>
-            <p className="text-sm font-medium text-white truncate mt-0.5">{customerName}</p>
-            {priceList && <span className="text-xs text-white/30 font-mono">{priceList}</span>}
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
+            <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', margin: 0 }}>Logged in as</p>
+            <p style={{ fontSize: '14px', fontWeight: 500, color: '#fff', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customerName}</p>
+            {priceList && <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>{priceList}</span>}
           </div>
         )}
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <div style={{ flex: 1, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
           {navItems.map(({ label, href, icon: Icon }) => {
             const active = pathname === href || (href !== '/portal/dashboard' && pathname.startsWith(href))
             return (
-              <Link key={href} href={href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                  active
-                    ? 'text-white font-medium'
-                    : 'text-white/40 hover:text-white/80 hover:bg-white/5'
-                }`}
-                style={active ? { background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.3))', border: '1px solid rgba(99,102,241,0.3)' } : {}}>
-                <Icon className="h-4 w-4 flex-shrink-0" />
+              <Link key={href} href={href} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '10px 12px',
+                borderRadius: '12px',
+                fontSize: '14px',
+                textDecoration: 'none',
+                transition: 'all 0.15s',
+                color: active ? '#fff' : 'rgba(255,255,255,0.4)',
+                fontWeight: active ? 500 : 400,
+                background: active ? 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.3))' : 'transparent',
+                border: active ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
+              }}>
+                <Icon style={{ width: '16px', height: '16px', flexShrink: 0 }} />
                 {label}
               </Link>
             )
           })}
-        </nav>
+        </div>
 
         {/* Logout */}
-        <div className="px-3 py-4 border-t border-white/10 flex-shrink-0">
-          <button onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/30 hover:text-white/70 hover:bg-white/5 transition-all w-full">
-            <LogOut className="h-4 w-4" />
+        <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
+          <button
+            onClick={handleLogout}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '10px 12px',
+              borderRadius: '12px',
+              fontSize: '14px',
+              color: 'rgba(255,255,255,0.3)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              width: '100%',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; e.currentTarget.style.background = 'transparent' }}
+          >
+            <LogOut style={{ width: '16px', height: '16px' }} />
             Sign out
           </button>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="ml-56 flex-1 p-8">{children}</div>
+      <div style={{ marginLeft: '224px', flex: 1, padding: '32px' }}>{children}</div>
     </div>
   )
 }
