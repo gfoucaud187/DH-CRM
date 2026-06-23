@@ -2,79 +2,32 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { createClient } from '@/lib/supabase/client';
+import {
+  LayoutDashboard, Package, Users, Handshake, DollarSign,
+  ShoppingCart, Warehouse, BarChart3, FolderOpen, Settings,
+  ListChecks, LogOut, Target, Store, ChevronLeft, ChevronRight
+} from 'lucide-react';
 import './sidebar.css';
 
 const NAV_ITEMS = [
-  {
-    label: 'Dashboard',
-    href: '/dashboard',
-    icon: (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-        <rect x="3"  y="3"  width="7" height="7" rx="1.5" />
-        <rect x="14" y="3"  width="7" height="7" rx="1.5" />
-        <rect x="3"  y="14" width="7" height="7" rx="1.5" />
-        <rect x="14" y="14" width="7" height="7" rx="1.5" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Products',
-    href: '/products',
-    icon: (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
-        <path d="M21 8 L12 3 L3 8 L12 13 Z" />
-        <path d="M3 8 V16 L12 21 V13" />
-        <path d="M21 8 V16 L12 21" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Customers',
-    href: '/customers',
-    icon: (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
-        <circle cx="9" cy="8" r="3.2" />
-        <path d="M3.6 19 C3.6 15.4 6.1 13.8 9 13.8 C11.9 13.8 14.4 15.4 14.4 19" />
-        <circle cx="17" cy="8.6" r="2.5" />
-        <path d="M16.2 14 C19.1 14 20.6 15.6 20.6 19" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Orders',
-    href: '/orders',
-    icon: (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
-        <path d="M4 10 V20 H20 V10" />
-        <path d="M3 10 L4.6 5 H19.4 L21 10 Z" />
-        <path d="M9.5 20 V14.5 H14.5 V20" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Price Lists',
-    href: '/price-lists',
-    icon: (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
-        <path d="M3.5 12 L12 3.5 H20 V11.5 L11.5 20 Z" />
-        <circle cx="16.4" cy="7.6" r="1.4" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Inventory',
-    href: '/inventory',
-    icon: (
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
-        <rect x="2" y="7" width="20" height="14" rx="2" />
-        <path d="M16 7 V5 A2 2 0 0 0 8 5 V7" />
-        <path d="M12 12 V16" />
-        <path d="M10 14 H14" />
-      </svg>
-    ),
-  },
+  { label: 'Dashboard',    href: '/dashboard',   icon: LayoutDashboard },
+  { label: 'Products',     href: '/products',    icon: Package },
+  { label: 'Distributors', href: '/customers',   icon: Users },
+  { label: 'Retailers',    href: '/retailers',   icon: Store },
+  { label: 'Partners',     href: '/partners',    icon: Handshake },
+  { label: 'Price Lists',  href: '/price-lists', icon: DollarSign },
+  { label: 'Orders',       href: '/orders',      icon: ShoppingCart, badge: true },
+  { label: 'Inventory',    href: '/inventory',   icon: Warehouse },
+  { label: 'Finance',      href: '/finance',     icon: DollarSign },
+  { label: 'Documents',    href: '/documents',   icon: FolderOpen },
+  { label: 'Reports',      href: '/reports',     icon: BarChart3 },
+  { label: 'Targets',      href: '/targets',     icon: Target },
+  { label: 'Tracking Log', href: '/tracking',    icon: ListChecks },
+  { label: 'Settings',     href: '/settings',    icon: Settings },
 ];
 
 function StarLogo({ size = 30 }: { size?: number }) {
@@ -93,7 +46,27 @@ function StarLogo({ size = 30 }: { size?: number }) {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const supabase = createClient();
+
+  const { data: pendingPOCount = 0 } = useQuery({
+    queryKey: ['pending-po-count'],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('sales_orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('document_type', 'po')
+        .eq('status', 'pending_approval');
+      return count ?? 0;
+    },
+    refetchInterval: 30000,
+  });
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
@@ -101,6 +74,8 @@ export default function Sidebar() {
 
   return (
     <aside className={`admin-sidebar ${collapsed ? 'collapsed' : 'expanded'}`}>
+
+      {/* Header */}
       <div className="sb-header" style={{ padding: collapsed ? '0' : '4px 6px 0' }}>
         <div className="sb-brand-row">
           <StarLogo size={30} />
@@ -118,30 +93,40 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {/* Divider */}
       <div className="sb-divider" />
 
+      {/* Nav */}
       <nav className="sb-nav">
-        {NAV_ITEMS.map((item) => (
+        {NAV_ITEMS.map(({ label, href, icon: Icon, badge }) => (
           <Link
-            key={item.href}
-            href={item.href}
-            className={`sb-item ${isActive(item.href) ? 'active' : ''}`}
-            title={collapsed ? item.label : undefined}
+            key={href}
+            href={href}
+            className={`sb-item ${isActive(href) ? 'active' : ''}`}
+            title={collapsed ? label : undefined}
           >
-            {item.icon}
-            <span className="sb-item-label">{item.label}</span>
+            <Icon size={20} style={{ flexShrink: 0 }} />
+            <span className="sb-item-label">{label}</span>
+            {badge && pendingPOCount > 0 && (
+              <span className="sb-badge">{pendingPOCount}</span>
+            )}
           </Link>
         ))}
       </nav>
 
+      {/* Logout */}
+      <div className="sb-logout-wrap">
+        <button className="sb-logout" onClick={handleLogout} title={collapsed ? 'Sign out' : undefined}>
+          <LogOut size={18} style={{ flexShrink: 0 }} />
+          <span className="sb-item-label">Sign out</span>
+        </button>
+      </div>
+
+      {/* Collapse toggle */}
       <button className="sb-toggle" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expand' : 'Collapse'}>
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          {collapsed
-            ? <path d="M9 18 L15 12 L9 6" />
-            : <path d="M15 18 L9 12 L15 6" />
-          }
-        </svg>
+        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
+
     </aside>
   );
 }
