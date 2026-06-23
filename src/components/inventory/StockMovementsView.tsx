@@ -291,6 +291,8 @@ export default function StockMovementsView() {
                     )
                   })}
                   <th className="px-3 py-2 text-right min-w-24 bg-gray-100 font-semibold text-gray-700">TOTAL</th>
+                  <th className="px-3 py-2 text-right min-w-24 bg-blue-50 font-semibold text-blue-700">OPENING</th>
+                  <th className="px-3 py-2 text-right min-w-24 bg-green-50 font-semibold text-green-700">CLOSING</th>
                 </tr>
                 {/* Row 2: order numbers */}
                 <tr className="bg-gray-50 border-b border-gray-200">
@@ -306,6 +308,8 @@ export default function StockMovementsView() {
                     )
                   })}
                   <th className="bg-gray-100" />
+                  <th className="bg-blue-50" />
+                  <th className="bg-green-50" />
                 </tr>
                 {/* Row 3: dates */}
                 <tr className="bg-gray-50 border-b border-gray-300">
@@ -320,6 +324,8 @@ export default function StockMovementsView() {
                     )
                   })}
                   <th className="bg-gray-100" />
+                  <th className="bg-blue-50 px-3 py-1.5 text-xs text-blue-400 font-normal text-right">start</th>
+                  <th className="bg-green-50 px-3 py-1.5 text-xs text-green-400 font-normal text-right">end</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -348,13 +354,26 @@ export default function StockMovementsView() {
                       <td className="px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-900 bg-gray-50">
                         {total.toLocaleString('en-US')}
                       </td>
+                      <td className="px-3 py-2.5 text-right font-mono text-xs font-semibold text-blue-600 bg-blue-50/50">
+                        {(() => {
+                          const s = stockMap[sku]
+                          const cur = unit === 'units' ? (s?.units_total ?? 0) : (s?.packs_total ?? 0)
+                          return (cur + total).toLocaleString('en-US')
+                        })()}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono text-xs font-semibold text-green-700 bg-green-50/50">
+                        {(() => {
+                          const s = stockMap[sku]
+                          return unit === 'units' ? (s?.units_total ?? 0).toLocaleString('en-US') : (s?.packs_total ?? 0).toLocaleString('en-US')
+                        })()}
+                      </td>
                     </tr>
                   )
                 })}
               </tbody>
               <tfoot>
                 <tr className="bg-gray-100 border-t-2 border-gray-300">
-                  <td className="sticky left-0 z-10 bg-gray-100 px-4 py-2.5 font-bold text-gray-900 text-xs border-r border-gray-200">TOTAL OUT</td>
+                  <td className="sticky left-0 z-10 bg-gray-100 px-4 py-2.5 font-bold text-gray-900 text-xs border-r border-gray-200">TOTAL</td>
                   <td className="sticky left-48 z-10 bg-gray-100 border-r border-gray-200" />
                   {orderedCols.map(col => (
                     <td key={col} className="px-3 py-2.5 text-right font-mono text-xs font-bold text-gray-900 border-r border-gray-200">
@@ -364,32 +383,9 @@ export default function StockMovementsView() {
                   <td className="px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-900 bg-gray-200">
                     {grandTotal.toLocaleString('en-US')}
                   </td>
+                  <td className="bg-gray-100" />
+                  <td className="bg-gray-100" />
                 </tr>
-                {skus.map((sku, idx) => {
-                  const s = stockMap[sku]
-                  // Opening stock = current stock + all outgoing movements in period
-                  const currentVal = unit === 'units' ? (s?.units_total ?? 0) : (s?.packs_total ?? 0)
-                  const periodOut = rowTotal(sku)
-                  const openingStock = currentVal + periodOut
-                  const closingStock = currentVal
-                  return (
-                    <tr key={'stock-' + sku} className={idx % 2 === 0 ? 'bg-blue-50/60' : 'bg-blue-50/30'}>
-                      <td className="sticky left-0 z-10 px-4 py-2 border-r border-blue-100 text-xs"
-                        style={{ background: idx % 2 === 0 ? '#eff6ff99' : '#eff6ff55' }}>
-                        <div className="font-medium text-blue-700">{productMap[sku]?.brand ?? sku}</div>
-                      </td>
-                      <td className="sticky left-48 z-10 px-3 py-2 font-mono text-xs text-blue-500 border-r border-blue-100"
-                        style={{ background: idx % 2 === 0 ? '#eff6ff99' : '#eff6ff55' }}>
-                        {sku}
-                      </td>
-                      {orderedCols.map(col => <td key={col} className="border-r border-blue-50" />)}
-                      <td className="px-3 py-2 text-right bg-blue-50">
-                        <div className="font-mono text-xs text-blue-400">Open: {openingStock.toLocaleString('en-US')}</div>
-                        <div className="font-mono text-xs font-bold text-blue-800">Close: {closingStock.toLocaleString('en-US')}</div>
-                      </td>
-                    </tr>
-                  )
-                })}
               </tfoot>
             </table>
           </div>
