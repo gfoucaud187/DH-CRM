@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Warehouse, Plus, Search } from 'lucide-react'
 import SkuMovementsModal from '@/components/inventory/SkuMovementsModal'
+import StockMovementsView from '@/components/inventory/StockMovementsView'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 
@@ -225,6 +226,9 @@ export default function InventoryPage() {
           </table>
         )}
       </div>
+
+      {/* Stock Movements Pivot */}
+      <StockMovementsView />
 
       {/* SKU Movements Modal */}
       {selectedSku && (
