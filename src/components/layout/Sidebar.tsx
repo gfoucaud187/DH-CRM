@@ -53,8 +53,7 @@ export default function Sidebar() {
   return (
     <aside className="w-56 min-h-screen bg-gray-900 text-white flex flex-col">
       <div className="px-5 py-5 border-b border-gray-700">
-        <h1 className="font-bold text-lg tracking-tight">Stellar</h1>
-        <p className="text-gray-400 text-xs mt-0.5">DH Signature</p>
+        <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_dark_background.png" alt="DH Signature" style={{ height: '48px', width: 'auto' }} />
       </div>
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {nav.map(({ label, href, icon: Icon, badge }) => {

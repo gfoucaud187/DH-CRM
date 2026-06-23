@@ -47,15 +47,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         style={{ background: 'linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%)', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
         {/* Logo */}
         <div className="px-5 py-5 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-              <span className="text-white text-xs font-bold">S</span>
-            </div>
-            <div>
-              <div className="text-white font-bold text-sm tracking-tight">Stellar</div>
-              <div className="text-white/30 text-xs">by DH Signature</div>
-            </div>
-          </div>
+          <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_dark_background.png" alt="DH Signature" style={{ height: '48px', width: 'auto' }} />
         </div>
 
         {/* Customer info */}
