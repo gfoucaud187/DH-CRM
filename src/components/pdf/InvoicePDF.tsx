@@ -1,6 +1,15 @@
 'use client'
 
 import { Download } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import {
+  getFolderName,
+  getSOFileName,
+  getInvoiceFileName,
+  getFilePath,
+  getNextVersion,
+} from '@/lib/documents'
 
 interface InvoicePDFProps {
   order: any
@@ -11,29 +20,137 @@ interface InvoicePDFProps {
 }
 
 export default function InvoicePDF({ order, lines, customer, appSettings, sourceDoc }: InvoicePDFProps) {
+  const autoSavedRef = useRef(false)
 
-  const handleDownload = async () => {
+  // ─── Génère le PDF en blob (sans déclencher le téléchargement) ───────────────
+  const generatePdfBlob = async (): Promise<Blob | null> => {
     const jsPDF = (await import('jspdf')).default
     const html2canvas = (await import('html2canvas')).default
     const pageEls = document.querySelectorAll(`[data-pdf-page="${order.id}"]`)
-    if (!pageEls.length) return
+    if (!pageEls.length) return null
+
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
     const pdfW = pdf.internal.pageSize.getWidth()
+
     for (let i = 0; i < pageEls.length; i++) {
       const el = pageEls[i] as HTMLElement
       const canvas = await html2canvas(el, { useCORS: true, allowTaint: false })
       const imgData = canvas.toDataURL('image/png')
       const imgH = (canvas.height * pdfW) / canvas.width
       if (i > 0) {
-        // Add page with exact height of this content — no stretch
         pdf.addPage([pdfW, imgH], 'landscape')
       } else {
-        // Resize first page to match content height
         pdf.internal.pageSize.height = imgH
       }
       pdf.addImage(imgData, 'PNG', 0, 0, pdfW, imgH)
     }
-    pdf.save(order.order_number + '.pdf')
+
+    return pdf.output('blob')
+  }
+
+  // ─── Détermine le dossier et le nom de fichier ───────────────────────────────
+  const getDocNames = async (supabase: any): Promise<{ folderName: string; fileName: string; docType: 'so' | 'invoice' | 'so_do' } | null> => {
+    const isInvoice = order.document_type === 'invoice'
+    const isFoc = order.is_foc
+
+    // Pour le dossier, on a besoin du SO racine
+    let rootSO = order
+    if (isInvoice && sourceDoc) {
+      rootSO = sourceDoc
+    } else if (isInvoice && order.promoted_from) {
+      const { data } = await supabase
+        .from('sales_orders')
+        .select('order_number, customer_name, warehouse, created_at')
+        .eq('id', order.promoted_from)
+        .single()
+      if (data) rootSO = data
+    }
+
+    const folderName = getFolderName(rootSO)
+
+    if (isInvoice) {
+      const srcDoc = sourceDoc ?? rootSO
+      const version = await getNextVersion(supabase, order.id, 'invoice')
+      const fileName = getInvoiceFileName(order, srcDoc, version)
+      return { folderName, fileName, docType: 'invoice' }
+    } else if (isFoc) {
+      const version = await getNextVersion(supabase, order.id, 'so_do')
+      const fileName = getSOFileName(order, version)
+      return { folderName, fileName, docType: 'so_do' }
+    } else {
+      const version = await getNextVersion(supabase, order.id, 'so')
+      const fileName = getSOFileName(order, version)
+      return { folderName, fileName, docType: 'so' }
+    }
+  }
+
+  // ─── Sauvegarde dans Storage ─────────────────────────────────────────────────
+  const savePdfToStorage = async (blob: Blob) => {
+    try {
+      const supabase = createClient()
+      const names = await getDocNames(supabase)
+      if (!names) return
+
+      const { folderName, fileName, docType } = names
+      const filePath = getFilePath(folderName, fileName)
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, blob, {
+          contentType: 'application/pdf',
+          upsert: false,
+        })
+
+      if (uploadError && !uploadError.message.includes('already exists')) {
+        console.error('Storage upload error:', uploadError.message)
+        return
+      }
+
+      // Enregistre les métadonnées seulement si upload réussi
+      if (!uploadError) {
+        await supabase.from('document_files').insert({
+          folder_name: folderName,
+          file_name: fileName,
+          file_path: filePath,
+          order_id: order.id,
+          document_type: docType,
+          file_size: blob.size,
+        })
+      }
+    } catch (err) {
+      console.error('savePdfToStorage error:', err)
+    }
+  }
+
+  // ─── Auto-save à la création (1 seule fois par montage) ─────────────────────
+  useEffect(() => {
+    if (autoSavedRef.current) return
+    autoSavedRef.current = true
+
+    // Délai pour laisser le DOM se rendre
+    const timer = setTimeout(async () => {
+      const blob = await generatePdfBlob()
+      if (blob) await savePdfToStorage(blob)
+    }, 1500)
+
+    return () => clearTimeout(timer)
+  }, [order.id])
+
+  // ─── Download + save nouvelle version ────────────────────────────────────────
+  const handleDownload = async () => {
+    const blob = await generatePdfBlob()
+    if (!blob) return
+
+    // Téléchargement
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = order.order_number + '.pdf'
+    a.click()
+    URL.revokeObjectURL(url)
+
+    // Sauvegarde nouvelle version dans Storage
+    await savePdfToStorage(blob)
   }
 
   const isInvoice = order.document_type === 'invoice'
@@ -223,7 +340,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
               <div className="accent-bar" />
               <div className="inner">
 
-                {/* HEADER — first page only */}
                 {isFirst && (
                   <div className="header">
                     <div>
@@ -243,7 +359,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                   </div>
                 )}
 
-                {/* KPI STRIP — first page only */}
                 {isFirst && (
                   <div className="kpi-strip">
                     {[
@@ -251,7 +366,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                       { label: 'Total Articles', value: String(order.total_units ?? 0), accent: false },
                       { label: 'Net Tobacco kg', value: netTobaccoKg,                   accent: false },
                       { label: isInvoice ? 'Amount Due' : isInt ? 'Transfer' : 'Total Value',
-                        value: isInt ? 'INT' : (isFoc || isSample) ? 'FOC' : `USD ${totalValue}`, accent: true  },
+                        value: isInt ? 'INT' : (isFoc || isSample) ? 'FOC' : `USD ${totalValue}`, accent: true },
                     ].map((k, i) => (
                       <div key={i} className={k.accent ? 'kpi-seg-accent' : 'kpi-seg'}>
                         <div className={k.accent ? 'kpi-label-accent' : 'kpi-label'}>{k.label}</div>
@@ -261,7 +376,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                   </div>
                 )}
 
-                {/* PARTIES + META — first page only */}
                 {isFirst && (
                   <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start', flexShrink: 0 }}>
                     <div style={{ flex: 1 }}>
@@ -315,7 +429,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                   </div>
                 )}
 
-                {/* TABLE — all pages */}
                 <table className="line-table">
                   <TableHead />
                   <tbody>
@@ -325,7 +438,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                   </tbody>
                 </table>
 
-                {/* TOTALS + PAYMENT — last page only */}
                 {isLast && (
                   <div className="bottom-row">
                     {isInvoice && !isFoc && !isSample && !isInt && (
@@ -362,7 +474,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                   </div>
                 )}
 
-                {/* FOOTER — all pages */}
                 <div className="footer">
                   <div className="footer-notes">
                     {isLast && order.notes && <span><strong>Notes:</strong> {order.notes}</span>}
