@@ -1,60 +1,119 @@
 'use client'
+
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { logActivity } from '@/lib/log-activity'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
+  const supabase = createClient()
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      setError(error.message)
-      setLoading(false)
+
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    if (authError) { setError(authError.message); setLoading(false); return }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setError('Login failed'); setLoading(false); return }
+
+    const { data: profile } = await supabase
+      .from('user_profiles').select('role').eq('id', user.id).single()
+
+    if (profile?.role === 'admin') {
+      router.push('/dashboard')
+    } else if (profile?.role === 'client') {
+      router.push('/portal/dashboard')
     } else {
-      await logActivity({
-        action: 'login',
-        entityType: 'auth',
-        entityRef: email,
-        metadata: { role: 'admin', app: 'crm' },
-      })
-      window.location.href = '/dashboard'
+      setError('Access denied.')
+      setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">DH Signature</h1>
-          <p className="text-gray-500 text-sm mt-1">CRM — Sign in to your account</p>
+    <div className="min-h-screen flex items-center justify-center p-4"
+      style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)' }}>
+
+      {/* Background stars effect */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {[...Array(40)].map((_, i) => (
+          <div key={i} className="absolute rounded-full bg-white"
+            style={{
+              width: Math.random() * 2 + 1 + 'px',
+              height: Math.random() * 2 + 1 + 'px',
+              top: Math.random() * 100 + '%',
+              left: Math.random() * 100 + '%',
+              opacity: Math.random() * 0.4 + 0.1,
+            }} />
+        ))}
+      </div>
+
+      <div className="w-full max-w-sm relative z-10">
+        {/* Logo */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl mb-5"
+            style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', boxShadow: '0 0 40px rgba(99,102,241,0.4)' }}>
+            <span className="text-3xl font-bold text-white">S</span>
+          </div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Stellar</h1>
+          <p className="text-sm text-white/40 mt-1 tracking-widest uppercase">DH Signature</p>
         </div>
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-              placeholder="you@example.com" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-              placeholder="••••••••" />
-          </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full py-2 px-4 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
+
+        {/* Card */}
+        <div className="rounded-2xl p-6 border border-white/10"
+          style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)' }}>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-white/40 uppercase tracking-widest">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="mt-1.5 w-full h-11 rounded-xl px-3 text-sm text-white focus:outline-none placeholder-white/20 border border-white/10 transition-colors focus:border-indigo-500/50"
+                style={{ background: 'rgba(255,255,255,0.06)' }}
+                placeholder="your@email.com"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-white/40 uppercase tracking-widest">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                className="mt-1.5 w-full h-11 rounded-xl px-3 text-sm text-white focus:outline-none border border-white/10 transition-colors focus:border-indigo-500/50"
+                style={{ background: 'rgba(255,255,255,0.06)' }}
+                placeholder="••••••••"
+              />
+            </div>
+            {error && (
+              <div className="rounded-lg px-3 py-2.5 text-xs text-red-300 border border-red-500/20"
+                style={{ background: 'rgba(239,68,68,0.1)' }}>
+                {error}
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-11 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 mt-2"
+              style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: 'white', boxShadow: loading ? 'none' : '0 4px 20px rgba(99,102,241,0.3)' }}>
+              {loading ? 'Signing in...' : 'Sign in'}
+            </button>
+          </form>
+        </div>
+
+        <p className="text-center text-white/15 text-xs mt-8 tracking-wide">
+          Stellar by DH Signature · Confidential
+        </p>
       </div>
     </div>
   )
