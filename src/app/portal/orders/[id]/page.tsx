@@ -63,7 +63,7 @@ export default function PortalOrderDetailPage() {
     queryKey: ['portal-order-products', id],
     queryFn: async () => {
       if (!order?.lines?.length) return []
-      const skus = [...new Set(order.lines.map((l: any) => l.sku))]
+      const skus = Array.from(new Set(order.lines.map((l: any) => l.sku))) as string[]
       const { data } = await supabase
         .from('products')
         .select('sku, vitola, shape, wrapper, pack_type, units_per_pack, net_weight_g, length_inches, ring_gauge, line, brand')
