@@ -158,7 +158,7 @@ export default function OrderDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_orders')
-        .select('id, order_number, document_type, status')
+        .select('id, order_number, document_type, status, warehouse, customer_name, created_at, is_foc, linked_order_id')
         .eq('id', order.promoted_from)
         .single()
       return data
