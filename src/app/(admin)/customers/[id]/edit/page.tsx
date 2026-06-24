@@ -32,7 +32,6 @@ const ADDRESS_TYPES = [
 const EU_COUNTRIES = COUNTRIES
 const EU_COUNTRY_CODES = EU_CODES
 
-const EU_COUNTRY_CODES = new Set(EU_COUNTRIES.filter(c => c.eu).map(c => c.code))
 
 const getDefaultStock = (isEu: boolean, complianceType: string) => {
   if (!isEu) return { default: 'Central', available: ['Central', 'T1'], note: 'Export via entrepôt fiscal (DAU/EX1). T1 possible for duty-suspended transit.' }
