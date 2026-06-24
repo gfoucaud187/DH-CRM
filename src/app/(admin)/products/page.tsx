@@ -12,6 +12,7 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('')
   const [brandFilter, setBrandFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [roleFilter, setRoleFilter] = useState('All')
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['products'],
@@ -19,7 +20,6 @@ export default function ProductsPage() {
       const { data } = await supabase
         .from('products')
         .select('*')
-        .eq('product_role', 'original')
         .order('brand')
       return data ?? []
     }
@@ -32,17 +32,25 @@ export default function ProductsPage() {
       p.sku?.toLowerCase().includes(search.toLowerCase()) ||
       p.full_name?.toLowerCase().includes(search.toLowerCase()) ||
       p.brand?.toLowerCase().includes(search.toLowerCase())
-    const matchBrand = brandFilter === 'All' || p.brand === brandFilter
-    const matchStatus = statusFilter === 'All' || p.status === statusFilter
-    return matchSearch && matchBrand && matchStatus
+    const matchBrand  = brandFilter  === 'All' || p.brand        === brandFilter
+    const matchStatus = statusFilter === 'All' || p.status       === statusFilter
+    const matchRole   = roleFilter   === 'All' || p.product_role === roleFilter
+    return matchSearch && matchBrand && matchStatus && matchRole
   })
+
+  const ROLE_COLORS: Record<string, string> = {
+    original: 'bg-blue-100 text-blue-700',
+    aged:     'bg-amber-100 text-amber-700',
+    sample:   'bg-purple-100 text-purple-700',
+    foc:      'bg-green-100 text-green-700',
+  }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{(products as any[]).length} products</p>
+          <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {(products as any[]).length} products</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -99,6 +107,14 @@ export default function ProductsPage() {
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
+        <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
+          <option value="All">All Roles</option>
+          <option value="original">Original</option>
+          <option value="aged">Aged</option>
+          <option value="sample">Sample</option>
+          <option value="foc">FOC</option>
+        </select>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -118,6 +134,7 @@ export default function ProductsPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Brand</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Vitola</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Units/Pack</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -130,6 +147,11 @@ export default function ProductsPage() {
                   <td className="px-4 py-3 text-gray-600">{p.brand}</td>
                   <td className="px-4 py-3 text-gray-600">{p.vitola ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{p.units_per_pack ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (ROLE_COLORS[p.product_role] ?? 'bg-gray-100 text-gray-500')}>
+                      {p.product_role}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">
                     <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
                       {p.status}
