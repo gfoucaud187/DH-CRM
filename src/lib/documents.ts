@@ -99,10 +99,8 @@ export function getInvoiceFileName(invoice: {
  * Retourne le chemin Storage complet
  */
 export function getFilePath(folderName: string, fileName: string): string {
-  // Sanitize: remplace les caractères interdits dans les chemins Storage
-  const safeName = fileName.replace(/[#\[\]*?]/g, '_')
-  const safeFolder = folderName.replace(/[#\[\]*?]/g, '_')
-  return `${safeFolder}/${safeName}`
+  const sanitize = (s: string) => s.replace(/[#\[\]*?\.]/g, '_').replace(/\s+/g, ' ').trim()
+  return `${sanitize(folderName)}/${sanitize(fileName)}`
 }
 
 /**
