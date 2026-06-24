@@ -28,15 +28,31 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     const pageEls = document.querySelectorAll(`[data-pdf-page="${order.id}"]`)
     if (!pageEls.length) return null
 
-    // Précharge le logo avant de lancer html2canvas
+    // Convertit le logo en base64 pour html2canvas (évite les erreurs CORS)
     const LOGO_URL = 'https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_white_background.png'
-    await new Promise<void>((resolve) => {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => resolve()
-      img.onerror = () => resolve() // continue même si erreur
-      img.src = LOGO_URL
-    })
+    let logoBase64 = ''
+    try {
+      const resp = await fetch(LOGO_URL)
+      const blob2 = await resp.blob()
+      logoBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.readAsDataURL(blob2)
+      })
+    } catch { /* logo absent, on continue */ }
+
+    // Remplace les src du logo dans le DOM par le base64
+    if (logoBase64) {
+      pageEls.forEach(el => {
+        el.querySelectorAll('img').forEach(img => {
+          if (img.src.includes('Logo_DH_signature')) {
+            img.src = logoBase64
+          }
+        })
+      })
+      // Petite pause pour que le DOM se mette à jour
+      await new Promise(r => setTimeout(r, 100))
+    }
 
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
     const pdfW = pdf.internal.pageSize.getWidth()
