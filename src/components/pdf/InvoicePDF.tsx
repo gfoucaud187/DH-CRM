@@ -138,7 +138,17 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     if (isInvoice) {
       const srcDoc = sourceDoc ?? rootSO
       const version = await getNextVersion(supabase, order.id, 'invoice')
-      const fileName = getInvoiceFileName(order, srcDoc, version)
+      // Pour T&T: le destinataire est Fixmer, pas le client original
+      const { data: cust } = await supabase
+        .from('customers')
+        .select('track_trace_enabled, eu_compliance_type')
+        .eq('id', order.customer_id)
+        .single()
+      const isTTInvoice = !!(cust?.track_trace_enabled || cust?.eu_compliance_type === 'TT')
+      const invoiceForNaming = isTTInvoice
+        ? { ...order, customer_name: 'Fixmer' }
+        : order
+      const fileName = getInvoiceFileName(invoiceForNaming, srcDoc, version)
       return { folderName, fileName, docType: 'invoice' as const, version }
     } else if (isFoc) {
       const version = await getNextVersion(supabase, order.id, 'so_do')
