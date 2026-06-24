@@ -1,7 +1,7 @@
 'use client'
 
 import { Download } from 'lucide-react'
-import { useEffect } from 'react'
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   getFolderName,
@@ -20,6 +20,7 @@ interface InvoicePDFProps {
 }
 
 export default function InvoicePDF({ order, lines, customer, appSettings, sourceDoc }: InvoicePDFProps) {
+  const [saving, setSaving] = useState(false)
   // ─── Génère le PDF en blob (sans déclencher le téléchargement) ───────────────
   const generatePdfBlob = async (): Promise<Blob | null> => {
     const jsPDF = (await import('jspdf')).default
@@ -135,45 +136,29 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     }
   }
 
-  // ─── Auto-save au premier montage uniquement (V1) ───────────────────────────
-  useEffect(() => {
-    let cancelled = false
-    const timer = setTimeout(async () => {
-      if (cancelled) return
-      // Vérifie si une version existe déjà pour ce document
-      const supabase = createClient()
-      const { data: existing } = await supabase
-        .from('document_files')
-        .select('id')
-        .eq('order_id', order.id)
-        .limit(1)
-        .maybeSingle()
-      if (existing) return // déjà une version, ne pas recréer
-      const blob = await generatePdfBlob()
-      if (blob && !cancelled) await savePdfToStorage(blob)
-    }, 2000)
 
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [order.id])
 
-  // ─── Download + save nouvelle version ────────────────────────────────────────
+  // ─── Download PDF ────────────────────────────────────────────────────────────
   const handleDownload = async () => {
     const blob = await generatePdfBlob()
     if (!blob) return
-
-    // Téléchargement
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = order.order_number + '.pdf'
     a.click()
     URL.revokeObjectURL(url)
+  }
 
-    // Sauvegarde nouvelle version dans Storage
-    await savePdfToStorage(blob, true)
+  // ─── Save to Documents ───────────────────────────────────────────────────────
+  const handleSaveToDocuments = async () => {
+    setSaving(true)
+    try {
+      const blob = await generatePdfBlob()
+      if (blob) await savePdfToStorage(blob, true)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const isInvoice = order.document_type === 'invoice'
@@ -346,11 +331,23 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
 
   return (
     <div>
-      <button onClick={handleDownload}
-        className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
-        <Download className="h-4 w-4" />
-        Download PDF
-      </button>
+      <div className="flex items-center gap-3">
+        <button onClick={handleDownload}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
+          <Download className="h-4 w-4" />
+          Download PDF
+        </button>
+        <button onClick={handleSaveToDocuments} disabled={saving}
+          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="12" x2="12" y2="18"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+          {saving ? 'Saving…' : 'Save to Documents'}
+        </button>
+      </div>
 
       <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
         <style dangerouslySetInnerHTML={{ __html: css }} />
