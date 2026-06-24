@@ -87,13 +87,24 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
   }
 
   // ─── Sauvegarde dans Storage ─────────────────────────────────────────────────
-  const savePdfToStorage = async (blob: Blob) => {
+  const savePdfToStorage = async (blob: Blob, isManualDownload = false) => {
     try {
       const supabase = createClient()
       const names = await getDocNames(supabase)
       if (!names) return
 
       const { folderName, fileName, docType } = names
+
+      // Anti-doublon : vérifie si un fichier avec ce nom exact existe déjà
+      const { data: existing } = await supabase
+        .from('document_files')
+        .select('id')
+        .eq('order_id', order.id)
+        .eq('file_name', fileName)
+        .maybeSingle()
+
+      if (existing && !isManualDownload) return // déjà sauvegardé, skip
+
       const filePath = getFilePath(folderName, fileName)
 
       const { error: uploadError } = await supabase.storage
@@ -148,7 +159,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     URL.revokeObjectURL(url)
 
     // Sauvegarde nouvelle version dans Storage
-    await savePdfToStorage(blob)
+    await savePdfToStorage(blob, true)
   }
 
   const isInvoice = order.document_type === 'invoice'
