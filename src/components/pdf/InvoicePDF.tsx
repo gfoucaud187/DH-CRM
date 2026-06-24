@@ -52,21 +52,52 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     const isInvoice = order.document_type === 'invoice'
     const isFoc = order.is_foc
 
-    // Pour le dossier, on a besoin du SO racine
+    // Remonte toujours au SO racine (non-FOC) pour le nom du dossier
     let rootSO = order
+
     if (isInvoice && sourceDoc) {
-      rootSO = sourceDoc
+      // sourceDoc = SO ou SO(DO) dont est promue cette invoice
+      if (sourceDoc.is_foc && sourceDoc.linked_order_id) {
+        // Invoice d'un SO(DO) → remonter au SO parent
+        const { data } = await supabase
+          .from('sales_orders')
+          .select('order_number, customer_name, warehouse, created_at, is_foc')
+          .eq('id', sourceDoc.linked_order_id)
+          .single()
+        if (data) rootSO = data
+      } else {
+        rootSO = sourceDoc
+      }
     } else if (isInvoice && order.promoted_from) {
+      const { data: src } = await supabase
+        .from('sales_orders')
+        .select('id, order_number, customer_name, warehouse, created_at, is_foc, linked_order_id')
+        .eq('id', order.promoted_from)
+        .single()
+      if (src) {
+        if (src.is_foc && src.linked_order_id) {
+          // Invoice d'un SO(DO) → remonter au SO parent
+          const { data: parent } = await supabase
+            .from('sales_orders')
+            .select('order_number, customer_name, warehouse, created_at')
+            .eq('id', src.linked_order_id)
+            .single()
+          if (parent) rootSO = parent
+        } else {
+          rootSO = src
+        }
+      }
+    } else if (isFoc && order.linked_order_id) {
+      // SO(DO) → remonter au SO parent
       const { data } = await supabase
         .from('sales_orders')
         .select('order_number, customer_name, warehouse, created_at')
-        .eq('id', order.promoted_from)
+        .eq('id', order.linked_order_id)
         .single()
       if (data) rootSO = data
-      // sinon rootSO reste = order (fallback)
     }
 
-    // Sécurité : rootSO doit avoir customer_name
+    // Sécurité
     if (!rootSO.customer_name) rootSO = order
 
     const folderName = getFolderName(rootSO)

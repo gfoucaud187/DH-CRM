@@ -90,8 +90,9 @@ export function getInvoiceFileName(invoice: {
   const invNum = invoice.order_number
   const customer = invoice.customer_name.trim()
   const soNum = sourceDoc.order_number
-  const warehouse = sourceDoc.warehouse ?? ''
-  return `${date} - ${invNum} to ${customer} (${soNum} ${warehouse}) V${version}.pdf`
+  const warehouse = (sourceDoc.warehouse ?? '').trim()
+  const warehousePart = warehouse ? ` ${warehouse}` : ''
+  return `${date} - ${invNum} to ${customer} (${soNum}${warehousePart}) V${version}.pdf`
 }
 
 /**
