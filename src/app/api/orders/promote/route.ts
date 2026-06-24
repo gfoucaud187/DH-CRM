@@ -73,7 +73,15 @@ export async function POST(request: NextRequest) {
 
     // SO or SO(DO) → Invoice
     const isFocSource = so.is_foc
-    const isTT = !!so.is_tt_order
+
+    // Vérifie si le client est T&T directement sur le customer
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('track_trace_enabled, eu_compliance_type')
+      .eq('id', so.customer_id)
+      .single()
+
+    const isTT = !!(customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT')
 
     // Pour T&T: récupère les prix SPECIAL
     let specialPriceMap: Record<string, number> = {}
