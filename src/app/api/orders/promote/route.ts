@@ -73,6 +73,37 @@ export async function POST(request: NextRequest) {
 
     // SO or SO(DO) → Invoice
     const isFocSource = so.is_foc
+    const isTT = !!so.is_tt_order
+
+    // Pour T&T: récupère les prix SPECIAL
+    let specialPriceMap: Record<string, number> = {}
+    if (isTT && !isFocSource) {
+      const skus = (so.lines ?? []).map((l: any) => l.sku)
+      const { data: specialPrices } = await supabase
+        .from('price_list_entries')
+        .select('sku, price_per_unit')
+        .eq('price_list', 'SPECIAL')
+        .in('sku', skus)
+      for (const p of specialPrices ?? []) {
+        specialPriceMap[p.sku] = Number(p.price_per_unit)
+      }
+    }
+
+    // Calcule les lignes de l'invoice principale
+    // T&T → prix SPECIAL, sinon prix du SO
+    const invoiceLines = (so.lines ?? []).map((l: any) => {
+      if (isTT && !isFocSource) {
+        const specialPrice = specialPriceMap[l.sku] ?? Number(l.price_per_unit)
+        return {
+          ...l,
+          price_per_unit: specialPrice,
+          line_total: isFocSource ? 0 : specialPrice * l.quantity_units,
+        }
+      }
+      return l
+    })
+
+    const invoiceTotalAmount = isFocSource ? 0 : invoiceLines.reduce((s: number, l: any) => s + Number(l.line_total), 0)
 
     const { data: invNum } = await supabase.rpc('fn_generate_doc_number', {
       p_doc_type: 'invoice',
@@ -86,16 +117,14 @@ export async function POST(request: NextRequest) {
         document_type:   'invoice',
         is_foc:          isFocSource,
         promoted_from:   so.id,
-        // For SO(DO) invoice: linked_order_id points to the SO(DO) itself
         linked_order_id: isFocSource ? so.id : null,
         customer_id:     so.customer_id,
         customer_name:   so.customer_name,
-        price_list:      so.price_list,
+        price_list:      isTT ? 'SPECIAL' : so.price_list,
         currency:        so.currency,
         status:          'draft',
         warehouse:       so.warehouse,
-        // SO(DO) invoice always has total 0
-        total_amount:    isFocSource ? 0 : so.total_amount,
+        total_amount:    invoiceTotalAmount,
         total_units:     so.total_units,
         total_packs:     so.total_packs,
         incoterms:       so.incoterms,
@@ -114,9 +143,9 @@ export async function POST(request: NextRequest) {
 
     if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 })
 
-    // Copy lines — SO(DO) invoice keeps price_per_unit but line_total = 0
+    // Insert invoice lines (prix SPECIAL pour T&T)
     await supabase.from('sales_order_lines').insert(
-      (so.lines ?? []).map((l: any) => ({
+      invoiceLines.map((l: any) => ({
         order_id:         invoice.id,
         line_type:        l.line_type,
         sku:              l.sku,
@@ -126,10 +155,88 @@ export async function POST(request: NextRequest) {
         quantity_packs:   l.quantity_packs,
         quantity_units:   l.quantity_units,
         price_per_unit:   l.price_per_unit,
-        line_total:       isFocSource ? 0 : l.line_total,
+        line_total:       l.line_total,
         fixmer_reference: l.fixmer_reference ?? null,
       }))
     )
+
+    // ─── T&T: invoice LINKED pour la différence de prix ──────────────────────
+    if (isTT && !isFocSource) {
+      const diffLines = (so.lines ?? [])
+        .filter((l: any) => l.line_type === 'commercial')
+        .map((l: any) => {
+          const specialPrice = specialPriceMap[l.sku] ?? Number(l.price_per_unit)
+          const clientPrice  = Number(l.price_per_unit)
+          const priceDiff    = clientPrice - specialPrice
+          if (Math.abs(priceDiff) < 0.0001) return null
+          return {
+            sku:              l.sku,
+            product_name:     l.product_name,
+            brand:            l.brand,
+            units_per_pack:   l.units_per_pack,
+            quantity_packs:   l.quantity_packs,
+            quantity_units:   l.quantity_units,
+            price_per_unit:   priceDiff,
+            line_total:       priceDiff * l.quantity_units,
+            fixmer_reference: l.fixmer_reference ?? null,
+          }
+        })
+        .filter(Boolean)
+
+      if (diffLines.length > 0) {
+        const totalDiff = diffLines.reduce((s: number, l: any) => s + l.line_total, 0)
+
+        const { data: linkedInvNum } = await supabase.rpc('fn_generate_doc_number', {
+          p_doc_type: 'invoice',
+          p_is_foc: false,
+        })
+
+        const { data: linkedInvoice, error: linkedErr } = await supabase
+          .from('sales_orders')
+          .insert({
+            order_number:    `${linkedInvNum} LINKED`,
+            document_type:   'invoice',
+            is_foc:          false,
+            is_tt_order:     true,
+            promoted_from:   so.id,
+            linked_order_id: invoice.id,
+            customer_id:     so.customer_id,
+            customer_name:   so.customer_name,
+            price_list:      so.price_list,
+            currency:        so.currency,
+            status:          'draft',
+            warehouse:       so.warehouse,
+            total_amount:    totalDiff,
+            total_units:     so.total_units,
+            total_packs:     so.total_packs,
+            incoterms:       so.incoterms,
+            payment_terms:   so.payment_terms,
+            notes:           `Price difference for ${so.order_number}`,
+            order_date:      so.order_date,
+            shipment_date:   so.shipment_date,
+          })
+          .select()
+          .single()
+
+        if (!linkedErr && linkedInvoice) {
+          await supabase.from('sales_order_lines').insert(
+            diffLines.map((l: any) => ({
+              order_id:         linkedInvoice.id,
+              line_type:        'commercial',
+              sku:              l.sku,
+              product_name:     l.product_name,
+              brand:            l.brand,
+              units_per_pack:   l.units_per_pack,
+              quantity_packs:   l.quantity_packs,
+              quantity_units:   l.quantity_units,
+              price_per_unit:   l.price_per_unit,
+              line_total:       l.line_total,
+              fixmer_reference: l.fixmer_reference ?? null,
+            }))
+          )
+        }
+      }
+    }
 
     // For a regular SO: also handle FOC companion if exists
     if (!isFocSource) {

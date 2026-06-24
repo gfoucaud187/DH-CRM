@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getSignedUrl } from '@/lib/documents'
-import { Folder, FileText, Download, ChevronRight, ChevronDown, Search, Calendar, Package } from 'lucide-react'
+import { Folder, FileText, Download, ChevronRight, ChevronDown, Search, Calendar, Upload, X } from 'lucide-react'
 
 interface DocumentFile {
   id: string
@@ -17,7 +17,7 @@ interface DocumentFile {
   created_at: string
 }
 
-interface Folder {
+interface FolderData {
   folder_name: string
   file_count: number
   last_updated: string
@@ -26,15 +26,11 @@ interface Folder {
 }
 
 const DOC_TYPE_LABEL: Record<string, string> = {
-  so: 'SO',
-  invoice: 'Invoice',
-  so_do: 'SO(DO)',
+  so: 'SO', invoice: 'Invoice', so_do: 'SO(DO)', external: 'External',
 }
 
 const DOC_TYPE_COLOR: Record<string, string> = {
-  so:      '#1C4B3C',
-  invoice: '#6A1E2A',
-  so_do:   '#2D4E8A',
+  so: '#1C4B3C', invoice: '#6A1E2A', so_do: '#2D4E8A', external: '#92400E',
 }
 
 function formatBytes(bytes: number): string {
@@ -53,15 +49,18 @@ function formatDate(dateStr: string): string {
 
 export default function DocumentsPage() {
   const supabase = createClient()
-  const [folders, setFolders] = useState<Folder[]>([])
+  const [folders, setFolders] = useState<FolderData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [uploadingFolder, setUploadingFolder] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadLabel, setUploadLabel] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [pendingFolder, setPendingFolder] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadDocuments()
-  }, [])
+  useEffect(() => { loadDocuments() }, [])
 
   const loadDocuments = async () => {
     setLoading(true)
@@ -72,8 +71,7 @@ export default function DocumentsPage() {
 
     if (error || !data) { setLoading(false); return }
 
-    // Group by folder
-    const folderMap: Record<string, Folder> = {}
+    const folderMap: Record<string, FolderData> = {}
     for (const file of data) {
       if (!folderMap[file.folder_name]) {
         folderMap[file.folder_name] = {
@@ -112,11 +110,60 @@ export default function DocumentsPage() {
     setDownloading(file.id)
     try {
       const url = await getSignedUrl(supabase, file.file_path)
-      if (url) {
-        window.open(url, '_blank')
-      }
+      if (url) window.open(url, '_blank')
     } finally {
       setDownloading(null)
+    }
+  }
+
+  const openUploadModal = (folderName: string) => {
+    setPendingFolder(folderName)
+    setUploadLabel('')
+    setUploadingFolder(folderName)
+  }
+
+  const closeUploadModal = () => {
+    setUploadingFolder(null)
+    setPendingFolder(null)
+    setUploadLabel('')
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !pendingFolder) return
+
+    setUploading(true)
+    try {
+      const label = uploadLabel.trim() || file.name
+      const safeName = label.replace(/[#\[\]*?/\\]/g, '_')
+      const fileName = safeName.endsWith('.pdf') ? safeName : safeName
+      const filePath = `${pendingFolder}/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file, { contentType: file.type, upsert: true })
+
+      if (uploadError) {
+        alert('Upload error: ' + uploadError.message)
+        return
+      }
+
+      await supabase.from('document_files').insert({
+        folder_name: pendingFolder,
+        file_name: fileName,
+        file_path: filePath,
+        order_id: null,
+        document_type: 'external',
+        version: 1,
+        file_size: file.size,
+      })
+
+      closeUploadModal()
+      await loadDocuments()
+      setExpandedFolders(prev => new Set(prev).add(pendingFolder!))
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -128,19 +175,15 @@ export default function DocumentsPage() {
     <div style={{ maxWidth: '1100px' }}>
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', marginBottom: '6px' }}>
-          Documents
-        </h1>
-        <p style={{ fontSize: '14px', color: '#6B7280' }}>
-          All generated PDFs — automatically versioned on each modification
-        </p>
+        <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', marginBottom: '6px' }}>Documents</h1>
+        <p style={{ fontSize: '14px', color: '#6B7280' }}>All generated PDFs — versioned on each save</p>
       </div>
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {[
           { label: 'Total Folders', value: folders.length, icon: <Folder size={18} color="#1C4B3C" /> },
-          { label: 'Total Files',   value: folders.reduce((s, f) => s + f.file_count, 0), icon: <FileText size={18} color="#6A1E2A" /> },
+          { label: 'Total Files', value: folders.reduce((s, f) => s + f.file_count, 0), icon: <FileText size={18} color="#6A1E2A" /> },
           { label: 'Last Activity', value: folders[0] ? formatDate(folders[0].last_updated).split(',')[0] : '—', icon: <Calendar size={18} color="#2D4E8A" /> },
         ].map((stat, i) => (
           <div key={i} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -163,30 +206,63 @@ export default function DocumentsPage() {
           placeholder="Search folders..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          style={{
-            width: '100%',
-            maxWidth: '400px',
-            height: '40px',
-            paddingLeft: '40px',
-            paddingRight: '16px',
-            borderRadius: '10px',
-            border: '1px solid #E5E7EB',
-            background: '#fff',
-            fontSize: '14px',
-            outline: 'none',
-            color: '#111827',
-          }}
+          style={{ width: '100%', maxWidth: '400px', height: '40px', paddingLeft: '40px', paddingRight: '16px', borderRadius: '10px', border: '1px solid #E5E7EB', background: '#fff', fontSize: '14px', outline: 'none', color: '#111827' }}
         />
       </div>
 
+      {/* Hidden file input */}
+      <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" style={{ display: 'none' }} onChange={handleFileUpload} />
+
+      {/* Upload modal */}
+      {uploadingFolder && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#111827', margin: 0 }}>Add External Document</h3>
+                <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '3px' }}>{uploadingFolder}</p>
+              </div>
+              <button onClick={closeUploadModal} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9CA3AF' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                File name / Label
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. PO from Brands International 24-06-2026"
+                value={uploadLabel}
+                onChange={e => setUploadLabel(e.target.value)}
+                style={{ width: '100%', height: '40px', borderRadius: '10px', border: '1px solid #E5E7EB', padding: '0 14px', fontSize: '14px', outline: 'none', color: '#111827', boxSizing: 'border-box' }}
+              />
+              <p style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '4px' }}>Leave empty to use the original filename</p>
+            </div>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              style={{ width: '100%', height: '44px', borderRadius: '10px', border: '2px dashed #E5E7EB', background: '#F9FAFB', cursor: uploading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '14px', fontWeight: 500, color: '#374151', transition: 'all 0.15s' }}
+            >
+              <Upload size={18} color="#6B7280" />
+              {uploading ? 'Uploading…' : 'Choose file to upload'}
+            </button>
+
+            <p style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '10px', textAlign: 'center' }}>
+              PDF, Word, Excel, or images accepted
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Folders list */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: '#9CA3AF', fontSize: '14px' }}>
-          Loading documents…
-        </div>
+        <div style={{ textAlign: 'center', padding: '60px', color: '#9CA3AF', fontSize: '14px' }}>Loading documents…</div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: '#9CA3AF', fontSize: '14px' }}>
-          {search ? 'No folders match your search.' : 'No documents yet. They will appear here automatically when orders are created.'}
+          {search ? 'No folders match your search.' : 'No documents yet.'}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -195,51 +271,47 @@ export default function DocumentsPage() {
             return (
               <div key={folder.folder_name} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: '12px', overflow: 'hidden' }}>
                 {/* Folder header */}
-                <div
-                  onClick={() => toggleFolder(folder.folder_name)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px', cursor: 'pointer', userSelect: 'none' }}
-                >
-                  <div style={{ color: '#6B7280', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px' }}>
+                  <div onClick={() => toggleFolder(folder.folder_name)} style={{ color: '#6B7280', flexShrink: 0, cursor: 'pointer' }}>
                     {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                   </div>
-                  <Folder size={20} color="#F59E0B" fill="#FEF3C7" style={{ flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {folder.folder_name}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
-                      {folder.file_count} file{folder.file_count !== 1 ? 's' : ''} · Last updated {formatDate(folder.last_updated)}
+                  <div onClick={() => toggleFolder(folder.folder_name)} style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                    <Folder size={20} color="#F59E0B" fill="#FEF3C7" style={{ flexShrink: 0 }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {folder.folder_name}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
+                        {folder.file_count} file{folder.file_count !== 1 ? 's' : ''} · Last updated {formatDate(folder.last_updated)}
+                      </div>
                     </div>
                   </div>
+
                   {/* Doc type badges */}
                   <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                     {folder.document_types.map(dt => (
-                      <span key={dt} style={{
-                        padding: '2px 10px',
-                        borderRadius: '999px',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#fff',
-                        background: DOC_TYPE_COLOR[dt] ?? '#6B7280',
-                      }}>
+                      <span key={dt} style={{ padding: '2px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, color: '#fff', background: DOC_TYPE_COLOR[dt] ?? '#6B7280' }}>
                         {DOC_TYPE_LABEL[dt] ?? dt}
                       </span>
                     ))}
                   </div>
+
+                  {/* Upload button */}
+                  <button
+                    onClick={e => { e.stopPropagation(); openUploadModal(folder.folder_name) }}
+                    title="Add external document"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '8px', border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: 500, color: '#374151', flexShrink: 0, transition: 'background 0.15s' }}
+                  >
+                    <Upload size={13} />
+                    Add
+                  </button>
                 </div>
 
                 {/* Files list */}
                 {isExpanded && (
                   <div style={{ borderTop: '1px solid #F3F4F6' }}>
                     {folder.files.map((file, i) => (
-                      <div key={file.id} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '10px 18px 10px 52px',
-                        borderBottom: i < folder.files.length - 1 ? '1px solid #F9FAFB' : 'none',
-                        background: i % 2 === 0 ? '#FAFAFA' : '#fff',
-                      }}>
+                      <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 18px 10px 52px', borderBottom: i < folder.files.length - 1 ? '1px solid #F9FAFB' : 'none', background: i % 2 === 0 ? '#FAFAFA' : '#fff' }}>
                         <FileText size={16} color={DOC_TYPE_COLOR[file.document_type] ?? '#6B7280'} style={{ flexShrink: 0 }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -249,36 +321,14 @@ export default function DocumentsPage() {
                             {formatDate(file.created_at)} · {formatBytes(file.file_size)}
                           </div>
                         </div>
-                        {/* Version badge */}
-                        <span style={{
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: DOC_TYPE_COLOR[file.document_type] ?? '#6B7280',
-                          background: '#F3F4F6',
-                          flexShrink: 0,
-                        }}>
-                          V{file.version}
+                        <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: DOC_TYPE_COLOR[file.document_type] ?? '#6B7280', background: '#F3F4F6', flexShrink: 0 }}>
+                          {file.document_type === 'external' ? 'EXT' : `V${file.version}`}
                         </span>
-                        {/* Download */}
                         <button
                           onClick={() => handleDownload(file)}
                           disabled={downloading === file.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '8px',
-                            border: '1px solid #E5E7EB',
-                            background: downloading === file.id ? '#F3F4F6' : '#fff',
-                            cursor: downloading === file.id ? 'not-allowed' : 'pointer',
-                            flexShrink: 0,
-                            transition: 'background 0.15s',
-                          }}
-                          title="Download"
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #E5E7EB', background: downloading === file.id ? '#F3F4F6' : '#fff', cursor: downloading === file.id ? 'not-allowed' : 'pointer', flexShrink: 0 }}
+                          title="Open"
                         >
                           <Download size={14} color={downloading === file.id ? '#9CA3AF' : '#374151'} />
                         </button>
