@@ -21,14 +21,16 @@ interface InvoicePDFProps {
 
 export default function InvoicePDF({ order, lines, customer, appSettings, sourceDoc }: InvoicePDFProps) {
   const [saving, setSaving] = useState(false)
-  // ─── Génère le PDF en blob (sans déclencher le téléchargement) ───────────────
+
+  const isLinked = order.order_number?.includes('LINKED')
+
+  // ─── Génère le PDF en blob ───────────────────────────────────────────────────
   const generatePdfBlob = async (): Promise<Blob | null> => {
     const jsPDF = (await import('jspdf')).default
     const html2canvas = (await import('html2canvas')).default
     const pageEls = document.querySelectorAll(`[data-pdf-page="${order.id}"]`)
     if (!pageEls.length) return null
 
-    // Convertit le logo en base64 pour html2canvas (évite les erreurs CORS)
     const LOGO_URL = 'https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_white_background.png'
     let logoBase64 = ''
     try {
@@ -39,18 +41,14 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
         reader.onload = () => resolve(reader.result as string)
         reader.readAsDataURL(blob2)
       })
-    } catch { /* logo absent, on continue */ }
+    } catch { /* logo absent */ }
 
-    // Remplace les src du logo dans le DOM par le base64
     if (logoBase64) {
       pageEls.forEach(el => {
         el.querySelectorAll('img').forEach(img => {
-          if (img.src.includes('Logo_DH_signature')) {
-            img.src = logoBase64
-          }
+          if (img.src.includes('Logo_DH_signature')) img.src = logoBase64
         })
       })
-      // Petite pause pour que le DOM se mette à jour
       await new Promise(r => setTimeout(r, 100))
     }
 
@@ -77,14 +75,10 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
   const getDocNames = async (supabase: any): Promise<{ folderName: string; fileName: string; docType: 'so' | 'invoice' | 'so_do'; version: number } | null> => {
     const isInvoice = order.document_type === 'invoice'
     const isFoc = order.is_foc
-
-    // Remonte toujours au SO racine (non-FOC) pour le nom du dossier
     let rootSO = order
 
     if (isInvoice && sourceDoc) {
-      // sourceDoc = SO ou SO(DO) dont est promue cette invoice
       if (sourceDoc.is_foc && sourceDoc.linked_order_id) {
-        // Invoice d'un SO(DO) → remonter au SO parent
         const { data } = await supabase
           .from('sales_orders')
           .select('order_number, customer_name, warehouse, created_at, is_foc')
@@ -102,7 +96,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
         .single()
       if (src) {
         if (src.is_foc && src.linked_order_id) {
-          // Invoice d'un SO(DO) → remonter au SO parent
           const { data: parent } = await supabase
             .from('sales_orders')
             .select('order_number, customer_name, warehouse, created_at')
@@ -113,8 +106,23 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
           rootSO = src
         }
       }
+    } else if (isInvoice && isLinked && order.linked_order_id) {
+      // Invoice LINKED → remonter via l'invoice principale → SO racine
+      const { data: mainInv } = await supabase
+        .from('sales_orders')
+        .select('promoted_from, order_number, customer_name, warehouse, created_at')
+        .eq('id', order.linked_order_id)
+        .single()
+      if (mainInv?.promoted_from) {
+        const { data: soRacine } = await supabase
+          .from('sales_orders')
+          .select('order_number, customer_name, warehouse, created_at')
+          .eq('id', mainInv.promoted_from)
+          .single()
+        if (soRacine) rootSO = soRacine
+        else if (mainInv) rootSO = mainInv
+      }
     } else if (isFoc && order.linked_order_id) {
-      // SO(DO) → remonter au SO parent
       const { data } = await supabase
         .from('sales_orders')
         .select('order_number, customer_name, warehouse, created_at')
@@ -123,7 +131,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
       if (data) rootSO = data
     }
 
-    // Sécurité
     if (!rootSO.customer_name) rootSO = order
 
     const folderName = getFolderName(rootSO)
@@ -153,7 +160,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
 
       const { folderName, fileName, docType } = names
 
-      // Anti-doublon : vérifie si un fichier avec ce nom exact existe déjà
       const { data: existing } = await supabase
         .from('document_files')
         .select('id')
@@ -161,23 +167,19 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
         .eq('file_name', fileName)
         .maybeSingle()
 
-      if (existing && !isManualDownload) return // déjà sauvegardé, skip
+      if (existing && !isManualDownload) return
 
       const filePath = getFilePath(folderName, fileName)
 
       const { error: uploadError } = await supabase.storage
         .from('documents')
-        .upload(filePath, blob, {
-          contentType: 'application/pdf',
-          upsert: false,
-        })
+        .upload(filePath, blob, { contentType: 'application/pdf', upsert: false })
 
       if (uploadError && !uploadError.message.includes('already exists')) {
         console.error('Storage upload error:', uploadError.message)
         return
       }
 
-      // Enregistre les métadonnées seulement si upload réussi
       if (!uploadError) {
         await supabase.from('document_files').insert({
           folder_name: folderName,
@@ -194,9 +196,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     }
   }
 
-
-
-  // ─── Download PDF ────────────────────────────────────────────────────────────
   const handleDownload = async () => {
     const blob = await generatePdfBlob()
     if (!blob) return
@@ -208,7 +207,6 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     URL.revokeObjectURL(url)
   }
 
-  // ─── Save to Documents ───────────────────────────────────────────────────────
   const handleSaveToDocuments = async () => {
     setSaving(true)
     try {
@@ -232,11 +230,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
 
   const salesContact = customer?.contacts?.find((c: any) => c.role === 'Sales') ?? customer?.contacts?.[0]
   const salesContactLine = salesContact
-    ? [
-        [salesContact.first_name, salesContact.last_name].filter(Boolean).join(' '),
-        salesContact.email,
-        salesContact.phone,
-      ].filter(Boolean).join(' | ')
+    ? [[salesContact.first_name, salesContact.last_name].filter(Boolean).join(' '), salesContact.email, salesContact.phone].filter(Boolean).join(' | ')
     : null
 
   const fixmerName        = appSettings?.tt_company   ?? 'Fixmer Belgium S.A.'
@@ -324,10 +318,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
 
   const TableHead = () => {
     const cols = isInt
-      ? [
-          ['Brand & Line', 'left'],['Vitola', 'left'],['SKU · Ref DH', 'left'],
-          ['Boxes', 'center'],['Articles', 'center'],
-        ]
+      ? [['Brand & Line', 'left'],['Vitola', 'left'],['SKU · Ref DH', 'left'],['Boxes', 'center'],['Articles', 'center']]
       : [
           ['Brand & Line', 'left'],['Vitola', 'left'],['SKU · Ref DH', 'left'],['Ref Fixmer', 'left'],
           ['Boxes', 'center'],['Articles', 'center'],['Dim L×Cepo', 'center'],['Shape', 'left'],
@@ -337,11 +328,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
         ]
     return (
       <thead>
-        <tr>
-          {cols.map(([h, a], i) => (
-            <th key={i} style={{ textAlign: a as any }}>{h}</th>
-          ))}
-        </tr>
+        <tr>{cols.map(([h, a], i) => <th key={i} style={{ textAlign: a as any }}>{h}</th>)}</tr>
       </thead>
     )
   }
@@ -349,8 +336,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
   const TableRow = ({ line, idx }: { line: any; idx: number }) => {
     const dim        = (line.length_inches && line.ring_gauge) ? `${line.length_inches}×${line.ring_gauge}` : '—'
     const netWtTotal = (line.net_weight_g && line.quantity_units)
-      ? Math.round(Number(line.net_weight_g) * Number(line.quantity_units)).toLocaleString('en-US')
-      : '—'
+      ? Math.round(Number(line.net_weight_g) * Number(line.quantity_units)).toLocaleString('en-US') : '—'
     const priceUnit  = (!isInt && line.price_per_unit != null) ? fmt2(line.price_per_unit) : null
     const priceTotal = (!isInt && !isDO && line.line_total != null) ? fmt2(line.line_total) : null
     const brandLine  = line.brand
@@ -387,6 +373,129 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     )
   }
 
+  // ─── Layout LINKED simplifié ─────────────────────────────────────────────────
+  if (isLinked) {
+    const linkedTotal = Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return (
+      <div>
+        <div className="flex items-center gap-3">
+          <button onClick={handleDownload}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
+            <Download className="h-4 w-4" />
+            Download PDF
+          </button>
+          <button onClick={handleSaveToDocuments} disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="12" x2="12" y2="18"/>
+              <line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+            {saving ? 'Saving…' : 'Save to Documents'}
+          </button>
+        </div>
+
+        <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
+          <style dangerouslySetInnerHTML={{ __html: css }} />
+          <div data-pdf-page={order.id} className="doc">
+            <div className="accent-bar" />
+            <div className="inner">
+              <div className="header">
+                <div>
+                  <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_white_background.png" alt="DH Signature" style={{ height: '72px', width: 'auto' }} />
+                </div>
+                <div className="header-right">
+                  <div className="doc-eyebrow">Invoice — Price Difference</div>
+                  <div className="doc-number">{order.order_number}</div>
+                  <div className="doc-date">{docDate}</div>
+                </div>
+              </div>
+
+              {/* Parties */}
+              <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <div className="party-eyebrow">Invoice To</div>
+                  <div className="party-name">{fixmerName}</div>
+                  <div className="party-contact">{fixmerContactLine}</div>
+                  {endCustomerName && (
+                    <div className="co-block">
+                      <div className="party-eyebrow">C/O — End Customer</div>
+                      <div className="party-name">{endCustomerName}</div>
+                      {salesContactLine && <div className="party-contact">{salesContactLine}</div>}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '28px', borderLeft: '1px solid #E6E0D5', paddingLeft: '40px' }}>
+                  {[
+                    { label: 'Incoterms', value: order.incoterms },
+                    { label: 'Payment',   value: order.payment_terms },
+                    { label: 'Currency',  value: order.currency },
+                    { label: 'Warehouse', value: order.warehouse },
+                  ].filter(m => m.value).map((m, i) => (
+                    <div key={i}>
+                      <div className="meta-label">{m.label}</div>
+                      <div className="meta-value">{m.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Single line */}
+              <table className="line-table">
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Description</th>
+                    <th style={{ textAlign: 'right' }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="ink">{order.notes ?? `Price difference for linked SO`}</td>
+                    <td className="mono ink" style={{ textAlign: 'right' }}>{order.currency} {linkedTotal}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Total */}
+              <div className="bottom-row">
+                <div className="payment-card">
+                  <div className="payment-title">Payment Details</div>
+                  <div className="payment-grid">
+                    <span className="payment-key">Beneficiary</span>
+                    <span>{appSettings?.payment_beneficiary ?? 'Nadir y Bohue Pte. Ltd. · 20C Sea Avenue · Singapore 424243'}</span>
+                    <span className="payment-key">Account</span>
+                    <span className="mono">{appSettings?.payment_account ?? '048-904845-0'}</span>
+                    <span className="payment-key">Swift/BIC</span>
+                    <span className="mono">{appSettings?.payment_swift ?? 'DBSSSGSG'}</span>
+                    <span className="payment-key">Bank</span>
+                    <span>{appSettings?.payment_bank ?? 'DBS Bank Ltd · 12 Marina Blvd · MBFC Tower 3 · Singapore 018982'}</span>
+                  </div>
+                </div>
+                <div style={{ flex: 1 }} />
+                <div className="totals-block">
+                  <hr className="total-hr" />
+                  <div className="grand-row">
+                    <span className="grand-label">Amount Due</span>
+                    <span className="grand-value">{order.currency} {linkedTotal}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="footer">
+                <div className="footer-notes" />
+                <div className="footer-right">
+                  DH Signature · {order.order_number} · Generated {new Date().toLocaleDateString('en-GB')}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Layout standard ─────────────────────────────────────────────────────────
   return (
     <div>
       <div className="flex items-center gap-3">
@@ -421,7 +530,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                 {isFirst && (
                   <div className="header">
                     <div>
-                      <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/Logo_DH_signature_color_white_background.png" alt="DH Signature" style={{ height: '72px', width: 'auto' }} />
+                      <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_white_background.png" alt="DH Signature" style={{ height: '72px', width: 'auto' }} />
                     </div>
                     <div className="header-right">
                       <div className="doc-eyebrow">{isInvoice ? 'Invoice' : isInt ? 'Internal Transfer' : isDO ? 'Delivery Order' : 'Sales Order'}</div>
@@ -543,9 +652,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                       {!isInt && (
                         <div className="grand-row">
                           <span className="grand-label">{isInvoice ? 'Amount Due' : isDO ? 'Delivery Order' : 'Total'}</span>
-                          <span className="grand-value">
-                            {isDO ? 'FOC' : `${order.currency} ${totalValue}`}
-                          </span>
+                          <span className="grand-value">{isDO ? 'FOC' : `${order.currency} ${totalValue}`}</span>
                         </div>
                       )}
                     </div>
@@ -558,9 +665,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                   </div>
                   <div className="footer-right">
                     {isLast && `DH Signature · ${order.order_number} · Generated ${new Date().toLocaleDateString('en-GB')}`}
-                    {totalPages > 1 && (
-                      <div className="page-num">{pageIdx + 1} / {totalPages}</div>
-                    )}
+                    {totalPages > 1 && <div className="page-num">{pageIdx + 1} / {totalPages}</div>}
                   </div>
                 </div>
 
