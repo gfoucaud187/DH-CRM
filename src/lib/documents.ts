@@ -29,6 +29,37 @@ function formatDate(dateStr: string): string {
 }
 
 /**
+ * Supprime les accents d'une chaîne
+ */
+function removeAccents(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+/**
+ * Sanitize un nom de dossier pour Supabase Storage
+ * - Supprime les accents
+ * - Remplace les caractères interdits : # [ ] * ? .
+ */
+function sanitizeFolder(s: string): string {
+  return removeAccents(s)
+    .replace(/[#\[\]*?.]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Sanitize un nom de fichier pour Supabase Storage
+ * - Supprime les accents
+ * - Remplace les caractères interdits : # [ ] * ? (garde le point pour l'extension)
+ */
+function sanitizeFile(s: string): string {
+  return removeAccents(s)
+    .replace(/[#\[\]*?]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
  * Génère le nom du dossier pour un SO
  * Ex: "2026-061 to Eurotab France T1"
  */
@@ -85,23 +116,7 @@ export function getInvoiceFileName(invoice: {
 }
 
 /**
- * Sanitize un nom de dossier pour Supabase Storage
- * Remplace les caractères interdits : # [ ] * ? et le point
- */
-function sanitizeFolder(s: string): string {
-  return s.replace(/[#\[\]*?.]/g, '_').replace(/\s+/g, ' ').trim()
-}
-
-/**
- * Sanitize un nom de fichier pour Supabase Storage
- * Remplace les caractères interdits : # [ ] * ? (garde le point pour l'extension)
- */
-function sanitizeFile(s: string): string {
-  return s.replace(/[#\[\]*?]/g, '_').replace(/\s+/g, ' ').trim()
-}
-
-/**
- * Retourne le chemin Storage complet
+ * Retourne le chemin Storage complet — dossier et fichier sanitizés
  */
 export function getFilePath(folderName: string, fileName: string): string {
   return `${sanitizeFolder(folderName)}/${sanitizeFile(fileName)}`
