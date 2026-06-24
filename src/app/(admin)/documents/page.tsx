@@ -113,10 +113,7 @@ export default function DocumentsPage() {
     try {
       const url = await getSignedUrl(supabase, file.file_path)
       if (url) {
-        const a = document.createElement('a')
-        a.href = url
-        a.download = file.file_name
-        a.click()
+        window.open(url, '_blank')
       }
     } finally {
       setDownloading(null)

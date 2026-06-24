@@ -48,7 +48,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
   }
 
   // ─── Détermine le dossier et le nom de fichier ───────────────────────────────
-  const getDocNames = async (supabase: any): Promise<{ folderName: string; fileName: string; docType: 'so' | 'invoice' | 'so_do' } | null> => {
+  const getDocNames = async (supabase: any): Promise<{ folderName: string; fileName: string; docType: 'so' | 'invoice' | 'so_do'; version: number } | null> => {
     const isInvoice = order.document_type === 'invoice'
     const isFoc = order.is_foc
 
@@ -106,15 +106,15 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
       const srcDoc = sourceDoc ?? rootSO
       const version = await getNextVersion(supabase, order.id, 'invoice')
       const fileName = getInvoiceFileName(order, srcDoc, version)
-      return { folderName, fileName, docType: 'invoice' }
+      return { folderName, fileName, docType: 'invoice' as const, version }
     } else if (isFoc) {
       const version = await getNextVersion(supabase, order.id, 'so_do')
       const fileName = getSOFileName(order, version)
-      return { folderName, fileName, docType: 'so_do' }
+      return { folderName, fileName, docType: 'so_do' as const, version }
     } else {
       const version = await getNextVersion(supabase, order.id, 'so')
       const fileName = getSOFileName(order, version)
-      return { folderName, fileName, docType: 'so' }
+      return { folderName, fileName, docType: 'so' as const, version }
     }
   }
 
@@ -159,6 +159,7 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
           file_path: filePath,
           order_id: order.id,
           document_type: docType,
+          version: names.version,
           file_size: blob.size,
         })
       }
