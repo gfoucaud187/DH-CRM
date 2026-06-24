@@ -135,15 +135,29 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     }
   }
 
-  // ─── Auto-save à chaque montage — nouvelle version après chaque edit ───────
+  // ─── Auto-save au premier montage uniquement (V1) ───────────────────────────
   useEffect(() => {
+    let cancelled = false
     const timer = setTimeout(async () => {
+      if (cancelled) return
+      // Vérifie si une version existe déjà pour ce document
+      const supabase = createClient()
+      const { data: existing } = await supabase
+        .from('document_files')
+        .select('id')
+        .eq('order_id', order.id)
+        .limit(1)
+        .maybeSingle()
+      if (existing) return // déjà une version, ne pas recréer
       const blob = await generatePdfBlob()
-      if (blob) await savePdfToStorage(blob)
+      if (blob && !cancelled) await savePdfToStorage(blob)
     }, 2000)
 
-    return () => clearTimeout(timer)
-  }, [order.id, order.total_amount, order.total_units, order.total_packs])
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [order.id])
 
   // ─── Download + save nouvelle version ────────────────────────────────────────
   const handleDownload = async () => {
