@@ -3,34 +3,23 @@ import { COUNTRIES } from '@/lib/countries'
 
 /**
  * Convertit un nom de pays ou code ISO en code ISO 2 lettres
- * Utilise la liste COUNTRIES existante
  */
 export function toISO(countryInput: string): string {
   if (!countryInput) return ''
   const upper = countryInput.toUpperCase()
-  // Déjà un code ISO 2 lettres
   const byCode = COUNTRIES.find(c => c.code === upper)
   if (byCode) return byCode.code
-  // Nom complet (FR ou EN)
   const byName = COUNTRIES.find(c =>
     c.name.toLowerCase() === countryInput.toLowerCase()
   )
   return byName?.code ?? countryInput.slice(0, 2).toUpperCase()
 }
 
-/**
- * Extrait la partie numérique d'un numéro de document
- * "SO26-061" → "061"
- * "INV26-039" → "039"
- */
 function extractNumeric(orderNumber: string): string {
   const match = orderNumber.match(/(\d+)$/)
   return match ? match[1] : orderNumber
 }
 
-/**
- * Formate une date ISO en YYYYMMDD
- */
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr)
   const y = d.getFullYear()
@@ -96,11 +85,26 @@ export function getInvoiceFileName(invoice: {
 }
 
 /**
+ * Sanitize un nom de dossier pour Supabase Storage
+ * Remplace les caractères interdits : # [ ] * ? et le point
+ */
+function sanitizeFolder(s: string): string {
+  return s.replace(/[#\[\]*?.]/g, '_').replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Sanitize un nom de fichier pour Supabase Storage
+ * Remplace les caractères interdits : # [ ] * ? (garde le point pour l'extension)
+ */
+function sanitizeFile(s: string): string {
+  return s.replace(/[#\[\]*?]/g, '_').replace(/\s+/g, ' ').trim()
+}
+
+/**
  * Retourne le chemin Storage complet
  */
 export function getFilePath(folderName: string, fileName: string): string {
-  const sanitize = (s: string) => s.replace(/[#\[\]*?\.]/g, '_').replace(/\s+/g, ' ').trim()
-  return `${sanitize(folderName)}/${sanitize(fileName)}`
+  return `${sanitizeFolder(folderName)}/${sanitizeFile(fileName)}`
 }
 
 /**
@@ -124,7 +128,7 @@ export async function getNextVersion(
 }
 
 /**
- * Sauvegarde un PDF (blob) dans Supabase Storage et enregistre les métadonnées
+ * Sauvegarde un PDF dans Supabase Storage et enregistre les métadonnées
  */
 export async function saveDocumentVersion({
   supabase,
@@ -144,7 +148,6 @@ export async function saveDocumentVersion({
   try {
     const filePath = getFilePath(folderName, fileName)
 
-    // Upload dans Storage
     const { error: uploadError } = await supabase.storage
       .from('documents')
       .upload(filePath, pdfBlob, {
@@ -157,7 +160,6 @@ export async function saveDocumentVersion({
       return { success: false, error: uploadError.message }
     }
 
-    // Enregistre les métadonnées
     const version = await getNextVersion(supabase, orderId, documentType)
     const { error: dbError } = await supabase
       .from('document_files')
