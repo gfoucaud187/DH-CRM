@@ -1,5 +1,6 @@
 'use client'
 
+import { COUNTRIES, EU_CODES } from '@/lib/countries'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
@@ -28,56 +29,8 @@ const ADDRESS_TYPES = [
   { value: 'warehouse', label: 'Warehouse' },
 ]
 
-const EU_COUNTRIES = [
-  { code: 'AT', name: 'Austria', flag: '🇦🇹', eu: true },
-  { code: 'BE', name: 'Belgium', flag: '🇧🇪', eu: true },
-  { code: 'BG', name: 'Bulgaria', flag: '🇧🇬', eu: true },
-  { code: 'HR', name: 'Croatia', flag: '🇭🇷', eu: true },
-  { code: 'CY', name: 'Cyprus', flag: '🇨🇾', eu: true },
-  { code: 'CZ', name: 'Czech Republic', flag: '🇨🇿', eu: true },
-  { code: 'DK', name: 'Denmark', flag: '🇩🇰', eu: true },
-  { code: 'EE', name: 'Estonia', flag: '🇪🇪', eu: true },
-  { code: 'FI', name: 'Finland', flag: '🇫🇮', eu: true },
-  { code: 'FR', name: 'France', flag: '🇫🇷', eu: true },
-  { code: 'DE', name: 'Germany', flag: '🇩🇪', eu: true },
-  { code: 'GR', name: 'Greece', flag: '🇬🇷', eu: true },
-  { code: 'HU', name: 'Hungary', flag: '🇭🇺', eu: true },
-  { code: 'IE', name: 'Ireland', flag: '🇮🇪', eu: true },
-  { code: 'IT', name: 'Italy', flag: '🇮🇹', eu: true },
-  { code: 'LV', name: 'Latvia', flag: '🇱🇻', eu: true },
-  { code: 'LT', name: 'Lithuania', flag: '🇱🇹', eu: true },
-  { code: 'LU', name: 'Luxembourg', flag: '🇱🇺', eu: true },
-  { code: 'MT', name: 'Malta', flag: '🇲🇹', eu: true },
-  { code: 'NL', name: 'Netherlands', flag: '🇳🇱', eu: true },
-  { code: 'PL', name: 'Poland', flag: '🇵🇱', eu: true },
-  { code: 'PT', name: 'Portugal', flag: '🇵🇹', eu: true },
-  { code: 'RO', name: 'Romania', flag: '🇷🇴', eu: true },
-  { code: 'SK', name: 'Slovakia', flag: '🇸🇰', eu: true },
-  { code: 'SI', name: 'Slovenia', flag: '🇸🇮', eu: true },
-  { code: 'ES', name: 'Spain', flag: '🇪🇸', eu: true },
-  { code: 'SE', name: 'Sweden', flag: '🇸🇪', eu: true },
-  { code: 'AU', name: 'Australia', flag: '🇦🇺', eu: false },
-  { code: 'BR', name: 'Brazil', flag: '🇧🇷', eu: false },
-  { code: 'CA', name: 'Canada', flag: '🇨🇦', eu: false },
-  { code: 'CN', name: 'China', flag: '🇨🇳', eu: false },
-  { code: 'HK', name: 'Hong Kong', flag: '🇭🇰', eu: false },
-  { code: 'IN', name: 'India', flag: '🇮🇳', eu: false },
-  { code: 'JP', name: 'Japan', flag: '🇯🇵', eu: false },
-  { code: 'KR', name: 'South Korea', flag: '🇰🇷', eu: false },
-  { code: 'MA', name: 'Morocco', flag: '🇲🇦', eu: false },
-  { code: 'MX', name: 'Mexico', flag: '🇲🇽', eu: false },
-  { code: 'NO', name: 'Norway', flag: '🇳🇴', eu: false },
-  { code: 'RU', name: 'Russia', flag: '🇷🇺', eu: false },
-  { code: 'SA', name: 'Saudi Arabia', flag: '🇸🇦', eu: false },
-  { code: 'SG', name: 'Singapore', flag: '🇸🇬', eu: false },
-  { code: 'CH', name: 'Switzerland', flag: '🇨🇭', eu: false },
-  { code: 'TH', name: 'Thailand', flag: '🇹🇭', eu: false },
-  { code: 'TR', name: 'Turkey', flag: '🇹🇷', eu: false },
-  { code: 'AE', name: 'United Arab Emirates', flag: '🇦🇪', eu: false },
-  { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', eu: false },
-  { code: 'US', name: 'United States', flag: '🇺🇸', eu: false },
-  { code: 'ZA', name: 'South Africa', flag: '🇿🇦', eu: false },
-].sort((a, b) => a.name.localeCompare(b.name))
+const EU_COUNTRIES = COUNTRIES
+const EU_COUNTRY_CODES = EU_CODES
 
 const EU_COUNTRY_CODES = new Set(EU_COUNTRIES.filter(c => c.eu).map(c => c.code))
 
