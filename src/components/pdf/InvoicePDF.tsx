@@ -28,6 +28,16 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
     const pageEls = document.querySelectorAll(`[data-pdf-page="${order.id}"]`)
     if (!pageEls.length) return null
 
+    // Précharge le logo avant de lancer html2canvas
+    const LOGO_URL = 'https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_white_background.png'
+    await new Promise<void>((resolve) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => resolve()
+      img.onerror = () => resolve() // continue même si erreur
+      img.src = LOGO_URL
+    })
+
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
     const pdfW = pdf.internal.pageSize.getWidth()
 
