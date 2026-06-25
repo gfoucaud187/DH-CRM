@@ -3,7 +3,7 @@ import './globals.css'
 import Providers from './providers'
 
 export const metadata: Metadata = {
-  title: 'DH Signature CRM',
+  title: 'Stellar by DH',
   description: 'Commercial & Operational Control Cockpit',
   icons: {
     icon: '/icon.svg',

@@ -92,7 +92,7 @@ export default function ClientReportPage() {
     if (!pdfRef.current) return
     const jsPDF = (await import('jspdf')).default
     const html2canvas = (await import('html2canvas')).default
-    const canvas = await html2canvas(pdfRef.current, {  background: '#ffffff' })
+    const canvas = await html2canvas(pdfRef.current, { backgroundColor: '#ffffff' })
     const imgData = canvas.toDataURL('image/png')
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
     const w = pdf.internal.pageSize.getWidth()
