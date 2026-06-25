@@ -461,7 +461,7 @@ export default function ExpensesPage() {
                 <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium cursor-pointer transition-colors ${scanning ? 'opacity-50' : 'hover:bg-gray-50'}`}>
                   {scanning ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
                   {scanning ? 'Scanning…' : 'Scan Receipt'}
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanReceipt} disabled={scanning} />
+                  <input type="file" accept="image/*" className="hidden" onChange={handleScanReceipt} disabled={scanning} />
                 </label>
                 <button onClick={() => setDrawerOpen(false)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400">
                   <X size={16} />
