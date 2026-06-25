@@ -5,6 +5,10 @@ import Providers from './providers'
 export const metadata: Metadata = {
   title: 'DH Signature CRM',
   description: 'Commercial & Operational Control Cockpit',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/apple-touch-icon.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
