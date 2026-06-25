@@ -25,35 +25,49 @@ export default function AgeingPage() {
     queryKey: ['ageing', mode],
     queryFn: async () => {
       if (mode === 'ar') {
-        // Accounts Receivable — from sales_orders with outstanding balance
-        const { data } = await supabase
+        const { data: orders } = await supabase
           .from('sales_orders')
-          .select('id, order_number, customer_id, customers!inner(name), total_amount, created_at, status')
-          .not('status', 'in', '("cancelled","rejected")')
+          .select('id, order_number, customer_id, total_amount, created_at, status')
+          .neq('status', 'cancelled')
           .order('created_at', { ascending: true })
 
-        return (data ?? []).map((o: any) => ({
-          ref: o.order_number,
-          entity: o.customers?.name ?? 'Unknown',
-          amount: Number(o.total_amount ?? 0),
-          date: o.created_at?.slice(0, 10) ?? today,
-          type: 'AR',
-        }))
+        const customerIds = Array.from(new Set((orders ?? []).map((o: any) => o.customer_id).filter(Boolean)))
+        const { data: customers } = customerIds.length
+          ? await supabase.from('customers').select('id, name').in('id', customerIds)
+          : { data: [] }
+        const customerMap: Record<string, string> = {}
+        for (const c of (customers ?? []) as any[]) customerMap[c.id] = c.name
+
+        return (orders ?? [])
+          .filter((o: any) => o.total_amount > 0)
+          .map((o: any) => ({
+            ref: o.order_number,
+            entity: customerMap[o.customer_id] ?? 'Unknown',
+            amount: Number(o.total_amount ?? 0),
+            date: o.created_at?.slice(0, 10) ?? today,
+          }))
       } else {
-        // Accounts Payable — from purchase_orders
-        const { data } = await supabase
+        const { data: pos } = await supabase
           .from('purchase_orders')
-          .select('id, po_number, partner_id, partners!inner(name), total_amount, created_at, status')
-          .not('status', 'in', '("cancelled","rejected")')
+          .select('id, po_number, partner_id, total_amount, created_at, status')
+          .neq('status', 'cancelled')
           .order('created_at', { ascending: true })
 
-        return (data ?? []).map((p: any) => ({
-          ref: p.po_number,
-          entity: p.partners?.name ?? 'Unknown',
-          amount: Number(p.total_amount ?? 0),
-          date: p.created_at?.slice(0, 10) ?? today,
-          type: 'AP',
-        }))
+        const partnerIds = Array.from(new Set((pos ?? []).map((p: any) => p.partner_id).filter(Boolean)))
+        const { data: partners } = partnerIds.length
+          ? await supabase.from('partners').select('id, name').in('id', partnerIds)
+          : { data: [] }
+        const partnerMap: Record<string, string> = {}
+        for (const p of (partners ?? []) as any[]) partnerMap[p.id] = p.name
+
+        return (pos ?? [])
+          .filter((p: any) => p.total_amount > 0)
+          .map((p: any) => ({
+            ref: p.po_number,
+            entity: partnerMap[p.partner_id] ?? 'Unknown',
+            amount: Number(p.total_amount ?? 0),
+            date: p.created_at?.slice(0, 10) ?? today,
+          }))
       }
     },
   })
