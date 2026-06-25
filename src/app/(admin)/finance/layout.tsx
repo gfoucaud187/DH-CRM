@@ -5,14 +5,9 @@ import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Receipt, Users2, Landmark, BookOpen, TrendingUp, Scale, Clock } from 'lucide-react'
 
 const FINANCE_NAV = [
-  { href: '/finance/dashboard', label: 'Dashboard',      icon: LayoutDashboard },
-  { href: '/finance/expenses',  label: 'Expenses',       icon: Receipt },
-  { href: '/finance/payroll',   label: 'Payroll',        icon: Users2 },
-  { href: '/finance/bank',      label: 'Bank',           icon: Landmark },
-  { href: '/finance/journal',   label: 'Journal',        icon: BookOpen },
-  { href: '/finance/reports/pl',      label: 'P&L',           icon: TrendingUp },
-  { href: '/finance/reports/balance', label: 'Balance Sheet',  icon: Scale },
-  { href: '/finance/reports/ageing',  label: 'AR/AP Ageing',  icon: Clock },
+  { href: '/finance/dashboard',       label: 'Dashboard',    icon: LayoutDashboard },
+  { href: '/finance/expenses',        label: 'Expenses',     icon: Receipt },
+  { href: '/finance/reports/ageing',  label: 'AR/AP Ageing', icon: Clock },
 ]
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {

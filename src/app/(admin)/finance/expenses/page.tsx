@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, X, Send, Trash2, Camera, Loader2, CheckCircle } from 'lucide-react'
+import { Plus, X, Send, Trash2, Camera, Loader2, CheckCircle, ImageIcon } from 'lucide-react'
 
 const CATEGORIES = [
   { value: 'office',       label: 'Office & Admin' },
@@ -48,6 +48,7 @@ const EMPTY_FORM = {
   gst_claimable: true,
   payment_method: 'bank_transfer',
   notes: '',
+  receipt_url: '',
 }
 
 export default function ExpensesPage() {
@@ -61,6 +62,8 @@ export default function ExpensesPage() {
   const [scanning, setScanning] = useState(false)
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterCategory, setFilterCategory] = useState('all')
+  const [receiptPreview, setReceiptPreview] = useState<string>('')
+  const [fxHint, setFxHint] = useState<string>('')
 
   const { data: expenses = [], isLoading } = useQuery({
     queryKey: ['expenses', filterStatus, filterCategory],
@@ -80,6 +83,8 @@ export default function ExpensesPage() {
   const openNew = () => {
     setEditing(null)
     setForm(EMPTY_FORM)
+    setReceiptPreview('')
+    setFxHint('')
     setDrawerOpen(true)
   }
 
@@ -98,7 +103,10 @@ export default function ExpensesPage() {
       gst_claimable: exp.gst_claimable ?? true,
       payment_method: exp.payment_method ?? 'bank_transfer',
       notes: exp.notes ?? '',
+      receipt_url: exp.receipt_url ?? '',
     })
+    setReceiptPreview(exp.receipt_url ?? '')
+    setFxHint('')
     setDrawerOpen(true)
   }
 
@@ -119,6 +127,7 @@ export default function ExpensesPage() {
       gst_claimable: form.gst_claimable,
       payment_method: form.payment_method,
       notes: form.notes || null,
+      receipt_url: form.receipt_url || null,
       updated_at: new Date().toISOString(),
     }
     let error
@@ -167,20 +176,79 @@ export default function ExpensesPage() {
     const file = e.target.files?.[0]
     if (!file) return
     setScanning(true)
+    setFxHint('')
+
+    // Show local preview immediately
+    const localUrl = URL.createObjectURL(file)
+    setReceiptPreview(localUrl)
+
     try {
+      // Upload to Supabase storage
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const filePath = `expenses/${Date.now()}.${ext}`
+      const { error: uploadErr } = await supabase.storage
+        .from('receipts')
+        .upload(filePath, file, { upsert: false })
+
+      let receiptUrl = ''
+      if (!uploadErr) {
+        const { data: { publicUrl } } = supabase.storage.from('receipts').getPublicUrl(filePath)
+        receiptUrl = publicUrl
+        setForm(prev => ({ ...prev, receipt_url: publicUrl }))
+        setReceiptPreview(publicUrl)
+      }
+
+      // AI parse
       const fd = new FormData()
       fd.append('image', file)
       const res = await fetch('/api/finance/parse-receipt', { method: 'POST', body: fd })
       if (!res.ok) throw new Error('Parsing failed')
       const parsed = await res.json()
+
+      const detectedCurrency: string = parsed.currency ?? 'SGD'
+      const detectedAmount: number | null = parsed.amount ?? null
+
+      // Fetch live exchange rate if currency ≠ SGD
+      let amountSgd = ''
+      let amountForeign = ''
+      let exchangeRate = '1'
+      let hint = ''
+
+      if (detectedAmount !== null) {
+        if (detectedCurrency === 'SGD') {
+          amountSgd = detectedAmount.toString()
+        } else {
+          amountForeign = detectedAmount.toString()
+          try {
+            const rateRes = await fetch(`https://open.er-api.com/v6/latest/SGD`)
+            const rateData = await rateRes.json()
+            const rateToForeign: number = rateData.rates?.[detectedCurrency]
+            if (rateToForeign && rateToForeign > 0) {
+              const rate = 1 / rateToForeign
+              exchangeRate = rate.toFixed(6)
+              const converted = detectedAmount * rate
+              amountSgd = converted.toFixed(2)
+              hint = `Rate: 1 ${detectedCurrency} = ${rate.toFixed(4)} SGD (live)`
+            }
+          } catch {
+            hint = `Currency: ${detectedCurrency} — enter exchange rate manually`
+          }
+        }
+      }
+
+      setFxHint(hint)
       setForm(f => ({
         ...f,
         date: parsed.date ?? f.date,
         vendor: parsed.vendor ?? f.vendor,
         description: parsed.description ?? f.description,
-        amount_sgd: parsed.amount?.toString() ?? f.amount_sgd,
-        gst_amount: parsed.gst?.toString() ?? f.gst_amount,
         category: parsed.category ?? f.category,
+        currency: detectedCurrency,
+        amount_foreign: amountForeign || f.amount_foreign,
+        exchange_rate: exchangeRate,
+        amount_sgd: amountSgd || f.amount_sgd,
+        gst_amount: parsed.gst?.toString() ?? f.gst_amount,
+        receipt_url: receiptUrl || f.receipt_url,
       }))
     } catch {
       alert('Receipt scanning failed — please fill in manually')
@@ -234,7 +302,7 @@ export default function ExpensesPage() {
           <div className="py-12 text-center text-gray-400">Loading...</div>
         ) : expenses.length === 0 ? (
           <div className="py-12 text-center text-gray-400">
-            <Receipt size={32} className="mx-auto mb-2 opacity-30" />
+            <ReceiptIcon size={32} className="mx-auto mb-2 opacity-30" />
             <p className="text-sm">No expenses found</p>
           </div>
         ) : (
@@ -244,13 +312,22 @@ export default function ExpensesPage() {
               {expenses.map((exp: any) => (
                 <div key={exp.id} className="p-4" onClick={() => exp.status !== 'posted' && openEdit(exp)}>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="font-medium text-gray-900 truncate">{exp.vendor}</div>
                       {exp.description && <div className="text-xs text-gray-400 truncate">{exp.description}</div>}
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-semibold text-gray-900">{sgd(exp.amount_sgd)}</div>
-                      <div className="text-xs text-gray-400">{new Date(exp.date).toLocaleDateString('en-SG')}</div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {exp.receipt_url && (
+                        <a href={exp.receipt_url} target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="w-8 h-8 rounded overflow-hidden border border-gray-200 shrink-0 block">
+                          <img src={exp.receipt_url} alt="receipt" className="w-full h-full object-cover" />
+                        </a>
+                      )}
+                      <div className="text-right">
+                        <div className="font-semibold text-gray-900">{sgd(exp.amount_sgd)}</div>
+                        <div className="text-xs text-gray-400">{new Date(exp.date).toLocaleDateString('en-SG')}</div>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -297,6 +374,7 @@ export default function ExpensesPage() {
                   <th className="text-right px-4 py-3 font-medium">Amount (SGD)</th>
                   <th className="text-right px-4 py-3 font-medium">GST</th>
                   <th className="text-left px-4 py-3 font-medium">Payment</th>
+                  <th className="text-center px-3 py-3 font-medium">Receipt</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>
                   <th className="text-right px-4 py-3 font-medium">Actions</th>
                 </tr>
@@ -310,9 +388,24 @@ export default function ExpensesPage() {
                       {exp.description && <div className="text-xs text-gray-400">{exp.description}</div>}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{CATEGORIES.find(c => c.value === exp.category)?.label ?? exp.category}</td>
-                    <td className="px-4 py-3 text-right font-medium">{sgd(exp.amount_sgd)}</td>
+                    <td className="px-4 py-3 text-right font-medium">
+                      {sgd(exp.amount_sgd)}
+                      {exp.currency && exp.currency !== 'SGD' && exp.amount_foreign && (
+                        <div className="text-xs text-gray-400">{exp.currency} {exp.amount_foreign}</div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right text-gray-400 text-xs">{exp.gst_amount > 0 ? sgd(exp.gst_amount) : '—'}</td>
                     <td className="px-4 py-3 text-xs text-gray-500">{PAYMENT_METHODS.find(p => p.value === exp.payment_method)?.label ?? '—'}</td>
+                    <td className="px-3 py-2 text-center">
+                      {exp.receipt_url ? (
+                        <a href={exp.receipt_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-block w-9 h-9 rounded border border-gray-200 overflow-hidden hover:border-gray-400 transition-colors">
+                          <img src={exp.receipt_url} alt="receipt" className="w-full h-full object-cover" />
+                        </a>
+                      ) : (
+                        <span className="text-gray-200">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[exp.status] ?? 'bg-gray-100 text-gray-500'}`}>
                         {exp.status}
@@ -364,11 +457,11 @@ export default function ExpensesPage() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h2 className="font-semibold text-gray-900">{editing ? 'Edit Expense' : 'New Expense'}</h2>
               <div className="flex items-center gap-2">
-                {/* AI Receipt Scan */}
+                {/* AI Receipt Scan + Photo Attach */}
                 <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium cursor-pointer transition-colors ${scanning ? 'opacity-50' : 'hover:bg-gray-50'}`}>
                   {scanning ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
                   {scanning ? 'Scanning…' : 'Scan Receipt'}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleScanReceipt} disabled={scanning} />
+                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanReceipt} disabled={scanning} />
                 </label>
                 <button onClick={() => setDrawerOpen(false)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400">
                   <X size={16} />
@@ -376,7 +469,27 @@ export default function ExpensesPage() {
               </div>
             </div>
 
+            {/* Receipt thumbnail */}
+            {receiptPreview && (
+              <div className="px-5 pt-4">
+                <div className="relative inline-block">
+                  <img src={receiptPreview} alt="Receipt" className="max-h-40 rounded-lg border border-gray-200 object-contain w-full" />
+                  <button
+                    onClick={() => { setReceiptPreview(''); setForm(p => ({ ...p, receipt_url: '' })) }}
+                    className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-900 text-white flex items-center justify-center hover:bg-red-500">
+                    <X size={10} />
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 p-5 space-y-4">
+              {fxHint && (
+                <div className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                  {fxHint}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-gray-500 uppercase">Date *</label>
@@ -406,43 +519,63 @@ export default function ExpensesPage() {
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase">Amount SGD *</label>
-                  <input type="number" step="0.01" min="0" value={form.amount_sgd} onChange={e => f('amount_sgd', e.target.value)}
-                    placeholder="0.00"
-                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none text-right font-mono" />
+              {/* Currency section — currency selector always visible */}
+              <div className="border border-gray-100 rounded-lg p-3 bg-gray-50/50 space-y-2">
+                <label className="text-xs font-medium text-gray-500 uppercase">Amount</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <select value={form.currency} onChange={e => f('currency', e.target.value)}
+                    className="h-9 rounded-md border border-gray-200 px-2 text-sm bg-white focus:outline-none">
+                    {['SGD','USD','EUR','GBP','JPY','CNY','HKD','AUD','MYR','IDR','THB','VND'].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                  <input type="number" step="0.01" min="0"
+                    value={form.currency === 'SGD' ? form.amount_sgd : form.amount_foreign}
+                    onChange={e => form.currency === 'SGD'
+                      ? f('amount_sgd', e.target.value)
+                      : f('amount_foreign', e.target.value)}
+                    placeholder="Amount *"
+                    className="h-9 rounded-md border border-gray-200 px-3 text-sm bg-white focus:outline-none text-right font-mono" />
+                  {form.currency !== 'SGD' ? (
+                    <div>
+                      <input type="number" step="0.000001" value={form.exchange_rate}
+                        onChange={e => f('exchange_rate', e.target.value)}
+                        placeholder="Rate to SGD"
+                        className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm bg-white focus:outline-none text-right font-mono" />
+                    </div>
+                  ) : (
+                    <div className="h-9 flex items-center justify-end px-3 text-sm font-medium text-gray-900 bg-white rounded-md border border-gray-200">
+                      SGD
+                    </div>
+                  )}
                 </div>
+                {form.currency !== 'SGD' && (
+                  <div>
+                    <label className="text-xs text-gray-400">Amount SGD *</label>
+                    <input type="number" step="0.01" min="0" value={form.amount_sgd}
+                      onChange={e => f('amount_sgd', e.target.value)}
+                      placeholder="Equivalent in SGD"
+                      className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm bg-white focus:outline-none text-right font-mono" />
+                    {form.exchange_rate && form.amount_foreign && (
+                      <p className="text-xs text-gray-400 mt-1 text-right">
+                        {form.amount_foreign} {form.currency} × {form.exchange_rate} = {(parseFloat(form.amount_foreign) * parseFloat(form.exchange_rate)).toFixed(2)} SGD
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-gray-500 uppercase">GST (9%)</label>
                   <input type="number" step="0.01" min="0" value={form.gst_amount} onChange={e => f('gst_amount', e.target.value)}
                     placeholder="0.00"
                     className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none text-right font-mono" />
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="gst_claimable" checked={form.gst_claimable} onChange={e => f('gst_claimable', e.target.checked)}
-                  className="rounded border-gray-300" />
-                <label htmlFor="gst_claimable" className="text-sm text-gray-700">GST input tax claimable from IRAS</label>
-              </div>
-
-              <div className="border-t border-gray-100 pt-3">
-                <label className="text-xs font-medium text-gray-500 uppercase">Foreign Currency (optional)</label>
-                <div className="grid grid-cols-3 gap-2 mt-1">
-                  <select value={form.currency} onChange={e => f('currency', e.target.value)}
-                    className="h-9 rounded-md border border-gray-200 px-2 text-sm focus:outline-none">
-                    {['SGD','USD','EUR','GBP','JPY','CNY','HKD','AUD'].map(c => <option key={c}>{c}</option>)}
-                  </select>
-                  <input type="number" step="0.01" value={form.amount_foreign} onChange={e => f('amount_foreign', e.target.value)}
-                    placeholder="Amount"
-                    className="h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none text-right font-mono" />
-                  <div className="relative">
-                    <input type="number" step="0.000001" value={form.exchange_rate} onChange={e => f('exchange_rate', e.target.value)}
-                      placeholder="Rate"
-                      className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none text-right font-mono" />
-                    <span className="absolute left-2 top-2 text-xs text-gray-400">×</span>
-                  </div>
+                <div className="flex items-end pb-2">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={form.gst_claimable} onChange={e => f('gst_claimable', e.target.checked)}
+                      className="rounded border-gray-300" />
+                    GST claimable
+                  </label>
                 </div>
               </div>
 
@@ -459,6 +592,30 @@ export default function ExpensesPage() {
                 <textarea value={form.notes} onChange={e => f('notes', e.target.value)} rows={2}
                   className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none resize-none" />
               </div>
+
+              {/* Manual photo attach without scan */}
+              {!receiptPreview && (
+                <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer hover:text-gray-700 border border-dashed border-gray-200 rounded-lg px-4 py-3 hover:border-gray-300 transition-colors">
+                  <ImageIcon size={16} />
+                  Attach photo (no AI scan)
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      const localUrl = URL.createObjectURL(file)
+                      setReceiptPreview(localUrl)
+                      const ext = file.name.split('.').pop() ?? 'jpg'
+                      const filePath = `expenses/${Date.now()}.${ext}`
+                      const { error } = await supabase.storage.from('receipts').upload(filePath, file)
+                      if (!error) {
+                        const { data: { publicUrl } } = supabase.storage.from('receipts').getPublicUrl(filePath)
+                        setReceiptPreview(publicUrl)
+                        setForm(p => ({ ...p, receipt_url: publicUrl }))
+                      }
+                      e.target.value = ''
+                    }} />
+                </label>
+              )}
             </div>
 
             <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
@@ -478,7 +635,7 @@ export default function ExpensesPage() {
   )
 }
 
-function Receipt({ size, className }: { size: number; className?: string }) {
+function ReceiptIcon({ size, className }: { size: number; className?: string }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>

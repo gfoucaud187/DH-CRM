@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronDown, ChevronRight, BookOpen } from 'lucide-react'
+import { ChevronDown, ChevronRight, BookOpen, Info } from 'lucide-react'
 
 const sgd = (n: number) =>
   new Intl.NumberFormat('en-SG', { style: 'currency', currency: 'SGD' }).format(n)
@@ -69,6 +69,15 @@ export default function JournalPage() {
         </div>
         <div className="text-sm text-gray-500">
           {filteredEntries.filter(e => e.status === 'posted').length} posted · {sgd(totalDebits)} total
+        </div>
+      </div>
+
+      {/* Info banner */}
+      <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4 text-sm text-blue-800">
+        <Info size={16} className="mt-0.5 text-blue-500 shrink-0" />
+        <div>
+          <span className="font-medium">The GL is auto-populated.</span>
+          {' '}Journal entries are created automatically when you <span className="font-medium">Post</span> an expense (Expenses page) or <span className="font-medium">Post to Journal</span> for payroll. Manual entry is not available — all entries originate from source documents.
         </div>
       </div>
 

@@ -32,13 +32,14 @@ export async function POST(request: NextRequest) {
             },
             {
               type: 'text',
-              text: `Extract expense details from this receipt. Return ONLY a JSON object with these fields (null if not found):
+              text: `Extract expense details from this receipt image. Return ONLY a JSON object with these fields (null if not found):
 {
   "date": "YYYY-MM-DD",
   "vendor": "vendor name",
   "description": "brief description of purchase",
-  "amount": number (total amount in SGD, excluding GST if shown separately),
-  "gst": number (GST amount if shown, else null),
+  "currency": "3-letter ISO currency code (SGD, USD, EUR, GBP, JPY, CNY, HKD, AUD, etc.) — detect from receipt, default to SGD",
+  "amount": number (total amount in the receipt's original currency, excluding GST if shown separately),
+  "gst": number (GST/tax amount if shown, else null),
   "category": one of: office|travel|meals|utilities|professional|marketing|rent|bank_charges|freight|other
 }
 Return only the JSON, no other text.`,
