@@ -9,8 +9,8 @@ import { createClient } from '@/lib/supabase/client';
 import {
   LayoutDashboard, Package, Users, Handshake, DollarSign,
   ShoppingCart, Warehouse, BarChart3, FolderOpen, Settings,
-  ListChecks, LogOut, Target, Store, ChevronLeft, ChevronRight, 
-  ShoppingBag
+  ListChecks, LogOut, Target, Store, ChevronLeft, ChevronRight,
+  ShoppingBag, Menu, X
 } from 'lucide-react';
 import './sidebar.css';
 
@@ -49,6 +49,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const supabase = createClient();
 
   const { data: pendingPOCount = 0 } = useQuery({
@@ -74,7 +75,30 @@ export default function Sidebar() {
   const DH_LOGO = 'https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_dark_background.png';
 
   return (
-    <aside className={`admin-sidebar ${collapsed ? 'collapsed' : 'expanded'}`}>
+    <>
+      {/* Mobile top bar */}
+      <div className="fixed top-0 left-0 right-0 h-14 bg-[#0e1a2b] flex items-center px-4 z-40 md:hidden">
+        <button
+          onClick={() => setMobileOpen(o => !o)}
+          className="text-gray-300 hover:text-white p-1"
+        >
+          {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
+        <div className="ml-3 flex items-center gap-2">
+          <StarLogo size={22} />
+          <span className="text-white font-bold text-lg" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Stellar</span>
+        </div>
+      </div>
+
+      {/* Overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+    <aside className={`admin-sidebar ${collapsed ? 'collapsed' : 'expanded'} ${mobileOpen ? 'mobile-open' : ''}`}>
 
       {/* Header */}
       <div className="sb-header" style={{ padding: collapsed ? '0' : '4px 6px 0' }}>
@@ -129,5 +153,6 @@ export default function Sidebar() {
       </button>
 
     </aside>
+    </>
   );
 }

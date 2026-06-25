@@ -97,26 +97,28 @@ export default function PriceListsPage() {
     return edits[key] !== undefined && parseFloat(edits[key]) !== current
   }
 
+  const listsToShow = listFilter === 'All' ? LISTS : [listFilter]
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Price Lists</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{rows.length} products · click any price to edit</p>
+          <p className="text-gray-500 text-sm mt-0.5">{rows.length} products · tap any price to edit</p>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div className="relative flex-1 min-w-48">
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
           <input type="text" placeholder="Search SKU or product..."
             value={search} onChange={e => setSearch(e.target.value)}
             className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none" />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-0.5 flex-nowrap">
           {['All', ...LISTS].map(l => (
             <button key={l} onClick={() => setListFilter(l)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0 ${
                 listFilter === l ? 'bg-gray-900 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}>
               {l}
@@ -134,64 +136,117 @@ export default function PriceListsPage() {
             <p className="text-sm">No price entries found</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">SKU</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
-                {LISTS.map(l => (
-                  <th key={l} className="text-right px-4 py-3 font-medium text-gray-600">
-                    <span className={`px-2 py-0.5 rounded text-xs ${LIST_COLORS[l]}`}>{l}</span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
+          <>
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-gray-100">
               {(rows as any[]).map((row: any) => (
-                <tr key={row.sku} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{row.sku}</td>
-                  <td className="px-4 py-3 text-gray-900">{row.product_name}</td>
-                  {LISTS.map(l => {
-                    const key = editKey(row.sku, l)
-                    const current = row.prices[l]?.price ?? 0
-                    const currency = row.prices[l]?.currency ?? 'USD'
-                    const isEdited = hasEdit(row.sku, l)
-                    const isSaving = saving === key
-                    const isSaved = saved === key
-
-                    return (
-                      <td key={l} className="px-4 py-2 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={getEditValue(row.sku, l, current)}
-                            onChange={e => handleEdit(row.sku, l, e.target.value)}
-                            className={`w-24 h-8 rounded border px-2 text-right text-sm font-medium focus:outline-none transition-colors ${
-                              isEdited ? 'border-blue-400 bg-blue-50 text-blue-900' : 'border-gray-200 text-gray-900'
-                            } ${current === 0 && !isEdited ? 'text-gray-300' : ''}`}
-                          />
-                          <span className="text-xs text-gray-400 w-7">{currency}</span>
-                          {isEdited && (
-                            <button
-                              onClick={() => handleSave(row.sku, l, row)}
-                              disabled={isSaving}
-                              className="h-8 w-8 flex items-center justify-center rounded bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50 flex-shrink-0">
-                              {isSaved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
-                            </button>
-                          )}
+                <div key={row.sku} className="px-4 py-3">
+                  <div className="mb-2">
+                    <p className="font-medium text-gray-900 text-sm">{row.product_name}</p>
+                    <p className="font-mono text-xs text-gray-400">{row.sku}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {listsToShow.map(l => {
+                      const key = editKey(row.sku, l)
+                      const current = row.prices[l]?.price ?? 0
+                      const currency = row.prices[l]?.currency ?? 'USD'
+                      const isEdited = hasEdit(row.sku, l)
+                      const isSaving = saving === key
+                      const isSaved = saved === key
+                      return (
+                        <div key={l} className="flex flex-col gap-1">
+                          <span className={`self-start px-1.5 py-0.5 rounded text-xs font-medium ${LIST_COLORS[l]}`}>{l}</span>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={getEditValue(row.sku, l, current)}
+                              onChange={e => handleEdit(row.sku, l, e.target.value)}
+                              className={`flex-1 h-9 rounded border px-2 text-right text-sm font-medium focus:outline-none transition-colors ${
+                                isEdited ? 'border-blue-400 bg-blue-50 text-blue-900' : 'border-gray-200 text-gray-900'
+                              } ${current === 0 && !isEdited ? 'text-gray-300' : ''}`}
+                            />
+                            <span className="text-xs text-gray-400">{currency}</span>
+                            {isEdited && (
+                              <button
+                                onClick={() => handleSave(row.sku, l, row)}
+                                disabled={isSaving}
+                                className="h-9 w-9 flex items-center justify-center rounded bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50 flex-shrink-0">
+                                {isSaved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </td>
-                    )
-                  })}
-                </tr>
+                      )
+                    })}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">SKU</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
+                    {LISTS.map(l => (
+                      <th key={l} className="text-right px-4 py-3 font-medium text-gray-600">
+                        <span className={`px-2 py-0.5 rounded text-xs ${LIST_COLORS[l]}`}>{l}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {(rows as any[]).map((row: any) => (
+                    <tr key={row.sku} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{row.sku}</td>
+                      <td className="px-4 py-3 text-gray-900">{row.product_name}</td>
+                      {LISTS.map(l => {
+                        const key = editKey(row.sku, l)
+                        const current = row.prices[l]?.price ?? 0
+                        const currency = row.prices[l]?.currency ?? 'USD'
+                        const isEdited = hasEdit(row.sku, l)
+                        const isSaving = saving === key
+                        const isSaved = saved === key
+
+                        return (
+                          <td key={l} className="px-4 py-2 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={getEditValue(row.sku, l, current)}
+                                onChange={e => handleEdit(row.sku, l, e.target.value)}
+                                className={`w-24 h-8 rounded border px-2 text-right text-sm font-medium focus:outline-none transition-colors ${
+                                  isEdited ? 'border-blue-400 bg-blue-50 text-blue-900' : 'border-gray-200 text-gray-900'
+                                } ${current === 0 && !isEdited ? 'text-gray-300' : ''}`}
+                              />
+                              <span className="text-xs text-gray-400 w-7">{currency}</span>
+                              {isEdited && (
+                                <button
+                                  onClick={() => handleSave(row.sku, l, row)}
+                                  disabled={isSaving}
+                                  className="h-8 w-8 flex items-center justify-center rounded bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50 flex-shrink-0">
+                                  {isSaved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
-      <p className="text-xs text-gray-400 mt-3 text-center">Click any price field to edit · Save button appears when a value is changed</p>
+      <p className="text-xs text-gray-400 mt-3 text-center">Tap any price field to edit · Save button appears when a value is changed</p>
     </div>
   )
 }

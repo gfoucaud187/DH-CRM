@@ -48,19 +48,19 @@ export default function PartnersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Partners</h1>
           <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {(partners as any[]).length} partners</p>
         </div>
         <button onClick={() => router.push('/partners/new')}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
+          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors self-start sm:self-auto">
           <Plus className="h-4 w-4" /> Add Partner
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div className="relative flex-1 min-w-48">
+      <div className="flex flex-wrap gap-2 md:gap-3 mb-6">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
           <input type="text" placeholder="Search name, contact, country..."
             value={search} onChange={e => setSearch(e.target.value)}
@@ -90,49 +90,79 @@ export default function PartnersPage() {
             <p className="text-sm">No partners found</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Contact</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Country</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Payment Terms</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
+          <>
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-gray-100">
               {filtered.map((p: any) => (
-                <tr key={p.id} className="hover:bg-gray-50 transition-colors cursor-pointer"
+                <div key={p.id}
+                  className="px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
                   onClick={() => router.push('/partners/' + p.id + '/edit')}>
-                  <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
-                  <td className="px-4 py-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-gray-900">{p.name}</span>
                     <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (TYPE_COLORS[p.type] ?? 'bg-gray-100 text-gray-500')}>
                       {TYPE_LABELS[p.type] ?? p.type}
                     </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    <div>{p.contact_name ?? '—'}</div>
-                    {p.contact_email && <div className="text-xs text-gray-400">{p.contact_email}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{p.country ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{p.payment_terms ?? '—'}</td>
-                  <td className="px-4 py-3">
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">{p.contact_name ?? '—'}</p>
+                      <p className="text-xs text-gray-400">{p.country ?? '—'}{p.payment_terms ? ` · ${p.payment_terms}` : ''}</p>
+                    </div>
                     <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
                       {p.status}
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <button onClick={e => { e.stopPropagation(); router.push('/partners/' + p.id + '/edit') }}
-                      className="text-gray-400 hover:text-gray-900 p-1 rounded hover:bg-gray-100">
-                      <Edit className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Contact</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Country</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Payment Terms</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filtered.map((p: any) => (
+                    <tr key={p.id} className="hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => router.push('/partners/' + p.id + '/edit')}>
+                      <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
+                      <td className="px-4 py-3">
+                        <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (TYPE_COLORS[p.type] ?? 'bg-gray-100 text-gray-500')}>
+                          {TYPE_LABELS[p.type] ?? p.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        <div>{p.contact_name ?? '—'}</div>
+                        {p.contact_email && <div className="text-xs text-gray-400">{p.contact_email}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{p.country ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{p.payment_terms ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button onClick={e => { e.stopPropagation(); router.push('/partners/' + p.id + '/edit') }}
+                          className="text-gray-400 hover:text-gray-900 p-1 rounded hover:bg-gray-100">
+                          <Edit className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

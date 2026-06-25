@@ -47,12 +47,13 @@ export default function ProductsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
           <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {(products as any[]).length} products</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => {
               const headers = 'sku,full_name,brand,line,vitola,shape,wrapper,binder,filler,units_per_pack,pack_type,fixmer_reference,eu_ceg_id,length_inches,ring_gauge,net_weight_g,status,notes,price_g,price_g1,price_a1,price_special,currency'
@@ -64,10 +65,10 @@ export default function ProductsPage() {
               a.href = url; a.download = 'products-template.csv'; a.click()
               URL.revokeObjectURL(url)
             }}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+            className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
             📥 CSV Template
           </button>
-          <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer transition-colors">
+          <label className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer transition-colors">
             <Upload className="h-4 w-4" />
             Import CSV
             <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
@@ -90,8 +91,9 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div className="relative flex-1 min-w-48">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 md:gap-3 mb-6">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
           <input type="text" placeholder="Search SKU, name, brand..."
             value={search} onChange={e => setSearch(e.target.value)}
@@ -126,48 +128,81 @@ export default function ProductsPage() {
             <p className="text-sm">No products found</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">SKU</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Brand</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Vitola</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Units/Pack</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
+          <>
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-gray-100">
               {filtered.map((p: any) => (
-                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.sku}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">{p.full_name}</td>
-                  <td className="px-4 py-3 text-gray-600">{p.brand}</td>
-                  <td className="px-4 py-3 text-gray-600">{p.vitola ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{p.units_per_pack ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (ROLE_COLORS[p.product_role] ?? 'bg-gray-100 text-gray-500')}>
-                      {p.product_role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
+                <div key={p.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-mono text-xs text-gray-400">{p.sku}</span>
+                      <span className={'inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ' + (ROLE_COLORS[p.product_role] ?? 'bg-gray-100 text-gray-500')}>
+                        {p.product_role}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 truncate">{p.full_name}</p>
+                    <p className="text-xs text-gray-500">{p.brand}{p.vitola ? ` · ${p.vitola}` : ''}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
                       {p.status}
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
                     <button
                       onClick={() => router.push('/products/' + p.id + '/edit')}
                       className="text-gray-400 hover:text-gray-900 p-1 rounded hover:bg-gray-100">
                       <Edit className="h-4 w-4" />
                     </button>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">SKU</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Brand</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Vitola</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Units/Pack</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filtered.map((p: any) => (
+                    <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.sku}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{p.full_name}</td>
+                      <td className="px-4 py-3 text-gray-600">{p.brand}</td>
+                      <td className="px-4 py-3 text-gray-600">{p.vitola ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{p.units_per_pack ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (ROLE_COLORS[p.product_role] ?? 'bg-gray-100 text-gray-500')}>
+                          {p.product_role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => router.push('/products/' + p.id + '/edit')}
+                          className="text-gray-400 hover:text-gray-900 p-1 rounded hover:bg-gray-100">
+                          <Edit className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

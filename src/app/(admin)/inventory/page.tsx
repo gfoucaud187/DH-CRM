@@ -92,17 +92,17 @@ export default function InventoryPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
           <p className="text-gray-500 text-sm mt-0.5">
             {totalPacks.toLocaleString()} packs · {totalUnits.toLocaleString()} units total
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => document.getElementById('stock-movements-section')?.scrollIntoView({ behavior: 'smooth' })}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Stock Movements
           </button>
@@ -117,8 +117,8 @@ export default function InventoryPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div className="relative flex-1 min-w-48">
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
           <input
             type="text"
@@ -128,12 +128,12 @@ export default function InventoryPage() {
             className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-0.5 flex-nowrap">
           {['All', ...WAREHOUSES].map(w => (
             <button
               key={w}
               onClick={() => setWarehouseFilter(w)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0 ${
                 warehouseFilter === w
                   ? 'bg-gray-900 text-white'
                   : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
@@ -146,17 +146,17 @@ export default function InventoryPage() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 md:gap-3 mb-6">
         {WAREHOUSES.map(wh => {
           const whKey = wh.toLowerCase()
           const packs = inventory.reduce((s: number, r: any) => s + (r[`packs_${whKey}`] ?? 0), 0)
           const units = inventory.reduce((s: number, r: any) => s + (r[`units_${whKey}`] ?? 0), 0)
           return (
-            <div key={wh} className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${WH_COLORS[wh]}`}>{wh}</span>
+            <div key={wh} className="bg-white rounded-xl border border-gray-200 p-3 md:p-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${WH_COLORS[wh]}`}>{wh}</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{units.toLocaleString()}</p>
+              <p className="text-lg md:text-2xl font-bold text-gray-900">{units.toLocaleString()}</p>
               <p className="text-xs text-gray-400 mt-0.5">units</p>
               <p className="text-sm font-semibold text-gray-500 mt-1">{packs.toLocaleString()}</p>
               <p className="text-xs text-gray-400">packs</p>
@@ -175,64 +175,97 @@ export default function InventoryPage() {
             <p className="text-sm">No inventory records</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">SKU</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Brand</th>
-                {warehouseFilter === 'All' ? (
-                  WAREHOUSES.map(w => (
-                    <th key={w} className="text-right px-3 py-3 font-medium text-gray-600">
-                      <span className={`px-1.5 py-0.5 rounded text-xs ${WH_COLORS[w]}`}>{w}</span>
-                    </th>
-                  ))
-                ) : null}
-                <th className="text-right px-4 py-3 font-medium text-gray-600">
-                  {warehouseFilter === 'All' ? 'Total' : warehouseFilter}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
+          <>
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-gray-100">
               {filtered.map((row: any) => {
                 const stock = getStock(row)
                 return (
-                  <tr
+                  <div
                     key={row.sku}
-                    className="hover:bg-blue-50 transition-colors cursor-pointer"
+                    className="px-4 py-3 cursor-pointer hover:bg-blue-50 transition-colors"
                     onClick={() => setSelectedSku({ sku: row.sku, name: row.product_name })}
                   >
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{row.sku}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{row.product_name}</td>
-                    <td className="px-4 py-3 text-gray-600">{row.brand}</td>
-                    {warehouseFilter === 'All' ? (
-                      WAREHOUSES.map(w => {
-                        const wh = w.toLowerCase()
-                        const p = row[`packs_${wh}`] ?? 0
-                        return (
-                          <td key={w} className="px-3 py-3 text-right">
-                            {p > 0 ? (
-                              <span className="font-medium text-gray-900">{p}</span>
-                            ) : (
-                              <span className="text-gray-200">—</span>
-                            )}
-                          </td>
-                        )
-                      })
-                    ) : null}
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex flex-col items-end">
-                        <span className={`font-semibold ${stock.packs === 0 ? 'text-red-400' : stock.packs < 5 ? 'text-amber-500' : 'text-gray-900'}`}>
-                          {stock.packs} pk
-                        </span>
-                        <span className="text-xs text-gray-400">{stock.units} u</span>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="font-mono text-xs text-gray-400">{row.sku}</span>
+                      <span className={`text-sm font-bold ${stock.packs === 0 ? 'text-red-400' : stock.packs < 5 ? 'text-amber-500' : 'text-gray-900'}`}>
+                        {stock.packs} pk
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{row.product_name}</p>
+                        <p className="text-xs text-gray-500">{row.brand}</p>
                       </div>
-                    </td>
-                  </tr>
+                      <span className="text-xs text-gray-400">{stock.units} u</span>
+                    </div>
+                  </div>
                 )
               })}
-            </tbody>
-          </table>
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">SKU</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Brand</th>
+                    {warehouseFilter === 'All' ? (
+                      WAREHOUSES.map(w => (
+                        <th key={w} className="text-right px-3 py-3 font-medium text-gray-600">
+                          <span className={`px-1.5 py-0.5 rounded text-xs ${WH_COLORS[w]}`}>{w}</span>
+                        </th>
+                      ))
+                    ) : null}
+                    <th className="text-right px-4 py-3 font-medium text-gray-600">
+                      {warehouseFilter === 'All' ? 'Total' : warehouseFilter}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filtered.map((row: any) => {
+                    const stock = getStock(row)
+                    return (
+                      <tr
+                        key={row.sku}
+                        className="hover:bg-blue-50 transition-colors cursor-pointer"
+                        onClick={() => setSelectedSku({ sku: row.sku, name: row.product_name })}
+                      >
+                        <td className="px-4 py-3 font-mono text-xs text-gray-500">{row.sku}</td>
+                        <td className="px-4 py-3 font-medium text-gray-900">{row.product_name}</td>
+                        <td className="px-4 py-3 text-gray-600">{row.brand}</td>
+                        {warehouseFilter === 'All' ? (
+                          WAREHOUSES.map(w => {
+                            const wh = w.toLowerCase()
+                            const p = row[`packs_${wh}`] ?? 0
+                            return (
+                              <td key={w} className="px-3 py-3 text-right">
+                                {p > 0 ? (
+                                  <span className="font-medium text-gray-900">{p}</span>
+                                ) : (
+                                  <span className="text-gray-200">—</span>
+                                )}
+                              </td>
+                            )
+                          })
+                        ) : null}
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex flex-col items-end">
+                            <span className={`font-semibold ${stock.packs === 0 ? 'text-red-400' : stock.packs < 5 ? 'text-amber-500' : 'text-gray-900'}`}>
+                              {stock.packs} pk
+                            </span>
+                            <span className="text-xs text-gray-400">{stock.units} u</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -252,8 +285,8 @@ export default function InventoryPage() {
 
       {/* Add Stock Modal */}
       {showAddStock && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-md p-6">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40">
+          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl border border-gray-200 w-full sm:max-w-md p-6">
             <h2 className="font-semibold text-lg mb-4">Add Stock</h2>
             <div className="space-y-4">
               <div>

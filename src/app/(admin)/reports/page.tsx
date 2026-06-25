@@ -233,30 +233,32 @@ export default function ReportsPage() {
 
   return (
     <div className="max-w-6xl">
-      <div className="flex items-center justify-between mb-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
           <p className="text-gray-500 text-sm mt-0.5">Business intelligence & analytics</p>
         </div>
-        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
-          <Calendar className="h-4 w-4 text-gray-400 ml-2" />
+        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl overflow-x-auto flex-nowrap">
+          <Calendar className="h-4 w-4 text-gray-400 ml-2 flex-shrink-0" />
           {PERIODS.map(p => (
             <button key={p.id} onClick={() => setPeriod(p.id)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${period === p.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex-shrink-0 ${period === p.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               {p.label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl overflow-x-auto flex-nowrap">
         {TABS.map(t => {
           const Icon = t.icon
           return (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg text-sm font-medium transition-all flex-shrink-0 ${tab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               <Icon className="h-4 w-4" />
-              {t.label}
+              <span className="hidden sm:inline">{t.label}</span>
               {t.id === 'activity' && (healthCounts.dormant + healthCounts.at_risk) > 0 && (
                 <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
                   {healthCounts.dormant + healthCounts.at_risk}
@@ -270,16 +272,16 @@ export default function ReportsPage() {
       {/* ── OVERVIEW ── */}
       {tab === 'overview' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
               { label: 'Revenue',        value: fmt(periodRevenue), curr: periodRevenue, prev: prevRevenue, sub: `${periodInvoices.length} invoices` },
               { label: 'Units shipped',  value: periodUnits.toLocaleString(), curr: periodUnits, prev: prevUnits, sub: 'units' },
               { label: 'Active clients', value: activeClients.toString(), curr: activeClients, prev: prevClients, sub: 'ordered in period' },
             ].map(({ label, value, curr, prev, sub }) => (
-              <div key={label} className="bg-white rounded-xl border border-gray-200 p-5">
+              <div key={label} className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
                 <p className="text-sm text-gray-500 mb-1">{label}</p>
                 <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-bold text-gray-900">{value}</p>
+                  <p className="text-2xl md:text-3xl font-bold text-gray-900">{value}</p>
                   <Delta curr={curr} prev={prev} />
                 </div>
                 <p className="text-xs text-gray-400 mt-1">{sub}</p>
@@ -288,12 +290,12 @@ export default function ReportsPage() {
             ))}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
             <h2 className="font-semibold text-gray-900 mb-4">Revenue — last 12 months</h2>
-            <div className="flex items-end gap-2" style={{ height: '120px' }}>
+            <div className="flex items-end gap-1 md:gap-2" style={{ height: '120px' }}>
               {monthlyRevenue.map((m, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  {m.value > 0 && <span style={{ fontSize: '9px' }} className="text-gray-400">{fmt(m.value)}</span>}
+                  {m.value > 0 && <span style={{ fontSize: '9px' }} className="text-gray-400 hidden sm:block">{fmt(m.value)}</span>}
                   <div className="w-full rounded-t" style={{ height: `${Math.max((m.value/maxMonthly)*95, m.value > 0 ? 4 : 0)}px`, background: m.value > 0 ? '#185FA5' : '#F3F4F6' }} />
                   <span style={{ fontSize: '9px' }} className="text-gray-400">{m.label}</span>
                 </div>
@@ -301,28 +303,28 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
               <h2 className="font-semibold text-gray-900 mb-3">Top regions</h2>
               {regionList.slice(0,6).map(([region, data]) => (
                 <div key={region} className="flex items-center gap-3 mb-2.5">
-                  <span className="text-sm text-gray-600 w-28 truncate">{region}</span>
+                  <span className="text-sm text-gray-600 w-24 md:w-28 truncate">{region}</span>
                   <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxRegionRevenue)*100}%`, background: '#185FA5' }} />
                   </div>
-                  <span className="text-xs font-semibold text-gray-900 w-16 text-right">{fmt(data.revenue)}</span>
+                  <span className="text-xs font-semibold text-gray-900 w-14 md:w-16 text-right">{fmt(data.revenue)}</span>
                 </div>
               ))}
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
               <h2 className="font-semibold text-gray-900 mb-3">Top brands</h2>
               {brandList.slice(0,6).map(([brand, data]) => (
                 <div key={brand} className="flex items-center gap-3 mb-2.5">
-                  <span className="text-sm text-gray-600 w-28 truncate">{brand}</span>
+                  <span className="text-sm text-gray-600 w-24 md:w-28 truncate">{brand}</span>
                   <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxBrand)*100}%`, background: '#0F6E56' }} />
                   </div>
-                  <span className="text-xs font-semibold text-gray-900 w-16 text-right">{fmt(data.revenue)}</span>
+                  <span className="text-xs font-semibold text-gray-900 w-14 md:w-16 text-right">{fmt(data.revenue)}</span>
                 </div>
               ))}
             </div>
@@ -333,76 +335,78 @@ export default function ReportsPage() {
       {/* ── GEOGRAPHY ── */}
       {tab === 'geography' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { label: 'Regions',        value: regionList.length },
               { label: 'Active clients', value: customers.length },
               { label: 'Revenue',        value: fmt(periodRevenue) },
               { label: 'Avg per region', value: fmt(periodRevenue / Math.max(regionList.length, 1)) },
             ].map(({ label, value }) => (
-              <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
+              <div key={label} className="bg-white rounded-xl border border-gray-200 p-3 md:p-4">
                 <p className="text-xs text-gray-500 mb-1">{label}</p>
-                <p className="text-2xl font-bold text-gray-900">{value}</p>
+                <p className="text-xl md:text-2xl font-bold text-gray-900">{value}</p>
               </div>
             ))}
           </div>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-5 py-3 font-medium text-gray-600">Region</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Clients</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">{currentPeriod.vsLabel}</th>
-                  <th className="px-4 py-3 w-40" />
-                </tr>
-              </thead>
-              <tbody>
-                {regionList.map(([region, data]) => (
-                  <>
-                    <tr key={region} onClick={() => setExpandedRegion(expandedRegion === region ? null : region)}
-                      className="cursor-pointer hover:bg-gray-50 border-b border-gray-100">
-                      <td className="px-5 py-3 font-semibold text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <span className={`transition-transform ${expandedRegion === region ? 'rotate-90' : ''}`}>›</span>
-                          {region}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-600">{data.clients.length}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-gray-900">{fmt(data.revenue)}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{data.units.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right"><Delta curr={data.revenue} prev={data.prevRevenue} /></td>
-                      <td className="px-4 py-3">
-                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxRegionRevenue)*100}%`, background: '#185FA5' }} />
-                        </div>
-                      </td>
-                    </tr>
-                    {expandedRegion === region && data.clients.map((c: any) => {
-                      const cRev = periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-                      const cPrev = prevInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-                      const cUnits = periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
-                      return (
-                        <tr key={c.id} className="bg-blue-50 border-b border-blue-100 hover:bg-blue-100 cursor-pointer"
-                          onClick={e => { e.stopPropagation(); router.push('/reports/client/' + c.id) }}>
-                          <td className="px-5 py-2.5 pl-10 text-sm text-gray-700">{c.legal_name}</td>
-                          <td className="px-4 py-2.5 text-center">
-                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${c.eu_compliance_type === 'TT' ? 'bg-blue-100 text-blue-700' : c.eu_compliance_type === 'PR' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                              {c.eu_compliance_type ?? 'EXP'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2.5 text-right text-sm font-medium text-gray-900">{cRev > 0 ? fmt(cRev) : '—'}</td>
-                          <td className="px-4 py-2.5 text-right text-sm text-gray-600">{cUnits > 0 ? cUnits.toLocaleString() : '—'}</td>
-                          <td className="px-4 py-2.5 text-right"><Delta curr={cRev} prev={cPrev} /></td>
-                          <td className="px-4 py-2.5 text-right text-xs text-blue-600">View →</td>
-                        </tr>
-                      )
-                    })}
-                  </>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 md:px-5 py-3 font-medium text-gray-600">Region</th>
+                    <th className="text-center px-3 md:px-4 py-3 font-medium text-gray-600">Clients</th>
+                    <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600">Revenue</th>
+                    <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Units</th>
+                    <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600 hidden md:table-cell">{currentPeriod.vsLabel}</th>
+                    <th className="px-3 md:px-4 py-3 w-24 md:w-40 hidden sm:table-cell" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {regionList.map(([region, data]) => (
+                    <>
+                      <tr key={region} onClick={() => setExpandedRegion(expandedRegion === region ? null : region)}
+                        className="cursor-pointer hover:bg-gray-50 border-b border-gray-100">
+                        <td className="px-4 md:px-5 py-3 font-semibold text-gray-900">
+                          <div className="flex items-center gap-2">
+                            <span className={`transition-transform ${expandedRegion === region ? 'rotate-90' : ''}`}>›</span>
+                            {region}
+                          </div>
+                        </td>
+                        <td className="px-3 md:px-4 py-3 text-center text-gray-600">{data.clients.length}</td>
+                        <td className="px-3 md:px-4 py-3 text-right font-semibold text-gray-900">{fmt(data.revenue)}</td>
+                        <td className="px-3 md:px-4 py-3 text-right text-gray-600 hidden sm:table-cell">{data.units.toLocaleString()}</td>
+                        <td className="px-3 md:px-4 py-3 text-right hidden md:table-cell"><Delta curr={data.revenue} prev={data.prevRevenue} /></td>
+                        <td className="px-3 md:px-4 py-3 hidden sm:table-cell">
+                          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxRegionRevenue)*100}%`, background: '#185FA5' }} />
+                          </div>
+                        </td>
+                      </tr>
+                      {expandedRegion === region && data.clients.map((c: any) => {
+                        const cRev = periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+                        const cPrev = prevInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+                        const cUnits = periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+                        return (
+                          <tr key={c.id} className="bg-blue-50 border-b border-blue-100 hover:bg-blue-100 cursor-pointer"
+                            onClick={e => { e.stopPropagation(); router.push('/reports/client/' + c.id) }}>
+                            <td className="px-4 md:px-5 py-2.5 pl-10 text-sm text-gray-700">{c.legal_name}</td>
+                            <td className="px-3 md:px-4 py-2.5 text-center">
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${c.eu_compliance_type === 'TT' ? 'bg-blue-100 text-blue-700' : c.eu_compliance_type === 'PR' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                {c.eu_compliance_type ?? 'EXP'}
+                              </span>
+                            </td>
+                            <td className="px-3 md:px-4 py-2.5 text-right text-sm font-medium text-gray-900">{cRev > 0 ? fmt(cRev) : '—'}</td>
+                            <td className="px-3 md:px-4 py-2.5 text-right text-sm text-gray-600 hidden sm:table-cell">{cUnits > 0 ? cUnits.toLocaleString() : '—'}</td>
+                            <td className="px-3 md:px-4 py-2.5 text-right hidden md:table-cell"><Delta curr={cRev} prev={cPrev} /></td>
+                            <td className="px-3 md:px-4 py-2.5 text-right text-xs text-blue-600 hidden sm:table-cell">View →</td>
+                          </tr>
+                        )
+                      })}
+                    </>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -410,32 +414,32 @@ export default function ReportsPage() {
       {/* ── PRODUCTS ── */}
       {tab === 'products' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-5">
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
               <h2 className="font-semibold text-gray-900 mb-4">Revenue by brand</h2>
               {brandList.map(([brand, data]) => (
                 <div key={brand} className="flex items-center gap-3 mb-3">
-                  <span className="text-sm text-gray-700 w-32 truncate">{brand}</span>
+                  <span className="text-sm text-gray-700 w-24 md:w-32 truncate">{brand}</span>
                   <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full rounded-full flex items-center px-2"
                       style={{ width: `${Math.max((data.revenue/maxBrand)*100, 8)}%`, background: '#0F6E56' }}>
                       <span className="text-white" style={{ fontSize: '9px' }}>{fmt(data.revenue)}</span>
                     </div>
                   </div>
-                  <span className="text-xs text-gray-400 w-16 text-right">{data.units.toLocaleString()}u</span>
+                  <span className="text-xs text-gray-400 w-12 md:w-16 text-right">{data.units.toLocaleString()}u</span>
                 </div>
               ))}
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
               <h2 className="font-semibold text-gray-900 mb-4">Top products by units</h2>
               {productList.map(([name, data], i) => (
                 <div key={name} className="flex items-center gap-2 mb-2.5">
                   <span className="text-xs text-gray-400 w-4 text-right">{i+1}</span>
-                  <span className="text-xs text-gray-700 w-44 truncate" title={name}>{name}</span>
+                  <span className="text-xs text-gray-700 w-36 md:w-44 truncate" title={name}>{name}</span>
                   <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${(data.units/maxProduct)*100}%`, background: '#185FA5' }} />
                   </div>
-                  <span className="text-xs font-semibold text-gray-900 w-12 text-right">{data.units.toLocaleString()}</span>
+                  <span className="text-xs font-semibold text-gray-900 w-10 md:w-12 text-right">{data.units.toLocaleString()}</span>
                 </div>
               ))}
             </div>
@@ -446,48 +450,70 @@ export default function ReportsPage() {
       {/* ── CLIENTS ── */}
       {tab === 'clients' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-5 py-3 font-medium text-gray-600">#</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Region</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Orders</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">{currentPeriod.vsLabel}</th>
-                <th className="px-4 py-3 w-20" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {clientRevenue.map((c: any, i: number) => (
-                <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push('/reports/client/' + c.id)}>
-                  <td className="px-5 py-3 text-gray-400 text-xs">{i+1}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">{c.legal_name}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{c.region ?? c.country ?? '—'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full bg-blue-500" style={{ width: `${(c.revenue/maxClientRev)*100}%` }} />
-                      </div>
-                      <span className="font-semibold text-gray-900">{fmt(c.revenue)}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right text-gray-600">{c.units.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{c.orders}</td>
-                  <td className="px-4 py-3 text-right"><Delta curr={c.revenue} prev={c.prevRevenue} /></td>
-                  <td className="px-4 py-3 text-right text-xs text-blue-600">View →</td>
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {clientRevenue.map((c: any, i: number) => (
+              <div key={c.id} className="px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={() => router.push('/reports/client/' + c.id)}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs text-gray-400 flex-shrink-0">#{i+1}</span>
+                    <span className="font-medium text-gray-900 truncate">{c.legal_name}</span>
+                  </div>
+                  <Delta curr={c.revenue} prev={c.prevRevenue} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">{c.region ?? c.country ?? '—'}</span>
+                  <span className="font-semibold text-gray-900">{fmt(c.revenue)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-5 py-3 font-medium text-gray-600">#</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Region</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Orders</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">{currentPeriod.vsLabel}</th>
+                  <th className="px-4 py-3 w-20" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {clientRevenue.map((c: any, i: number) => (
+                  <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push('/reports/client/' + c.id)}>
+                    <td className="px-5 py-3 text-gray-400 text-xs">{i+1}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{c.legal_name}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{c.region ?? c.country ?? '—'}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-blue-500" style={{ width: `${(c.revenue/maxClientRev)*100}%` }} />
+                        </div>
+                        <span className="font-semibold text-gray-900">{fmt(c.revenue)}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-600">{c.units.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">{c.orders}</td>
+                    <td className="px-4 py-3 text-right"><Delta curr={c.revenue} prev={c.prevRevenue} /></td>
+                    <td className="px-4 py-3 text-right text-xs text-blue-600">View →</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* ── ACTIVITY ── */}
       {tab === 'activity' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { key: 'active',  label: 'Active',  count: healthCounts.active,  icon: CheckCircle,  color: 'text-green-600', bg: 'bg-green-50',  border: 'border-green-200', desc: '< 60 days, regular' },
               { key: 'at_risk', label: 'At risk', count: healthCounts.at_risk, icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50',  border: 'border-amber-200', desc: '60–120 days or low freq' },
@@ -496,25 +522,25 @@ export default function ReportsPage() {
             ].map(({ key, label, count, icon: Icon, color, bg, border, desc }) => (
               <button key={key}
                 onClick={() => setActivityFilter(activityFilter === key as any ? 'all' : key as any)}
-                className={`rounded-xl border-2 p-4 text-left transition-all ${activityFilter === key ? border + ' ' + bg : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                className={`rounded-xl border-2 p-3 md:p-4 text-left transition-all ${activityFilter === key ? border + ' ' + bg : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
                 <div className="flex items-center justify-between mb-2">
-                  <Icon className={`h-5 w-5 ${color}`} />
-                  <span className="text-2xl font-bold text-gray-900">{count}</span>
+                  <Icon className={`h-4 w-4 md:h-5 md:w-5 ${color}`} />
+                  <span className="text-xl md:text-2xl font-bold text-gray-900">{count}</span>
                 </div>
                 <p className={`text-sm font-medium ${color}`}>{label}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+                <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">{desc}</p>
               </button>
             ))}
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-4 md:px-5 py-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <h2 className="font-semibold text-gray-900">
                 Customer Activity Tracker
                 <span className="ml-2 text-sm font-normal text-gray-400">{filteredActivity.length} clients</span>
               </h2>
               <div className="flex items-center gap-3 text-xs text-gray-400">
-                <span>Heatmap = orders/month</span>
+                <span className="hidden sm:inline">Heatmap = orders/month</span>
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 rounded bg-gray-100" />0
                   <div className="w-3 h-3 rounded bg-blue-200 ml-1" />1
@@ -523,64 +549,100 @@ export default function ReportsPage() {
                 </div>
               </div>
             </div>
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  <th className="text-left px-5 py-3 font-medium text-gray-600">Client</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Region</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Last order</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Freq/mo</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">12M value</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">vs prev 12M</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Activity</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Score</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filteredActivity.map((c: any) => (
-                  <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push('/reports/client/' + c.id)}>
-                    <td className="px-5 py-3 font-medium text-gray-900">{c.legal_name}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{c.region ?? c.country ?? '—'}</td>
-                    <td className="px-4 py-3 text-center">
+
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-gray-100">
+              {filteredActivity.map((c: any) => (
+                <div key={c.id} className="px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={() => router.push('/reports/client/' + c.id)}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-gray-900 truncate max-w-[180px]">{c.legal_name}</span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <div className={`w-2 h-2 rounded-full ${c.health.dot}`} />
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.health.color}`}>{c.health.label}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500">{c.region ?? c.country ?? '—'}</p>
                       {c.lastOrderDate ? (
-                        <div>
-                          <p className="text-xs font-medium text-gray-700">{c.lastOrderDate.toLocaleDateString('en-GB')}</p>
-                          <p className={`text-xs ${c.lastOrderDays > 120 ? 'text-red-500 font-semibold' : c.lastOrderDays > 60 ? 'text-amber-600' : 'text-gray-400'}`}>
-                            {c.lastOrderDays}d ago
-                          </p>
-                        </div>
-                      ) : <span className="text-xs text-gray-300">Never</span>}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`text-xs font-medium ${c.freqPerMonth === 0 ? 'text-gray-300' : c.freqPerMonth < 0.5 ? 'text-amber-600' : 'text-green-600'}`}>
-                        {c.freqPerMonth === 0 ? '—' : c.freqPerMonth.toFixed(1)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">
-                      {c.revenue12m > 0 ? fmt(c.revenue12m) : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right"><Delta curr={c.revenue12m} prev={c.prevRevenue12m} /></td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-0.5 justify-center">
-                        {(c.heatmap ?? []).map((count: number, i: number) => (
-                          <div key={i} title={`${MONTHS[(new Date().getMonth() - 11 + i + 12) % 12]}: ${count}`}
-                            className="w-3.5 h-3.5 rounded-sm flex-shrink-0"
-                            style={{ background: count === 0 ? '#F3F4F6' : count === 1 ? '#BFDBFE' : count === 2 ? '#60A5FA' : '#1D4ED8' }} />
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <div className={`w-2 h-2 rounded-full ${c.health.dot}`} />
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.health.color}`}>{c.health.label}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-xs text-blue-600">View →</td>
+                        <p className={`text-xs ${c.lastOrderDays > 120 ? 'text-red-500 font-semibold' : c.lastOrderDays > 60 ? 'text-amber-600' : 'text-gray-400'}`}>
+                          {c.lastOrderDays}d ago
+                        </p>
+                      ) : <p className="text-xs text-gray-300">Never ordered</p>}
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      {(c.heatmap ?? []).map((count: number, i: number) => (
+                        <div key={i}
+                          className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                          style={{ background: count === 0 ? '#F3F4F6' : count === 1 ? '#BFDBFE' : count === 2 ? '#60A5FA' : '#1D4ED8' }} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-5 py-3 font-medium text-gray-600">Client</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Region</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Last order</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Freq/mo</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-600">12M value</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-600">vs prev 12M</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Activity</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Score</th>
+                    <th className="px-4 py-3" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredActivity.map((c: any) => (
+                    <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push('/reports/client/' + c.id)}>
+                      <td className="px-5 py-3 font-medium text-gray-900">{c.legal_name}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{c.region ?? c.country ?? '—'}</td>
+                      <td className="px-4 py-3 text-center">
+                        {c.lastOrderDate ? (
+                          <div>
+                            <p className="text-xs font-medium text-gray-700">{c.lastOrderDate.toLocaleDateString('en-GB')}</p>
+                            <p className={`text-xs ${c.lastOrderDays > 120 ? 'text-red-500 font-semibold' : c.lastOrderDays > 60 ? 'text-amber-600' : 'text-gray-400'}`}>
+                              {c.lastOrderDays}d ago
+                            </p>
+                          </div>
+                        ) : <span className="text-xs text-gray-300">Never</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`text-xs font-medium ${c.freqPerMonth === 0 ? 'text-gray-300' : c.freqPerMonth < 0.5 ? 'text-amber-600' : 'text-green-600'}`}>
+                          {c.freqPerMonth === 0 ? '—' : c.freqPerMonth.toFixed(1)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">
+                        {c.revenue12m > 0 ? fmt(c.revenue12m) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right"><Delta curr={c.revenue12m} prev={c.prevRevenue12m} /></td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-0.5 justify-center">
+                          {(c.heatmap ?? []).map((count: number, i: number) => (
+                            <div key={i} title={`${MONTHS[(new Date().getMonth() - 11 + i + 12) % 12]}: ${count}`}
+                              className="w-3.5 h-3.5 rounded-sm flex-shrink-0"
+                              style={{ background: count === 0 ? '#F3F4F6' : count === 1 ? '#BFDBFE' : count === 2 ? '#60A5FA' : '#1D4ED8' }} />
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <div className={`w-2 h-2 rounded-full ${c.health.dot}`} />
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.health.color}`}>{c.health.label}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-blue-600">View →</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
