@@ -108,9 +108,14 @@ export default function DocumentsPage() {
 
   const handleDownload = async (file: DocumentFile) => {
     setDownloading(file.id)
+    const win = window.open('', '_blank')
     try {
       const url = await getSignedUrl(supabase, file.file_path)
-      if (url) window.open(url, '_blank')
+      if (url && win) {
+        win.location.href = url
+      } else {
+        win?.close()
+      }
     } finally {
       setDownloading(null)
     }
