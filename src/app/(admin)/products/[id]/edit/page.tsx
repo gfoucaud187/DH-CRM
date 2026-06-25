@@ -228,15 +228,15 @@ export default function EditProductPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="font-semibold text-gray-900 mb-1">Price Lists</h2>
           <p className="text-xs text-gray-400 mb-4">Price per unit in USD — set to 0 or leave blank to remove</p>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0">
             {LISTS.map(list => (
               <div key={list} className="flex items-center gap-3">
-                <span className={`text-xs px-2 py-1 rounded font-semibold w-16 text-center ${LIST_COLORS[list]}`}>{list}</span>
+                <span className={`text-xs px-2 py-1 rounded font-semibold w-16 flex-shrink-0 text-center ${LIST_COLORS[list]}`}>{list}</span>
                 <input type="number" step="0.01" min="0"
                   value={prices[list]} onChange={e => setPrices(p => ({ ...p, [list]: e.target.value }))}
                   placeholder="0.00"
-                  className="flex-1 h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none text-right" />
-                <span className="text-xs text-gray-400">USD</span>
+                  className="flex-1 min-w-0 h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none text-right" />
+                <span className="text-xs text-gray-400 flex-shrink-0">USD</span>
               </div>
             ))}
           </div>
