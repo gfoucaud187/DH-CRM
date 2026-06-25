@@ -29,7 +29,10 @@ const ADDRESS_TYPES = [
   { value: 'warehouse', label: 'Warehouse' },
 ]
 
-const EU_COUNTRIES = COUNTRIES
+const EU_COUNTRIES = COUNTRIES.map(c => ({
+  ...c,
+  name: new Intl.DisplayNames(['en'], { type: 'region' }).of(c.code) ?? c.name
+})).sort((a, b) => a.name.localeCompare(b.name))
 const EU_COUNTRY_CODES = EU_CODES
 
 
