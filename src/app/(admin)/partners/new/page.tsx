@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { COUNTRIES } from '@/lib/countries'
+import { logActivity } from '@/lib/log-activity'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP']
 const PARTNER_TYPES = [
@@ -64,8 +65,15 @@ export default function NewPartnerPage() {
       status: 'active',
     })
     setSaving(false)
-    if (!error) router.push('/partners')
-    else alert('Error: ' + error.message)
+    if (!error) {
+      await logActivity({
+        action: 'create_partner',
+        entityType: 'partner',
+        entityRef: name,
+        metadata: { type, category: category || null, country: country || null },
+      })
+      router.push('/partners')
+    } else alert('Error: ' + error.message)
   }
 
   return (

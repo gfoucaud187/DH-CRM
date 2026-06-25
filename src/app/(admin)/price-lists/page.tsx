@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { DollarSign, Search, Save, Check } from 'lucide-react'
+import { logActivity } from '@/lib/log-activity'
 
 const LISTS = ['G', 'G1', 'A1', 'SPECIAL']
 const LIST_COLORS: Record<string, string> = {
@@ -81,6 +82,14 @@ export default function PriceListsPage() {
       })
     }
 
+    await logActivity({
+      action: 'update_price',
+      entityType: 'product',
+      entityRef: `${sku} · ${list}`,
+      oldValue: existing?.id ? { price: existing.price_per_unit } : undefined,
+      newValue: { price: newPrice },
+      metadata: { sku, price_list: list, product: row.product_name },
+    })
     setEdits(prev => { const n = { ...prev }; delete n[key]; return n })
     queryClient.invalidateQueries({ queryKey: ['price-list-entries'] })
     queryClient.invalidateQueries({ queryKey: ['price-entries-all'] })

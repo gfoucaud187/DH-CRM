@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { ArrowLeft, Save, Trash2, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { COUNTRIES } from '@/lib/countries'
+import { logActivity } from '@/lib/log-activity'
 
 const CURRENCIES    = ['USD', 'EUR', 'GBP']
 const PARTNER_TYPES = [
@@ -122,6 +123,13 @@ export default function EditPartnerPage() {
 
     setSaving(false)
     if (!error) {
+      await logActivity({
+        action: isNew ? 'create_partner' : 'update_partner',
+        entityType: 'partner',
+        entityId: isNew ? undefined : id as string,
+        entityRef: name,
+        metadata: { type, category: category || null, country: country || null },
+      })
       queryClient.invalidateQueries({ queryKey: ['partners'] })
       router.push('/partners')
     } else {
@@ -131,6 +139,13 @@ export default function EditPartnerPage() {
 
   const handleDelete = async () => {
     if (!confirm('Delete this partner?')) return
+    await logActivity({
+      action: 'delete_partner',
+      entityType: 'partner',
+      entityId: id as string,
+      entityRef: partner?.name,
+      metadata: { type: partner?.type },
+    })
     await supabase.from('partners').delete().eq('id', id as string)
     queryClient.invalidateQueries({ queryKey: ['partners'] })
     router.push('/partners')

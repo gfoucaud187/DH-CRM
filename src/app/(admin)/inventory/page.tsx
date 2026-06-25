@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Warehouse, Plus, Search } from 'lucide-react'
+import { logActivity } from '@/lib/log-activity'
 import SkuMovementsModal from '@/components/inventory/SkuMovementsModal'
 import StockMovementsView from '@/components/inventory/StockMovementsView'
 
@@ -79,6 +80,18 @@ export default function InventoryPage() {
     }, { onConflict: 'sku,warehouse,category' })
 
     if (!error) {
+      await logActivity({
+        action: 'adjust_inventory',
+        entityType: 'product',
+        entityRef: addForm.sku,
+        metadata: {
+          sku: addForm.sku,
+          product: addForm.product_name,
+          warehouse: addForm.warehouse,
+          packs: addForm.quantity_packs,
+          units: addForm.quantity_units,
+        },
+      })
       queryClient.invalidateQueries({ queryKey: ['inventory'] })
       setShowAddStock(false)
       setAddForm({ sku: '', product_name: '', brand: '', warehouse: 'T1', quantity_packs: 0, quantity_units: 0, notes: '' })

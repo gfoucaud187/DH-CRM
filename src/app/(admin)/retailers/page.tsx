@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Search, MapPin, Phone, Mail, Camera, Trash2, X, ChevronDown, ChevronUp, Edit, Save, ArrowLeft, Users, Store, User, Map } from 'lucide-react'
+import { logActivity } from '@/lib/log-activity'
 import dynamic from 'next/dynamic'
 
 const RetailersMap = dynamic(() => import('./map'), { ssr: false, loading: () => (
@@ -79,12 +80,26 @@ export default function RetailersPage() {
     const payload = { ...shopForm, updated_at: new Date().toISOString() }
     if (editingId) await supabase.from('retailers').update(payload).eq('id', editingId)
     else await supabase.from('retailers').insert(payload)
+    await logActivity({
+      action: editingId ? 'update_retailer' : 'create_retailer',
+      entityType: 'retailer',
+      entityId: editingId ?? undefined,
+      entityRef: shopForm.shop_name,
+      metadata: { city: shopForm.city || null, country: shopForm.country || null },
+    })
     queryClient.invalidateQueries({ queryKey: ['retailers'] })
     setView('list'); setSaving(false)
   }
 
   const handleDeleteShop = async (id: string) => {
     if (!confirm('Delete this retailer?')) return
+    const shop = (retailers as any[]).find((r: any) => r.id === id)
+    await logActivity({
+      action: 'delete_retailer',
+      entityType: 'retailer',
+      entityId: id,
+      entityRef: shop?.shop_name,
+    })
     await supabase.from('retailers').delete().eq('id', id)
     queryClient.invalidateQueries({ queryKey: ['retailers'] })
   }
@@ -140,12 +155,26 @@ export default function RetailersPage() {
     const payload = { ...b2cForm, retailer_id: b2cForm.retailer_id || null }
     if (editingId) await supabase.from('b2c_contacts').update(payload).eq('id', editingId)
     else await supabase.from('b2c_contacts').insert(payload)
+    await logActivity({
+      action: editingId ? 'update_b2c_contact' : 'create_b2c_contact',
+      entityType: 'b2c_contact',
+      entityId: editingId ?? undefined,
+      entityRef: `${b2cForm.first_name} ${b2cForm.last_name}`.trim(),
+      metadata: { event: b2cForm.event || null, country: b2cForm.country || null },
+    })
     queryClient.invalidateQueries({ queryKey: ['b2c-contacts'] })
     setView('list'); setSaving(false)
   }
 
   const handleDeleteB2c = async (id: string) => {
     if (!confirm('Delete this contact?')) return
+    const contact = (b2cContacts as any[]).find((c: any) => c.id === id)
+    await logActivity({
+      action: 'delete_b2c_contact',
+      entityType: 'b2c_contact',
+      entityId: id,
+      entityRef: contact ? `${contact.first_name} ${contact.last_name}`.trim() : undefined,
+    })
     await supabase.from('b2c_contacts').delete().eq('id', id)
     queryClient.invalidateQueries({ queryKey: ['b2c-contacts'] })
   }

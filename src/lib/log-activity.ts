@@ -20,8 +20,21 @@ export type LogAction =
   | 'update_purchase_order'
   | 'update_purchase_order_status'
   | 'delete_purchase_order'
+  | 'create_product'
+  | 'update_product'
+  | 'update_price'
+  | 'adjust_inventory'
+  | 'create_partner'
+  | 'update_partner'
+  | 'delete_partner'
+  | 'create_retailer'
+  | 'update_retailer'
+  | 'delete_retailer'
+  | 'create_b2c_contact'
+  | 'update_b2c_contact'
+  | 'delete_b2c_contact'
 
-export type LogEntity = 'order' | 'customer' | 'profile_request' | 'auth' | 'purchase_order'
+export type LogEntity = 'order' | 'customer' | 'profile_request' | 'auth' | 'purchase_order' | 'product' | 'partner' | 'retailer' | 'b2c_contact'
 
 interface LogParams {
   action: LogAction

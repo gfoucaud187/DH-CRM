@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { logActivity } from '@/lib/log-activity';
 import './login.css';
 
 interface Star {
@@ -67,6 +68,8 @@ export default function LoginPage() {
         .select('role')
         .eq('id', data.user.id)
         .single();
+
+      await logActivity({ action: 'login', entityType: 'auth' });
 
       if (profile?.role === 'customer') {
         router.push('/portal/dashboard');

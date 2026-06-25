@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Filter, LogIn, LogOut, ShoppingCart, FileText, Users, CheckCircle, XCircle, ArrowRight, Edit, Send, Package, Trash2 } from 'lucide-react'
+import { Search, Filter, LogIn, LogOut, ShoppingCart, FileText, Users, CheckCircle, XCircle, ArrowRight, Edit, Send, Package, Trash2, DollarSign, Warehouse, Store } from 'lucide-react'
 
 const ACTION_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
   login:                        { label: 'Login',                   icon: LogIn,       color: 'text-blue-600',   bg: 'bg-blue-50' },
@@ -25,6 +25,19 @@ const ACTION_CONFIG: Record<string, { label: string; icon: any; color: string; b
   update_purchase_order:        { label: 'Purchase order updated',  icon: Edit,        color: 'text-blue-600',   bg: 'bg-blue-50' },
   update_purchase_order_status: { label: 'PO status changed',       icon: ArrowRight,  color: 'text-amber-600',  bg: 'bg-amber-50' },
   delete_purchase_order:        { label: 'Purchase order deleted',  icon: Trash2,      color: 'text-red-600',    bg: 'bg-red-50' },
+  create_product:               { label: 'Product created',         icon: Package,     color: 'text-green-600',  bg: 'bg-green-50' },
+  update_product:               { label: 'Product updated',         icon: Edit,        color: 'text-blue-600',   bg: 'bg-blue-50' },
+  update_price:                 { label: 'Price updated',           icon: DollarSign,  color: 'text-amber-600',  bg: 'bg-amber-50' },
+  adjust_inventory:             { label: 'Inventory adjusted',      icon: Warehouse,   color: 'text-purple-600', bg: 'bg-purple-50' },
+  create_partner:               { label: 'Partner created',         icon: Users,       color: 'text-green-600',  bg: 'bg-green-50' },
+  update_partner:               { label: 'Partner updated',         icon: Edit,        color: 'text-blue-600',   bg: 'bg-blue-50' },
+  delete_partner:               { label: 'Partner deleted',         icon: Trash2,      color: 'text-red-600',    bg: 'bg-red-50' },
+  create_retailer:              { label: 'Retailer created',        icon: Store,       color: 'text-green-600',  bg: 'bg-green-50' },
+  update_retailer:              { label: 'Retailer updated',        icon: Edit,        color: 'text-blue-600',   bg: 'bg-blue-50' },
+  delete_retailer:              { label: 'Retailer deleted',        icon: Trash2,      color: 'text-red-600',    bg: 'bg-red-50' },
+  create_b2c_contact:           { label: 'B2C contact created',     icon: Users,       color: 'text-green-600',  bg: 'bg-green-50' },
+  update_b2c_contact:           { label: 'B2C contact updated',     icon: Edit,        color: 'text-blue-600',   bg: 'bg-blue-50' },
+  delete_b2c_contact:           { label: 'B2C contact deleted',     icon: Trash2,      color: 'text-red-600',    bg: 'bg-red-50' },
 }
 
 const FILTER_GROUPS = [
@@ -33,6 +46,9 @@ const FILTER_GROUPS = [
   { label: 'Orders',       value: 'orders' },
   { label: 'Purchases',    value: 'purchases' },
   { label: 'Distributors', value: 'customers' },
+  { label: 'Products',     value: 'products' },
+  { label: 'Partners',     value: 'partners' },
+  { label: 'Retailers',    value: 'retailers' },
   { label: 'Profile',      value: 'profile' },
 ]
 
@@ -41,6 +57,9 @@ const ACTION_GROUPS: Record<string, string[]> = {
   orders:    ['create_order', 'update_order', 'update_order_status', 'cancel_order', 'delete_order', 'promote_order', 'approve_po', 'reject_po'],
   purchases: ['create_purchase_order', 'update_purchase_order', 'update_purchase_order_status', 'delete_purchase_order'],
   customers: ['create_customer', 'update_customer'],
+  products:  ['create_product', 'update_product', 'update_price', 'adjust_inventory'],
+  partners:  ['create_partner', 'update_partner', 'delete_partner'],
+  retailers: ['create_retailer', 'update_retailer', 'delete_retailer', 'create_b2c_contact', 'update_b2c_contact', 'delete_b2c_contact'],
   profile:   ['submit_profile_request', 'approve_profile_request', 'reject_profile_request'],
 }
 

@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
+import { logActivity } from '@/lib/log-activity'
 
 const SHAPES = ['Round', 'Pointed', 'Figurado', 'Robusto', 'Toro', 'Churchill', 'Corona', 'Petit Corona', 'Lancero', 'Belicoso', 'Torpedo', 'Gordo', 'Minuto', 'Perfecto', 'Other']
 const PACK_TYPES = ['Box', 'Bundle', 'Tube', 'Jar', 'Tin', 'Other']
@@ -123,6 +124,13 @@ export default function EditProductPage() {
       }
     }
 
+    await logActivity({
+      action: 'update_product',
+      entityType: 'product',
+      entityId: id as string,
+      entityRef: sku,
+      metadata: { name: fullName, brand, status },
+    })
     setSaving(false)
     queryClient.invalidateQueries({ queryKey: ['products'] })
     queryClient.invalidateQueries({ queryKey: ['price-entries-all'] })

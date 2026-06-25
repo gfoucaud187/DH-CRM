@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
+import { logActivity } from '@/lib/log-activity'
 
 const SHAPES = ['Round', 'Pointed', 'Figurado', 'Robusto', 'Toro', 'Churchill', 'Corona', 'Petit Corona', 'Lancero', 'Belicoso', 'Torpedo', 'Gordo', 'Minuto', 'Perfecto', 'Other']
 const PACK_TYPES = ['Box', 'Bundle', 'Tube', 'Jar', 'Tin', 'Other']
@@ -72,6 +73,13 @@ export default function NewProductPage() {
       .map(l => ({ sku, product_name: fullName, price_list: l, price_per_unit: parseFloat(prices[l]), currency: 'USD' }))
     if (priceRows.length > 0) await supabase.from('price_list_entries').insert(priceRows)
 
+    await logActivity({
+      action: 'create_product',
+      entityType: 'product',
+      entityId: product.id,
+      entityRef: sku,
+      metadata: { name: fullName, brand: brand || null, status },
+    })
     setSaving(false)
     router.push('/products')
   }
