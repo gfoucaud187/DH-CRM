@@ -8,7 +8,6 @@ import { ArrowLeft, Save, Trash2, Plus, Package, Wrench, Box } from 'lucide-reac
 import Link from 'next/link'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP']
-
 const STATUS_FLOW = ['draft', 'sent', 'confirmed', 'received', 'cancelled']
 const STATUS_COLORS: Record<string, string> = {
   draft:     'bg-gray-100 text-gray-600',
@@ -24,6 +23,7 @@ interface Line {
   description: string
   quantity: number
   unit_price: number
+  received_unit_price: number | null
 }
 
 export default function PurchaseOrderDetailPage() {
@@ -66,19 +66,24 @@ export default function PurchaseOrderDetailPage() {
       description: l.description ?? '',
       quantity: l.quantity ?? 1,
       unit_price: l.unit_price ?? 0,
+      received_unit_price: l.received_unit_price ?? null,
     })))
   }, [po])
 
-  const addLine = () => setLines(l => [...l, { sku: '', description: '', quantity: 1, unit_price: 0 }])
+  const addLine = () => setLines(l => [...l, { sku: '', description: '', quantity: 1, unit_price: 0, received_unit_price: null }])
   const removeLine = (i: number) => setLines(l => l.filter((_, idx) => idx !== i))
   const updateLine = (i: number, field: keyof Line, value: any) =>
     setLines(l => l.map((ln, idx) => idx === i ? { ...ln, [field]: value } : ln))
 
-  const totalAmount = lines.reduce((s, l) => s + (l.quantity * l.unit_price), 0)
+  const isCigars = po?.po_type === 'cigars'
+  const isReceived = po?.status === 'received'
+
+  const totalAmount = isCigars
+    ? lines.reduce((s, l) => s + (l.quantity * (l.received_unit_price ?? 0)), 0)
+    : lines.reduce((s, l) => s + (l.quantity * l.unit_price), 0)
 
   const handleSave = async () => {
     setSaving(true)
-
     await supabase.from('purchase_orders').update({
       currency,
       order_date: orderDate,
@@ -89,7 +94,6 @@ export default function PurchaseOrderDetailPage() {
       updated_at: new Date().toISOString(),
     }).eq('id', id as string)
 
-    // Delete existing lines and re-insert
     await supabase.from('purchase_order_lines').delete().eq('po_id', id as string)
     const linesPayload = lines
       .filter(l => l.description.trim())
@@ -98,8 +102,12 @@ export default function PurchaseOrderDetailPage() {
         sku: l.sku || null,
         description: l.description,
         quantity: l.quantity,
-        unit_price: l.unit_price,
-        line_total: l.quantity * l.unit_price,
+        unit_price: isCigars ? null : l.unit_price,
+        line_total: isCigars
+          ? (l.received_unit_price != null ? l.quantity * l.received_unit_price : null)
+          : l.quantity * l.unit_price,
+        received_unit_price: l.received_unit_price,
+        received_total: l.received_unit_price != null ? l.quantity * l.received_unit_price : null,
       }))
     await supabase.from('purchase_order_lines').insert(linesPayload)
 
@@ -129,9 +137,7 @@ export default function PurchaseOrderDetailPage() {
   return (
     <div className="max-w-4xl">
       <div className="flex items-center gap-4 mb-6">
-        <Link href="/purchase-orders" className="text-gray-400 hover:text-gray-900">
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
+        <Link href="/purchase-orders" className="text-gray-400 hover:text-gray-900"><ArrowLeft className="h-5 w-5" /></Link>
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900 font-mono">{po.po_number}</h1>
@@ -164,8 +170,7 @@ export default function PurchaseOrderDetailPage() {
           <div className="flex items-center gap-1">
             {STATUS_FLOW.filter(s => s !== 'cancelled').map((s, i, arr) => (
               <div key={s} className="flex items-center gap-1 flex-1">
-                <button
-                  onClick={() => handleStatusChange(s)}
+                <button onClick={() => handleStatusChange(s)}
                   className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors text-center ${
                     po.status === s
                       ? 'bg-gray-900 text-white'
@@ -178,12 +183,9 @@ export default function PurchaseOrderDetailPage() {
                 {i < arr.length - 1 && <div className="w-4 h-px bg-gray-200 flex-shrink-0" />}
               </div>
             ))}
-            <button
-              onClick={() => handleStatusChange('cancelled')}
+            <button onClick={() => handleStatusChange('cancelled')}
               className={`ml-2 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
-                po.status === 'cancelled'
-                  ? 'bg-red-600 text-white'
-                  : 'border border-red-200 text-red-400 hover:bg-red-50'
+                po.status === 'cancelled' ? 'bg-red-600 text-white' : 'border border-red-200 text-red-400 hover:bg-red-50'
               }`}>
               Cancel
             </button>
@@ -209,8 +211,7 @@ export default function PurchaseOrderDetailPage() {
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Expected Delivery</label>
               <div className="flex items-center gap-2 mt-1">
-                <input type="date" value={deliveryTba ? '' : expectedDelivery}
-                  disabled={deliveryTba}
+                <input type="date" value={deliveryTba ? '' : expectedDelivery} disabled={deliveryTba}
                   onChange={e => setExpectedDelivery(e.target.value)}
                   className="flex-1 h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none disabled:bg-gray-50 disabled:text-gray-400" />
                 <label className="flex items-center gap-1 text-sm text-gray-500 cursor-pointer">
@@ -225,7 +226,15 @@ export default function PurchaseOrderDetailPage() {
         {/* Lines */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Line Items</h2>
+            <div>
+              <h2 className="font-semibold text-gray-900">Line Items</h2>
+              {isCigars && !isReceived && (
+                <p className="text-xs text-gray-400 mt-0.5">Unit prices will be captured upon receipt of supplier invoice</p>
+              )}
+              {isCigars && isReceived && (
+                <p className="text-xs text-amber-600 mt-0.5">Enter received unit prices from supplier invoice</p>
+              )}
+            </div>
             <button onClick={addLine}
               className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
               <Plus className="h-4 w-4" /> Add line
@@ -233,18 +242,31 @@ export default function PurchaseOrderDetailPage() {
           </div>
 
           <div className="space-y-2">
-            <div className={`grid gap-2 text-xs font-medium text-gray-400 uppercase px-2 ${po.po_type === 'cigars' ? 'grid-cols-[80px_1fr_80px_100px_80px_32px]' : 'grid-cols-[1fr_80px_100px_80px_32px]'}`}>
-              {po.po_type === 'cigars' && <span>SKU</span>}
+            <div className={`grid gap-2 text-xs font-medium text-gray-400 uppercase px-2 ${
+              isCigars
+                ? isReceived
+                  ? 'grid-cols-[80px_1fr_80px_110px_80px_32px]'
+                  : 'grid-cols-[80px_1fr_80px_32px]'
+                : 'grid-cols-[1fr_80px_100px_80px_32px]'
+            }`}>
+              {isCigars && <span>SKU</span>}
               <span>Description</span>
               <span className="text-right">Qty</span>
-              <span className="text-right">Unit Price</span>
-              <span className="text-right">Total</span>
+              {!isCigars && <span className="text-right">Unit Price</span>}
+              {isCigars && isReceived && <span className="text-right">Received Price</span>}
+              {(isCigars && isReceived) || !isCigars ? <span className="text-right">Total</span> : null}
               <span />
             </div>
 
             {lines.map((line, i) => (
-              <div key={i} className={`grid gap-2 items-center ${po.po_type === 'cigars' ? 'grid-cols-[80px_1fr_80px_100px_80px_32px]' : 'grid-cols-[1fr_80px_100px_80px_32px]'}`}>
-                {po.po_type === 'cigars' && (
+              <div key={i} className={`grid gap-2 items-center ${
+                isCigars
+                  ? isReceived
+                    ? 'grid-cols-[80px_1fr_80px_110px_80px_32px]'
+                    : 'grid-cols-[80px_1fr_80px_32px]'
+                  : 'grid-cols-[1fr_80px_100px_80px_32px]'
+              }`}>
+                {isCigars && (
                   <input value={line.sku} onChange={e => updateLine(i, 'sku', e.target.value)}
                     className="h-8 rounded border border-gray-200 px-2 text-sm font-mono focus:outline-none" />
                 )}
@@ -252,11 +274,25 @@ export default function PurchaseOrderDetailPage() {
                   className="h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
                 <input type="number" min="1" value={line.quantity} onChange={e => updateLine(i, 'quantity', parseFloat(e.target.value) || 0)}
                   className="h-8 rounded border border-gray-200 px-2 text-sm text-right focus:outline-none" />
-                <input type="number" min="0" step="0.01" value={line.unit_price} onChange={e => updateLine(i, 'unit_price', parseFloat(e.target.value) || 0)}
-                  className="h-8 rounded border border-gray-200 px-2 text-sm text-right focus:outline-none" />
-                <div className="text-sm font-medium text-gray-700 text-right">
-                  {(line.quantity * line.unit_price).toFixed(2)}
-                </div>
+                {!isCigars && (
+                  <input type="number" min="0" step="0.01" value={line.unit_price} onChange={e => updateLine(i, 'unit_price', parseFloat(e.target.value) || 0)}
+                    className="h-8 rounded border border-gray-200 px-2 text-sm text-right focus:outline-none" />
+                )}
+                {isCigars && isReceived && (
+                  <input type="number" min="0" step="0.01"
+                    value={line.received_unit_price ?? ''}
+                    onChange={e => updateLine(i, 'received_unit_price', parseFloat(e.target.value) || null)}
+                    placeholder="0.00"
+                    className="h-8 rounded border border-amber-200 bg-amber-50 px-2 text-sm text-right focus:outline-none focus:border-amber-400" />
+                )}
+                {(isCigars && isReceived) || !isCigars ? (
+                  <div className="text-sm font-medium text-gray-700 text-right">
+                    {isCigars
+                      ? (line.received_unit_price != null ? (line.quantity * line.received_unit_price).toFixed(2) : '—')
+                      : (line.quantity * line.unit_price).toFixed(2)
+                    }
+                  </div>
+                ) : null}
                 <button onClick={() => removeLine(i)}
                   className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded">
                   <Trash2 className="h-3.5 w-3.5" />
@@ -265,14 +301,17 @@ export default function PurchaseOrderDetailPage() {
             ))}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
-            <div className="text-right">
-              <div className="text-xs text-gray-400 uppercase">Total</div>
-              <div className="text-xl font-bold text-gray-900 mt-0.5">
-                {new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(totalAmount)}
+          {/* Total */}
+          {(!isCigars || isReceived) && (
+            <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
+              <div className="text-right">
+                <div className="text-xs text-gray-400 uppercase">Total</div>
+                <div className="text-xl font-bold text-gray-900 mt-0.5">
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(totalAmount)}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Notes */}

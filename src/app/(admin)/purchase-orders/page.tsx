@@ -1,9 +1,9 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Plus, Package, Wrench, Box } from 'lucide-react'
+import { Plus, Package, Wrench, Box, Trash2 } from 'lucide-react'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:     'bg-gray-100 text-gray-600',
@@ -27,6 +27,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function PurchaseOrdersPage() {
   const supabase = createClient()
+  const queryClient = useQueryClient()
 
   const { data: pos, isLoading } = useQuery({
     queryKey: ['purchase_orders'],
@@ -38,6 +39,12 @@ export default function PurchaseOrdersPage() {
       return data ?? []
     }
   })
+
+  const handleDelete = async (id: string, poNumber: string) => {
+    if (!confirm(`Delete ${poNumber}?`)) return
+    await supabase.from('purchase_orders').delete().eq('id', id)
+    queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
+  }
 
   return (
     <div>
@@ -68,6 +75,7 @@ export default function PurchaseOrdersPage() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Delivery</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -107,6 +115,12 @@ export default function PurchaseOrdersPage() {
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[po.status] ?? 'bg-gray-100 text-gray-600'}`}>
                         {po.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => handleDelete(po.id, po.po_number)}
+                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </td>
                   </tr>
                 )
