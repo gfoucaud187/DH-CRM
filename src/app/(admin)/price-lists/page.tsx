@@ -145,7 +145,7 @@ export default function PriceListsPage() {
                     <p className="font-medium text-gray-900 text-sm">{row.product_name}</p>
                     <p className="font-mono text-xs text-gray-400">{row.sku}</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
                     {listsToShow.map(l => {
                       const key = editKey(row.sku, l)
                       const current = row.prices[l]?.price ?? 0
@@ -154,29 +154,29 @@ export default function PriceListsPage() {
                       const isSaving = saving === key
                       const isSaved = saved === key
                       return (
-                        <div key={l} className="flex flex-col gap-1">
-                          <span className={`self-start px-1.5 py-0.5 rounded text-xs font-medium ${LIST_COLORS[l]}`}>{l}</span>
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={getEditValue(row.sku, l, current)}
-                              onChange={e => handleEdit(row.sku, l, e.target.value)}
-                              className={`flex-1 h-9 rounded border px-2 text-right text-sm font-medium focus:outline-none transition-colors ${
-                                isEdited ? 'border-blue-400 bg-blue-50 text-blue-900' : 'border-gray-200 text-gray-900'
-                              } ${current === 0 && !isEdited ? 'text-gray-300' : ''}`}
-                            />
-                            <span className="text-xs text-gray-400">{currency}</span>
-                            {isEdited && (
-                              <button
-                                onClick={() => handleSave(row.sku, l, row)}
-                                disabled={isSaving}
-                                className="h-9 w-9 flex items-center justify-center rounded bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50 flex-shrink-0">
-                                {isSaved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
-                              </button>
-                            )}
-                          </div>
+                        <div key={l} className="flex items-center gap-2">
+                          <span className={`w-14 flex-shrink-0 text-center px-1.5 py-1 rounded text-xs font-medium ${LIST_COLORS[l]}`}>{l}</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={getEditValue(row.sku, l, current)}
+                            onChange={e => handleEdit(row.sku, l, e.target.value)}
+                            className={`flex-1 min-w-0 h-9 rounded border px-2 text-right text-sm font-medium focus:outline-none transition-colors ${
+                              isEdited ? 'border-blue-400 bg-blue-50 text-blue-900' : 'border-gray-200 text-gray-900'
+                            } ${current === 0 && !isEdited ? 'text-gray-300' : ''}`}
+                          />
+                          <span className="text-xs text-gray-400 w-8 flex-shrink-0">{currency}</span>
+                          {isEdited ? (
+                            <button
+                              onClick={() => handleSave(row.sku, l, row)}
+                              disabled={isSaving}
+                              className="h-9 w-9 flex items-center justify-center rounded bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50 flex-shrink-0">
+                              {isSaved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
+                            </button>
+                          ) : (
+                            <div className="w-9 flex-shrink-0" />
+                          )}
                         </div>
                       )
                     })}
