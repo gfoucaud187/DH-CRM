@@ -3,39 +3,44 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Filter, LogIn, LogOut, ShoppingCart, FileText, Users, CheckCircle, XCircle, ArrowRight, Edit, Send } from 'lucide-react'
+import { Search, Filter, LogIn, LogOut, ShoppingCart, FileText, Users, CheckCircle, XCircle, ArrowRight, Edit, Send, Package, Trash2 } from 'lucide-react'
 
 const ACTION_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
-  login:                    { label: 'Login',                   icon: LogIn,       color: 'text-blue-600',   bg: 'bg-blue-50' },
-  logout:                   { label: 'Logout',                  icon: LogOut,      color: 'text-gray-500',   bg: 'bg-gray-50' },
-  create_order:             { label: 'Order created',           icon: ShoppingCart,color: 'text-green-600',  bg: 'bg-green-50' },
-  update_order_status:      { label: 'Status changed',          icon: ArrowRight,  color: 'text-amber-600',  bg: 'bg-amber-50' },
-  update_order:             { label: 'Order updated',           icon: Edit,        color: 'text-blue-600',   bg: 'bg-blue-50' },
-  cancel_order:             { label: 'Order cancelled',         icon: XCircle,     color: 'text-red-600',    bg: 'bg-red-50' },
-  create_customer:          { label: 'Distributor created',     icon: Users,       color: 'text-green-600',  bg: 'bg-green-50' },
-  update_customer:          { label: 'Distributor updated',     icon: Edit,        color: 'text-blue-600',   bg: 'bg-blue-50' },
-  approve_po:               { label: 'PO approved → SO',        icon: CheckCircle, color: 'text-green-600',  bg: 'bg-green-50' },
-  reject_po:                { label: 'PO rejected',             icon: XCircle,     color: 'text-red-600',    bg: 'bg-red-50' },
-  submit_profile_request:   { label: 'Profile change request',  icon: Send,        color: 'text-amber-600',  bg: 'bg-amber-50' },
-  approve_profile_request:  { label: 'Profile request approved',icon: CheckCircle, color: 'text-green-600',  bg: 'bg-green-50' },
-  reject_profile_request:   { label: 'Profile request rejected',icon: XCircle,     color: 'text-red-600',    bg: 'bg-red-50' },
-  promote_order:            { label: 'Document promoted',       icon: FileText,    color: 'text-purple-600', bg: 'bg-purple-50' },
+  login:                        { label: 'Login',                   icon: LogIn,       color: 'text-blue-600',   bg: 'bg-blue-50' },
+  logout:                       { label: 'Logout',                  icon: LogOut,      color: 'text-gray-500',   bg: 'bg-gray-50' },
+  create_order:                 { label: 'Order created',           icon: ShoppingCart,color: 'text-green-600',  bg: 'bg-green-50' },
+  update_order_status:          { label: 'Order status changed',    icon: ArrowRight,  color: 'text-amber-600',  bg: 'bg-amber-50' },
+  update_order:                 { label: 'Order updated',           icon: Edit,        color: 'text-blue-600',   bg: 'bg-blue-50' },
+  cancel_order:                 { label: 'Order cancelled',         icon: XCircle,     color: 'text-red-600',    bg: 'bg-red-50' },
+  delete_order:                 { label: 'Order deleted',           icon: Trash2,      color: 'text-red-600',    bg: 'bg-red-50' },
+  create_customer:              { label: 'Distributor created',     icon: Users,       color: 'text-green-600',  bg: 'bg-green-50' },
+  update_customer:              { label: 'Distributor updated',     icon: Edit,        color: 'text-blue-600',   bg: 'bg-blue-50' },
+  approve_po:                   { label: 'Portal PO approved → SO', icon: CheckCircle, color: 'text-green-600',  bg: 'bg-green-50' },
+  reject_po:                    { label: 'Portal PO rejected',      icon: XCircle,     color: 'text-red-600',    bg: 'bg-red-50' },
+  submit_profile_request:       { label: 'Profile change request',  icon: Send,        color: 'text-amber-600',  bg: 'bg-amber-50' },
+  approve_profile_request:      { label: 'Profile request approved',icon: CheckCircle, color: 'text-green-600',  bg: 'bg-green-50' },
+  reject_profile_request:       { label: 'Profile request rejected',icon: XCircle,     color: 'text-red-600',    bg: 'bg-red-50' },
+  promote_order:                { label: 'Document promoted',       icon: FileText,    color: 'text-purple-600', bg: 'bg-purple-50' },
+  create_purchase_order:        { label: 'Purchase order created',  icon: Package,     color: 'text-green-600',  bg: 'bg-green-50' },
+  update_purchase_order:        { label: 'Purchase order updated',  icon: Edit,        color: 'text-blue-600',   bg: 'bg-blue-50' },
+  update_purchase_order_status: { label: 'PO status changed',       icon: ArrowRight,  color: 'text-amber-600',  bg: 'bg-amber-50' },
+  delete_purchase_order:        { label: 'Purchase order deleted',  icon: Trash2,      color: 'text-red-600',    bg: 'bg-red-50' },
 }
 
 const FILTER_GROUPS = [
   { label: 'All',          value: 'all' },
   { label: 'Auth',         value: 'auth' },
   { label: 'Orders',       value: 'orders' },
+  { label: 'Purchases',    value: 'purchases' },
   { label: 'Distributors', value: 'customers' },
-  { label: 'POs',          value: 'po' },
   { label: 'Profile',      value: 'profile' },
 ]
 
 const ACTION_GROUPS: Record<string, string[]> = {
   auth:      ['login', 'logout'],
-  orders:    ['create_order', 'update_order', 'update_order_status', 'cancel_order', 'promote_order'],
+  orders:    ['create_order', 'update_order', 'update_order_status', 'cancel_order', 'delete_order', 'promote_order', 'approve_po', 'reject_po'],
+  purchases: ['create_purchase_order', 'update_purchase_order', 'update_purchase_order_status', 'delete_purchase_order'],
   customers: ['create_customer', 'update_customer'],
-  po:        ['approve_po', 'reject_po'],
   profile:   ['submit_profile_request', 'approve_profile_request', 'reject_profile_request'],
 }
 
@@ -168,7 +173,7 @@ export default function TrackingPage() {
                           </span>
                         )}
                         {/* Status change display */}
-                        {log.action === 'update_order_status' && log.old_value?.status && log.new_value?.status && (
+                        {(log.action === 'update_order_status' || log.action === 'update_purchase_order_status') && log.old_value?.status && log.new_value?.status && (
                           <div className="flex items-center gap-1 text-xs">
                             <span className="text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{log.old_value.status.replace(/_/g,' ')}</span>
                             <ArrowRight className="h-3 w-3 text-gray-400" />
@@ -200,7 +205,7 @@ export default function TrackingPage() {
                   {/* Expanded detail */}
                   {isExpanded && (
                     <div className="mt-3 ml-12 p-3 bg-gray-50 rounded-lg text-xs space-y-2">
-                      {log.old_value && log.new_value && log.action !== 'update_order_status' && (
+                      {log.old_value && log.new_value && log.action !== 'update_order_status' && log.action !== 'update_purchase_order_status' && (
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <p className="font-medium text-gray-500 mb-1">Before</p>

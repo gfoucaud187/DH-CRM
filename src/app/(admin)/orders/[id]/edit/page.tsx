@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Save, Trash2, Plus, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
+import { logActivity } from '@/lib/log-activity'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 
@@ -197,6 +198,13 @@ export default function EditOrderPage() {
       }
 
 
+      await logActivity({
+        action: 'update_order',
+        entityType: 'order',
+        entityId: id as string,
+        entityRef: order.order_number,
+        metadata: { type: order.document_type, customer: order.customer_name },
+      })
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       router.push('/orders/' + id)

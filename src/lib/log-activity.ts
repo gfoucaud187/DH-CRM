@@ -7,6 +7,7 @@ export type LogAction =
   | 'update_order_status'
   | 'update_order'
   | 'cancel_order'
+  | 'delete_order'
   | 'create_customer'
   | 'update_customer'
   | 'approve_po'
@@ -15,8 +16,12 @@ export type LogAction =
   | 'approve_profile_request'
   | 'reject_profile_request'
   | 'promote_order'
+  | 'create_purchase_order'
+  | 'update_purchase_order'
+  | 'update_purchase_order_status'
+  | 'delete_purchase_order'
 
-export type LogEntity = 'order' | 'customer' | 'profile_request' | 'auth'
+export type LogEntity = 'order' | 'customer' | 'profile_request' | 'auth' | 'purchase_order'
 
 interface LogParams {
   action: LogAction

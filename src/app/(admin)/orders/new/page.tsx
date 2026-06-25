@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, ShoppingCart, FileText, Gift, Package, ArrowRight } from 'lucide-react'
+import { logActivity } from '@/lib/log-activity'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 
@@ -186,6 +187,13 @@ export default function NewOrderPage() {
       })
       const data = await res.json()
       if (data.success) {
+        await logActivity({
+          action: 'create_order',
+          entityType: 'order',
+          entityId: data.order.id,
+          entityRef: data.order.order_number,
+          metadata: { type: cfg.docType, customer: isInt ? 'Internal Transfer' : customerName },
+        })
         router.push('/orders/' + data.order.id)
       } else alert('Error: ' + data.error)
     } catch { alert('Error creating order') }

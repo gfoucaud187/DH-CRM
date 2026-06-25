@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Save, Trash2, Plus, Package, Wrench, Box } from 'lucide-react'
 import Link from 'next/link'
+import { logActivity } from '@/lib/log-activity'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP']
 const STATUS_FLOW = ['draft', 'sent', 'confirmed', 'received', 'cancelled']
@@ -111,19 +112,42 @@ export default function PurchaseOrderDetailPage() {
       }))
     await supabase.from('purchase_order_lines').insert(linesPayload)
 
+    await logActivity({
+      action: 'update_purchase_order',
+      entityType: 'purchase_order',
+      entityId: id as string,
+      entityRef: po?.po_number,
+      metadata: { type: po?.po_type, partner: po?.partner_name },
+    })
     queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
     queryClient.invalidateQueries({ queryKey: ['purchase_order', id] })
     setSaving(false)
   }
 
   const handleStatusChange = async (newStatus: string) => {
+    const oldStatus = po?.status
     await supabase.from('purchase_orders').update({ status: newStatus }).eq('id', id as string)
+    await logActivity({
+      action: 'update_purchase_order_status',
+      entityType: 'purchase_order',
+      entityId: id as string,
+      entityRef: po?.po_number,
+      oldValue: { status: oldStatus },
+      newValue: { status: newStatus },
+    })
     queryClient.invalidateQueries({ queryKey: ['purchase_order', id] })
     queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
   }
 
   const handleDelete = async () => {
     if (!confirm('Delete this purchase order?')) return
+    await logActivity({
+      action: 'delete_purchase_order',
+      entityType: 'purchase_order',
+      entityId: id as string,
+      entityRef: po?.po_number,
+      metadata: { type: po?.po_type, partner: po?.partner_name },
+    })
     await supabase.from('purchase_orders').delete().eq('id', id as string)
     queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
     router.push('/purchase-orders')

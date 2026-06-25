@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Package, Truck, CheckCircle, XCircle, FileText, Edit, Send, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import InvoicePDF from '@/components/pdf/InvoicePDF'
+import { logActivity } from '@/lib/log-activity'
 
 const SO_STATUSES = [
   { value: 'draft',               label: 'Draft',               icon: FileText,    color: 'bg-gray-100 text-gray-600' },
@@ -186,6 +187,14 @@ export default function OrderDetailPage() {
         .update({ status })
         .eq('id', id as string)
       if (error) throw error
+      await logActivity({
+        action: 'update_order_status',
+        entityType: 'order',
+        entityId: id as string,
+        entityRef: order?.order_number,
+        oldValue: { status: oldStatus },
+        newValue: { status },
+      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', id] })
@@ -227,6 +236,12 @@ export default function OrderDetailPage() {
     const data = await res.json()
     if (data.success) {
       await supabase.from('sales_orders').update({ status: 'approved' }).eq('id', id as string)
+      await logActivity({
+        action: 'approve_po',
+        entityType: 'order',
+        entityId: id as string,
+        entityRef: order?.order_number,
+      })
       router.push('/orders/' + data.invoice.id)
     } else alert('Error: ' + data.error)
   }
@@ -238,6 +253,13 @@ export default function OrderDetailPage() {
       status: 'rejected',
       rejection_comment: comment,
     }).eq('id', id as string)
+    await logActivity({
+      action: 'reject_po',
+      entityType: 'order',
+      entityId: id as string,
+      entityRef: order?.order_number,
+      metadata: { reason: comment },
+    })
     queryClient.invalidateQueries({ queryKey: ['order', id] })
     queryClient.invalidateQueries({ queryKey: ['orders'] })
     router.push('/orders')

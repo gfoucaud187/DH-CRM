@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Save, Plus, Trash2, Package, Wrench, Box } from 'lucide-react'
 import Link from 'next/link'
+import { logActivity } from '@/lib/log-activity'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP']
 type POType = 'cigars' | 'services' | 'goods'
@@ -110,6 +111,13 @@ export default function NewPurchaseOrderPage() {
     const { error: linesError } = await supabase.from('purchase_order_lines').insert(linesPayload)
     setSaving(false)
     if (linesError) { alert('Error saving lines: ' + linesError.message); return }
+    await logActivity({
+      action: 'create_purchase_order',
+      entityType: 'purchase_order',
+      entityId: po.id,
+      entityRef: po.po_number,
+      metadata: { type: poType, partner: partnerName, status },
+    })
     router.push('/purchase-orders')
   }
 
