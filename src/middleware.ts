@@ -12,7 +12,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api') ||
     pathname === '/portal-login' ||
     pathname === '/login' ||
-    pathname === '/favicon.ico'
+    pathname === '/favicon.ico' ||
+    pathname === '/favicon.png' ||
+    pathname === '/icon.svg' ||
+    pathname === '/apple-touch-icon.png'
   ) {
     return response
   }
@@ -50,5 +53,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|icon\\.svg|apple-touch-icon\\.png).*)'],
 }
