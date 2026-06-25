@@ -6,7 +6,8 @@ export const metadata: Metadata = {
   title: 'Stellar by DH',
   description: 'Commercial & Operational Control Cockpit',
   icons: {
-    icon: '/icon.svg',
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    shortcut: '/icon.svg',
     apple: '/apple-touch-icon.png',
   },
 }
