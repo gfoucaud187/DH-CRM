@@ -6,9 +6,12 @@ export const metadata: Metadata = {
   title: 'Stellar by DH',
   description: 'Commercial & Operational Control Cockpit',
   icons: {
-    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
-    shortcut: '/icon.svg',
-    apple: '/apple-touch-icon.png',
+    icon: [
+      { url: '/favicon.png', type: 'image/png', sizes: '32x32' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/favicon.png',
+    apple: { url: '/apple-touch-icon.png', sizes: '180x180' },
   },
 }
 
