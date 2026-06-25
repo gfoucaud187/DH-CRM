@@ -24,7 +24,7 @@ const COUNTRY_LIST = COUNTRIES.map(c => ({
 export default function EditPartnerPage() {
   const params = useParams()
   const id = Array.isArray(params.id) ? params.id[0] : params.id
-  const isNew = id === 'new'
+  const isNew = !id || id === 'new' 
   const router = useRouter()
   const supabase = createClient()
   const queryClient = useQueryClient()
