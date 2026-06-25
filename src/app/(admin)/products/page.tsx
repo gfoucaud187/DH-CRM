@@ -65,10 +65,10 @@ export default function ProductsPage() {
               a.href = url; a.download = 'products-template.csv'; a.click()
               URL.revokeObjectURL(url)
             }}
-            className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+            className="hidden md:flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
             📥 CSV Template
           </button>
-          <label className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer transition-colors">
+          <label className="hidden md:flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer transition-colors">
             <Upload className="h-4 w-4" />
             Import CSV
             <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
