@@ -9,7 +9,8 @@ import { createClient } from '@/lib/supabase/client';
 import {
   LayoutDashboard, Package, Users, Handshake, DollarSign,
   ShoppingCart, Warehouse, BarChart3, FolderOpen, Settings,
-  ListChecks, LogOut, Target, Store, ChevronLeft, ChevronRight
+  ListChecks, LogOut, Target, Store, ChevronLeft, ChevronRight, 
+  ShoppingBag
 } from 'lucide-react';
 import './sidebar.css';
 
@@ -21,7 +22,7 @@ const NAV_ITEMS = [
   { label: 'Partners',     href: '/partners',    icon: Handshake },
   { label: 'Price Lists',  href: '/price-lists', icon: DollarSign },
   { label: 'Orders',       href: '/orders',      icon: ShoppingCart, badge: true },
-  { label: 'Inventory',    href: '/inventory',   icon: Warehouse },
+  { label: 'Purchase Orders', href: '/purchase-orders', icon: ShoppingBag },{ label: 'Inventory',    href: '/inventory',   icon: Warehouse },
   { label: 'Finance',      href: '/finance',     icon: DollarSign },
   { label: 'Documents',    href: '/documents',   icon: FolderOpen },
   { label: 'Reports',      href: '/reports',     icon: BarChart3 },
