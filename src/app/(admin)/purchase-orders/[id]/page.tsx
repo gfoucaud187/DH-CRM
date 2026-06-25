@@ -70,7 +70,7 @@ export default function PurchaseOrderDetailPage() {
     })))
   }, [po])
 
-  const addLine = () => setLines(l => [...l, { sku: '', description: '', quantity: 1, unit_price: 0, received_unit_price: null }])
+  const addLine = () => setLines(l => [...l, { sku: '', description: '', quantity: 0, unit_price: 0, received_unit_price: null }])
   const removeLine = (i: number) => setLines(l => l.filter((_, idx) => idx !== i))
   const updateLine = (i: number, field: keyof Line, value: any) =>
     setLines(l => l.map((ln, idx) => idx === i ? { ...ln, [field]: value } : ln))
@@ -272,16 +272,23 @@ export default function PurchaseOrderDetailPage() {
                 )}
                 <input value={line.description} onChange={e => updateLine(i, 'description', e.target.value)}
                   className="h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
-                <input type="number" min="1" value={line.quantity} onChange={e => updateLine(i, 'quantity', parseFloat(e.target.value) || 0)}
+                <input
+                  type="number" min="1"
+                  value={line.quantity === 0 ? '' : line.quantity}
+                  onChange={e => updateLine(i, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                   className="h-8 rounded border border-gray-200 px-2 text-sm text-right focus:outline-none" />
                 {!isCigars && (
-                  <input type="number" min="0" step="0.01" value={line.unit_price} onChange={e => updateLine(i, 'unit_price', parseFloat(e.target.value) || 0)}
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={line.unit_price === 0 ? '' : line.unit_price}
+                    onChange={e => updateLine(i, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                     className="h-8 rounded border border-gray-200 px-2 text-sm text-right focus:outline-none" />
                 )}
                 {isCigars && isReceived && (
-                  <input type="number" min="0" step="0.01"
-                    value={line.received_unit_price ?? ''}
-                    onChange={e => updateLine(i, 'received_unit_price', parseFloat(e.target.value) || null)}
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={line.received_unit_price === null || line.received_unit_price === 0 ? '' : line.received_unit_price}
+                    onChange={e => updateLine(i, 'received_unit_price', e.target.value === '' ? null : parseFloat(e.target.value))}
                     placeholder="0.00"
                     className="h-8 rounded border border-amber-200 bg-amber-50 px-2 text-sm text-right focus:outline-none focus:border-amber-400" />
                 )}
