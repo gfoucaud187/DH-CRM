@@ -73,16 +73,16 @@ export default function JournalPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5">
+      <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 mb-4">
+        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-3 py-1.5">
           <span className="text-xs text-gray-500">From</span>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="text-sm border-0 focus:outline-none" />
+            className="text-sm border-0 focus:outline-none min-w-0 w-full" />
         </div>
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5">
+        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-3 py-1.5">
           <span className="text-xs text-gray-500">To</span>
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="text-sm border-0 focus:outline-none" />
+            className="text-sm border-0 focus:outline-none min-w-0 w-full" />
         </div>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none">
@@ -97,8 +97,8 @@ export default function JournalPage() {
           {Object.entries(SOURCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
         <input value={accountFilter} onChange={e => setAccountFilter(e.target.value)}
-          placeholder="Filter by account code (e.g. 6)"
-          className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none w-52" />
+          placeholder="Account code (e.g. 6)"
+          className="col-span-2 md:col-span-1 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none md:w-44" />
       </div>
 
       {/* Journal entries */}
@@ -111,7 +111,58 @@ export default function JournalPage() {
             <p className="text-sm">No journal entries found</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <>
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {filteredEntries.map((je: any) => {
+              const lines: any[] = je.journal_lines ?? []
+              const totDebit = lines.reduce((s, l) => s + Number(l.debit ?? 0), 0)
+              const isExpanded = expanded[je.id]
+              return (
+                <div key={je.id}>
+                  <div className="p-4 cursor-pointer" onClick={() => toggleRow(je.id)}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-gray-900 truncate">{je.description ?? '—'}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          <span className="font-mono mr-2">{je.entry_number}</span>
+                          {new Date(je.date).toLocaleDateString('en-SG')}
+                          <span className="mx-1">·</span>
+                          {SOURCE_LABELS[je.source_type] ?? 'Manual'}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-semibold text-gray-900 text-sm">{sgd(totDebit)}</div>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${STATUS_COLORS[je.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {je.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100">
+                      <div className="space-y-1.5 pt-3">
+                        {lines.sort((a, b) => a.sort_order - b.sort_order).map((l: any) => (
+                          <div key={l.id} className="flex items-center justify-between text-xs">
+                            <div>
+                              <span className="font-mono text-gray-400 mr-1.5">{l.account_code}</span>
+                              <span className="text-gray-700">{l.account_name}</span>
+                            </div>
+                            <div className="font-mono shrink-0 ml-2">
+                              {l.debit > 0 ? <span className="text-gray-900">Dr {sgd(l.debit)}</span> : <span className="text-gray-400">Cr {sgd(l.credit)}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <table className="hidden md:table w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase">
                 <th className="text-left px-4 py-3 font-medium w-8"></th>
@@ -187,6 +238,7 @@ export default function JournalPage() {
               })}
             </tbody>
           </table>
+          </>
         )}
       </div>
     </div>

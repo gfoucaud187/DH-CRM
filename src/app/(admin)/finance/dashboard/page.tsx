@@ -135,12 +135,12 @@ export default function FinanceDashboardPage() {
           {k.recent.length === 0 ? (
             <p className="text-sm text-gray-400 py-8 text-center">No journal entries yet</p>
           ) : k.recent.map((je: any) => (
-            <div key={je.id} className="flex items-center justify-between px-5 py-3">
-              <div>
-                <span className="text-xs font-mono text-gray-500 mr-3">{je.entry_number}</span>
-                <span className="text-sm text-gray-900">{je.description ?? '—'}</span>
+            <div key={je.id} className="flex items-start justify-between gap-3 px-5 py-3">
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-mono text-gray-400 block">{je.entry_number}</span>
+                <span className="text-sm text-gray-900 truncate block">{je.description ?? '—'}</span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col items-end gap-1 shrink-0">
                 <span className="text-xs text-gray-400">{new Date(je.date).toLocaleDateString('en-SG')}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                   je.status === 'posted' ? 'bg-emerald-100 text-emerald-700'

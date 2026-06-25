@@ -197,16 +197,16 @@ export default function ExpensesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Expenses</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {expenses.length} entries · Total {sgd(totalAmt)} · Posted {sgd(postedAmt)}
+          <p className="text-xs text-gray-500 mt-0.5">
+            {expenses.length} entries · {sgd(totalAmt)} · Posted {sgd(postedAmt)}
           </p>
         </div>
         <button onClick={openNew}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700">
-          <Plus size={16} /> New Expense
+          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 shrink-0">
+          <Plus size={16} /> <span className="hidden sm:inline">New Expense</span><span className="sm:hidden">New</span>
         </button>
       </div>
 
@@ -228,7 +228,7 @@ export default function ExpensesPage() {
         </select>
       </div>
 
-      {/* Table */}
+      {/* Mobile cards + Desktop table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
           <div className="py-12 text-center text-gray-400">Loading...</div>
@@ -238,46 +238,37 @@ export default function ExpensesPage() {
             <p className="text-sm">No expenses found</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase">
-                <th className="text-left px-4 py-3 font-medium">Date</th>
-                <th className="text-left px-4 py-3 font-medium">Vendor</th>
-                <th className="text-left px-4 py-3 font-medium">Category</th>
-                <th className="text-right px-4 py-3 font-medium">Amount (SGD)</th>
-                <th className="text-right px-4 py-3 font-medium">GST</th>
-                <th className="text-left px-4 py-3 font-medium">Payment</th>
-                <th className="text-left px-4 py-3 font-medium">Status</th>
-                <th className="text-right px-4 py-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
+          <>
+            {/* Mobile card list */}
+            <div className="md:hidden divide-y divide-gray-100">
               {expenses.map((exp: any) => (
-                <tr key={exp.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-500 text-xs">{new Date(exp.date).toLocaleDateString('en-SG')}</td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900">{exp.vendor}</div>
-                    {exp.description && <div className="text-xs text-gray-400">{exp.description}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{CATEGORIES.find(c => c.value === exp.category)?.label ?? exp.category}</td>
-                  <td className="px-4 py-3 text-right font-medium">{sgd(exp.amount_sgd)}</td>
-                  <td className="px-4 py-3 text-right text-gray-400 text-xs">{exp.gst_amount > 0 ? sgd(exp.gst_amount) : '—'}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{PAYMENT_METHODS.find(p => p.value === exp.payment_method)?.label ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[exp.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                      {exp.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
+                <div key={exp.id} className="p-4" onClick={() => exp.status !== 'posted' && openEdit(exp)}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-900 truncate">{exp.vendor}</div>
+                      {exp.description && <div className="text-xs text-gray-400 truncate">{exp.description}</div>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-semibold text-gray-900">{sgd(exp.amount_sgd)}</div>
+                      <div className="text-xs text-gray-400">{new Date(exp.date).toLocaleDateString('en-SG')}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[exp.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {exp.status}
+                      </span>
+                      <span className="text-xs text-gray-400">{CATEGORIES.find(c => c.value === exp.category)?.label ?? exp.category}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
                       {exp.status === 'pending' && (
-                        <button onClick={() => handleApprove(exp)}
-                          className="p-1.5 rounded text-xs text-blue-600 hover:bg-blue-50" title="Approve">
-                          <CheckCircle size={14} />
+                        <button onClick={e => { e.stopPropagation(); handleApprove(exp) }}
+                          className="p-1.5 rounded text-blue-600 hover:bg-blue-50" title="Approve">
+                          <CheckCircle size={15} />
                         </button>
                       )}
                       {exp.status === 'approved' && (
-                        <button onClick={() => handlePostToJournal(exp)}
+                        <button onClick={e => { e.stopPropagation(); handlePostToJournal(exp) }}
                           disabled={posting === exp.id}
                           className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">
                           {posting === exp.id ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
@@ -285,23 +276,83 @@ export default function ExpensesPage() {
                         </button>
                       )}
                       {exp.status !== 'posted' && (
-                        <button onClick={() => openEdit(exp)}
-                          className="p-1.5 rounded text-gray-400 hover:text-gray-900 hover:bg-gray-100 text-xs">
-                          Edit
-                        </button>
-                      )}
-                      {exp.status !== 'posted' && (
-                        <button onClick={() => handleDelete(exp)}
+                        <button onClick={e => { e.stopPropagation(); handleDelete(exp) }}
                           className="p-1.5 rounded text-gray-300 hover:text-red-500 hover:bg-red-50">
-                          <Trash2 size={13} />
+                          <Trash2 size={14} />
                         </button>
                       )}
                     </div>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+
+            {/* Desktop table */}
+            <table className="hidden md:table w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase">
+                  <th className="text-left px-4 py-3 font-medium">Date</th>
+                  <th className="text-left px-4 py-3 font-medium">Vendor</th>
+                  <th className="text-left px-4 py-3 font-medium">Category</th>
+                  <th className="text-right px-4 py-3 font-medium">Amount (SGD)</th>
+                  <th className="text-right px-4 py-3 font-medium">GST</th>
+                  <th className="text-left px-4 py-3 font-medium">Payment</th>
+                  <th className="text-left px-4 py-3 font-medium">Status</th>
+                  <th className="text-right px-4 py-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {expenses.map((exp: any) => (
+                  <tr key={exp.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-500 text-xs">{new Date(exp.date).toLocaleDateString('en-SG')}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-900">{exp.vendor}</div>
+                      {exp.description && <div className="text-xs text-gray-400">{exp.description}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{CATEGORIES.find(c => c.value === exp.category)?.label ?? exp.category}</td>
+                    <td className="px-4 py-3 text-right font-medium">{sgd(exp.amount_sgd)}</td>
+                    <td className="px-4 py-3 text-right text-gray-400 text-xs">{exp.gst_amount > 0 ? sgd(exp.gst_amount) : '—'}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{PAYMENT_METHODS.find(p => p.value === exp.payment_method)?.label ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[exp.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {exp.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {exp.status === 'pending' && (
+                          <button onClick={() => handleApprove(exp)}
+                            className="p-1.5 rounded text-xs text-blue-600 hover:bg-blue-50" title="Approve">
+                            <CheckCircle size={14} />
+                          </button>
+                        )}
+                        {exp.status === 'approved' && (
+                          <button onClick={() => handlePostToJournal(exp)}
+                            disabled={posting === exp.id}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">
+                            {posting === exp.id ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                            Post
+                          </button>
+                        )}
+                        {exp.status !== 'posted' && (
+                          <button onClick={() => openEdit(exp)}
+                            className="p-1.5 rounded text-gray-400 hover:text-gray-900 hover:bg-gray-100 text-xs">
+                            Edit
+                          </button>
+                        )}
+                        {exp.status !== 'posted' && (
+                          <button onClick={() => handleDelete(exp)}
+                            className="p-1.5 rounded text-gray-300 hover:text-red-500 hover:bg-red-50">
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
 
