@@ -32,51 +32,57 @@ export default function FinanceDashboardPage() {
   const { data: kpis, isLoading } = useQuery({
     queryKey: ['finance-kpis', now.getFullYear()],
     queryFn: async () => {
-      // GL balances from posted journal lines
+      // Revenue YTD — directly from sales_orders (source of truth)
+      const { data: salesOrders } = await supabase
+        .from('sales_orders')
+        .select('total_amount, created_at')
+        .not('status', 'in', '("cancelled","rejected")')
+        .gte('created_at', yearStart)
+      const revenue = (salesOrders ?? []).reduce((s, o) => s + Number(o.total_amount ?? 0), 0)
+
+      // Expenses YTD — directly from expenses table
+      const { data: expenseRows } = await supabase
+        .from('expenses')
+        .select('amount_sgd, date')
+        .not('status', 'eq', 'rejected')
+        .gte('date', yearStart)
+      const expenses = (expenseRows ?? []).reduce((s, e) => s + Number(e.amount_sgd ?? 0), 0)
+
+      // Purchase orders YTD (COGS proxy)
+      const { data: purchaseOrders } = await supabase
+        .from('purchase_orders')
+        .select('total_amount, created_at')
+        .not('status', 'in', '("cancelled","rejected")')
+        .gte('created_at', yearStart)
+      const cogs = (purchaseOrders ?? []).reduce((s, p) => s + Number(p.total_amount ?? 0), 0)
+
+      const netProfit = revenue - cogs - expenses
+
+      // AR — open sales orders (not cancelled/rejected)
+      const { data: openSO } = await supabase
+        .from('sales_orders')
+        .select('total_amount')
+        .not('status', 'in', '("cancelled","rejected","paid","delivered")')
+      const ar = (openSO ?? []).reduce((s, o) => s + Number(o.total_amount ?? 0), 0)
+
+      // AP — open purchase orders
+      const { data: openPO } = await supabase
+        .from('purchase_orders')
+        .select('total_amount')
+        .not('status', 'in', '("cancelled","rejected","received")')
+      const ap = (openPO ?? []).reduce((s, p) => s + Number(p.total_amount ?? 0), 0)
+
+      // Cash — from GL if journal entries exist, else 0
       const { data: lines } = await supabase
         .from('journal_lines')
-        .select('account_code, debit, credit, journal_entries!inner(status, date)')
+        .select('account_code, debit, credit, journal_entries!inner(status)')
         .eq('journal_entries.status', 'posted')
-
       const balances: Record<string, number> = {}
       for (const line of (lines ?? []) as any[]) {
         const code = line.account_code
-        const debit = Number(line.debit ?? 0)
-        const credit = Number(line.credit ?? 0)
-        balances[code] = (balances[code] ?? 0) + debit - credit
+        balances[code] = (balances[code] ?? 0) + Number(line.debit ?? 0) - Number(line.credit ?? 0)
       }
-
-      // Cash = sum of debit-normal asset accounts 1100-1120
       const cash = (balances['1100'] ?? 0) + (balances['1110'] ?? 0) + (balances['1120'] ?? 0)
-      const ar = balances['1200'] ?? 0
-      const ap = -(balances['2100'] ?? 0)
-
-      // YTD lines (from date filter)
-      const { data: ytdLines } = await supabase
-        .from('journal_lines')
-        .select('account_code, debit, credit, journal_entries!inner(status, date)')
-        .eq('journal_entries.status', 'posted')
-        .gte('journal_entries.date', yearStart)
-
-      const ytd: Record<string, number> = {}
-      for (const line of (ytdLines ?? []) as any[]) {
-        const code = line.account_code
-        ytd[code] = (ytd[code] ?? 0) + Number(line.credit ?? 0) - Number(line.debit ?? 0)
-      }
-
-      const revenue = Object.entries(ytd)
-        .filter(([k]) => k.startsWith('4'))
-        .reduce((s, [, v]) => s + v, 0)
-
-      const cogs = -Object.entries(ytd)
-        .filter(([k]) => k.startsWith('5'))
-        .reduce((s, [, v]) => s + v, 0)
-
-      const expenses = -Object.entries(ytd)
-        .filter(([k]) => k.startsWith('6'))
-        .reduce((s, [, v]) => s + v, 0)
-
-      const netProfit = revenue - cogs - expenses
 
       // Pending expenses count
       const { count: pendingExpenses } = await supabase
@@ -110,15 +116,15 @@ export default function FinanceDashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <KpiCard label="Cash Position" value={fmt(k.cash)} icon={DollarSign} color="bg-emerald-500" href="/finance/journal" />
-        <KpiCard label="Revenue YTD" value={fmt(k.revenue)} icon={TrendingUp} color="bg-blue-500" href="/finance/reports/pl" />
-        <KpiCard label="Expenses YTD" value={fmt(k.expenses + k.cogs)} icon={TrendingDown} color="bg-red-400" href="/finance/expenses" />
-        <KpiCard label="Net Profit YTD" value={fmt(k.netProfit)} icon={TrendingUp} color={k.netProfit >= 0 ? 'bg-indigo-500' : 'bg-orange-500'} href="/finance/reports/pl" />
+        <KpiCard label="Cash (GL)" value={fmt(k.cash)} icon={DollarSign} color="bg-emerald-500" href="/finance/journal" />
+        <KpiCard label="Sales YTD" value={fmt(k.revenue)} icon={TrendingUp} color="bg-blue-500" href="/finance/reports/pl" />
+        <KpiCard label="Purchases YTD" value={fmt(k.cogs)} icon={TrendingDown} color="bg-red-400" href="/finance/reports/pl" />
+        <KpiCard label="Expenses YTD" value={fmt(k.expenses)} icon={TrendingDown} color="bg-orange-400" href="/finance/expenses" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-        <KpiCard label="Accounts Receivable" value={fmt(k.ar)} icon={TrendingUp} color="bg-sky-500" href="/finance/reports/ageing" />
-        <KpiCard label="Accounts Payable" value={fmt(k.ap)} icon={TrendingDown} color="bg-amber-500" href="/finance/reports/ageing" />
+        <KpiCard label="Open AR" value={fmt(k.ar)} icon={TrendingUp} color="bg-sky-500" href="/finance/reports/ageing" />
+        <KpiCard label="Open AP" value={fmt(k.ap)} icon={TrendingDown} color="bg-amber-500" href="/finance/reports/ageing" />
         <KpiCard label="Pending Expenses" value={k.pendingExpenses} icon={Receipt} color="bg-purple-500" href="/finance/expenses" />
       </div>
 
