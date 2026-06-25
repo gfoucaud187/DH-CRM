@@ -4,16 +4,17 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { COUNTRIES } from '@/lib/countries'
 
-const CURRENCIES   = ['USD', 'EUR', 'GBP']
+const CURRENCIES    = ['USD', 'EUR', 'GBP']
 const PARTNER_TYPES = [
   { value: 'supplier', label: 'Supplier' },
   { value: 'agent',    label: 'Agent' },
   { value: 'broker',   label: 'Broker' },
 ]
+const CONTACT_ROLES = ['Sales', 'Finance', 'Logistics', 'Marketing', 'Management', 'Other']
 
 const COUNTRY_LIST = COUNTRIES.map(c => ({
   ...c,
@@ -28,20 +29,18 @@ export default function EditPartnerPage() {
   const supabase = createClient()
   const queryClient = useQueryClient()
 
-  const [name, setName]               = useState('')
-  const [type, setType]               = useState('supplier')
-  const [contactName, setContactName] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [contactPhone, setContactPhone] = useState('')
-  const [address, setAddress]         = useState('')
-  const [city, setCity]               = useState('')
-  const [country, setCountry]         = useState('')
-  const [vatNumber, setVatNumber]     = useState('')
+  const [name, setName]                 = useState('')
+  const [type, setType]                 = useState('supplier')
+  const [contacts, setContacts]         = useState<any[]>([])
+  const [address, setAddress]           = useState('')
+  const [city, setCity]                 = useState('')
+  const [country, setCountry]           = useState('')
+  const [vatNumber, setVatNumber]       = useState('')
   const [paymentTerms, setPaymentTerms] = useState('Net 30')
-  const [currency, setCurrency]       = useState('USD')
-  const [notes, setNotes]             = useState('')
-  const [status, setStatus]           = useState('active')
-  const [saving, setSaving]           = useState(false)
+  const [currency, setCurrency]         = useState('USD')
+  const [notes, setNotes]               = useState('')
+  const [status, setStatus]             = useState('active')
+  const [saving, setSaving]             = useState(false)
 
   const { data: partner, isLoading } = useQuery({
     queryKey: ['partner', id],
@@ -56,9 +55,6 @@ export default function EditPartnerPage() {
     if (!partner) return
     setName(partner.name ?? '')
     setType(partner.type ?? 'supplier')
-    setContactName(partner.contact_name ?? '')
-    setContactEmail(partner.contact_email ?? '')
-    setContactPhone(partner.contact_phone ?? '')
     setAddress(partner.address ?? '')
     setCity(partner.city ?? '')
     setCountry(partner.country ?? '')
@@ -67,7 +63,25 @@ export default function EditPartnerPage() {
     setCurrency(partner.currency ?? 'USD')
     setNotes(partner.notes ?? '')
     setStatus(partner.status ?? 'active')
+
+    // Migrate old single contact to contacts array if needed
+    const existingContacts = partner.contacts ?? []
+    if (existingContacts.length === 0 && (partner.contact_name || partner.contact_email || partner.contact_phone)) {
+      setContacts([{
+        name:  partner.contact_name  ?? '',
+        email: partner.contact_email ?? '',
+        phone: partner.contact_phone ?? '',
+        role:  'Sales',
+      }])
+    } else {
+      setContacts(existingContacts)
+    }
   }, [partner])
+
+  const addContact = () => setContacts(c => [...c, { name: '', email: '', phone: '', role: 'Sales' }])
+  const removeContact = (i: number) => setContacts(c => c.filter((_, idx) => idx !== i))
+  const updateContact = (i: number, field: string, value: string) =>
+    setContacts(c => c.map((ct, idx) => idx === i ? { ...ct, [field]: value } : ct))
 
   const handleSave = async () => {
     if (!name.trim()) { alert('Name is required'); return }
@@ -75,9 +89,11 @@ export default function EditPartnerPage() {
 
     const payload = {
       name, type,
-      contact_name:  contactName  || null,
-      contact_email: contactEmail || null,
-      contact_phone: contactPhone || null,
+      contacts,
+      // Keep legacy fields for backwards compatibility
+      contact_name:  contacts[0]?.name  || null,
+      contact_email: contacts[0]?.email || null,
+      contact_phone: contacts[0]?.phone || null,
       address:       address      || null,
       city:          city         || null,
       country:       country      || null,
@@ -169,26 +185,55 @@ export default function EditPartnerPage() {
           </div>
         </div>
 
-        {/* Contact */}
+        {/* Contacts */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">Contact</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="text-xs font-medium text-gray-500 uppercase">Contact Name</label>
-              <input value={contactName} onChange={e => setContactName(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Email</label>
-              <input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Phone</label>
-              <input value={contactPhone} onChange={e => setContactPhone(e.target.value)}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-900">Contacts</h2>
+            <button onClick={addContact}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+              <Plus className="h-4 w-4" /> Add
+            </button>
           </div>
+          {contacts.length === 0 ? (
+            <p className="text-sm text-gray-400">No contacts yet — click Add to add one.</p>
+          ) : (
+            contacts.map((c, i) => (
+              <div key={i} className="p-3 bg-gray-50 rounded-lg mb-3">
+                <div className="grid grid-cols-4 gap-3 mb-2">
+                  <div className="col-span-2">
+                    <label className="text-xs text-gray-400">Name</label>
+                    <input value={c.name ?? ''} onChange={e => updateContact(i, 'name', e.target.value)}
+                      className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400">Role</label>
+                    <select value={c.role ?? 'Sales'} onChange={e => updateContact(i, 'role', e.target.value)}
+                      className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none">
+                      {CONTACT_ROLES.map(r => <option key={r}>{r}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-end justify-end">
+                    <button onClick={() => removeContact(i)}
+                      className="mb-0.5 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-400">Email</label>
+                    <input type="email" value={c.email ?? ''} onChange={e => updateContact(i, 'email', e.target.value)}
+                      className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400">Phone</label>
+                    <input value={c.phone ?? ''} onChange={e => updateContact(i, 'phone', e.target.value)}
+                      className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Address */}
