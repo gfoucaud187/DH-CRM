@@ -62,11 +62,20 @@ export default function StockMovementsView() {
     queryKey: ['movements-orders', referenceIds.join(',')],
     queryFn: async () => {
       if (referenceIds.length === 0) return []
-      const { data } = await supabase
-        .from('sales_orders')
-        .select('id, order_number, document_type, is_foc, is_sample, customer_name, order_date, warehouse')
-        .in('id', referenceIds)
-      return data ?? []
+      const CHUNK = 50
+      const chunks: string[][] = []
+      for (let i = 0; i < referenceIds.length; i += CHUNK)
+        chunks.push(referenceIds.slice(i, i + CHUNK))
+      const results = await Promise.all(
+        chunks.map(ids =>
+          supabase
+            .from('sales_orders')
+            .select('id, order_number, document_type, is_foc, is_sample, customer_name, order_date, warehouse')
+            .in('id', ids)
+            .then(({ data }) => data ?? [])
+        )
+      )
+      return results.flat()
     },
     enabled: referenceIds.length > 0
   })
