@@ -255,7 +255,9 @@ export default function InventoryPage() {
                             const p = row[`packs_${wh}`] ?? 0
                             return (
                               <td key={w} className="px-3 py-3 text-right">
-                                {p > 0 ? (
+                                {p < 0 ? (
+                                  <span className="font-medium text-red-500">{p}</span>
+                                ) : p > 0 ? (
                                   <span className="font-medium text-gray-900">{p}</span>
                                 ) : (
                                   <span className="text-gray-200">—</span>
@@ -266,7 +268,7 @@ export default function InventoryPage() {
                         ) : null}
                         <td className="px-4 py-3 text-right">
                           <div className="flex flex-col items-end">
-                            <span className={`font-semibold ${stock.packs === 0 ? 'text-red-400' : stock.packs < 5 ? 'text-amber-500' : 'text-gray-900'}`}>
+                            <span className={`font-semibold ${stock.packs < 0 ? 'text-red-600 font-bold' : stock.packs === 0 ? 'text-red-400' : stock.packs < 5 ? 'text-amber-500' : 'text-gray-900'}`}>
                               {stock.packs} pk
                             </span>
                             <span className="text-xs text-gray-400">{stock.units} u</span>
