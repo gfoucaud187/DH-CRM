@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, X, Send, Trash2, Camera, Loader2, CheckCircle, ImageIcon } from 'lucide-react'
+import { Plus, X, Send, Trash2, Camera, Loader2, CheckCircle, ImageIcon, FileText, User, ThumbsUp, ThumbsDown, Banknote } from 'lucide-react'
 
 const CATEGORIES = [
   { value: 'office',       label: 'Office & Admin' },
@@ -51,9 +51,18 @@ const EMPTY_FORM = {
   receipt_url: '',
 }
 
+const CLAIM_STATUS_COLORS: Record<string, string> = {
+  draft:     'bg-gray-100 text-gray-600',
+  submitted: 'bg-blue-100 text-blue-700',
+  approved:  'bg-emerald-100 text-emerald-700',
+  paid:      'bg-purple-100 text-purple-700',
+  rejected:  'bg-red-100 text-red-600',
+}
+
 export default function ExpensesPage() {
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const [mainTab, setMainTab] = useState<'expenses' | 'claims'>('expenses')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -64,6 +73,29 @@ export default function ExpensesPage() {
   const [filterCategory, setFilterCategory] = useState('all')
   const [receiptPreview, setReceiptPreview] = useState<string>('')
   const [fxHint, setFxHint] = useState<string>('')
+  const [processingClaim, setProcessingClaim] = useState<string | null>(null)
+
+  const { data: claims = [] } = useQuery({
+    queryKey: ['admin-claims'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('expense_claims')
+        .select('*, expenses(id, vendor, amount_sgd, date, paid_by, receipt_url), user_profiles!submitted_by(full_name, email)')
+        .order('created_at', { ascending: false })
+      return data ?? []
+    },
+    enabled: mainTab === 'claims',
+  })
+
+  const handleClaimAction = async (claimId: string, action: 'approved' | 'rejected' | 'paid') => {
+    setProcessingClaim(claimId)
+    const update: any = { status: action }
+    if (action === 'approved') update.approved_at = new Date().toISOString()
+    if (action === 'paid') update.paid_at = new Date().toISOString()
+    await supabase.from('expense_claims').update(update).eq('id', claimId)
+    queryClient.invalidateQueries({ queryKey: ['admin-claims'] })
+    setProcessingClaim(null)
+  }
 
   const { data: expenses = [], isLoading } = useQuery({
     queryKey: ['expenses', filterStatus, filterCategory],
@@ -183,9 +215,11 @@ export default function ExpensesPage() {
     setReceiptPreview(localUrl)
 
     try {
-      // Upload to Supabase storage
+      // Upload to Supabase storage (per-user folder)
+      const { data: { user } } = await supabase.auth.getUser()
+      const uid = user?.id ?? 'unknown'
       const ext = file.name.split('.').pop() ?? 'jpg'
-      const filePath = `expenses/${Date.now()}.${ext}`
+      const filePath = `expenses/${uid}/${Date.now()}.${ext}`
       const { error: uploadErr } = await supabase.storage
         .from('receipts')
         .upload(filePath, file, { upsert: false })
@@ -265,7 +299,7 @@ export default function ExpensesPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3 mb-6">
+      <div className="flex items-start justify-between gap-3 mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Expenses</h1>
           <p className="text-xs text-gray-500 mt-0.5">
@@ -278,6 +312,116 @@ export default function ExpensesPage() {
         </button>
       </div>
 
+      {/* Main tabs */}
+      <div className="flex gap-1 border-b border-gray-200 mb-5">
+        {([['expenses', 'All Expenses', null], ['claims', 'Expense Claims', claims.filter((c:any) => c.status === 'submitted').length]] as any[]).map(([v, l, badge]) => (
+          <button key={v} onClick={() => setMainTab(v)}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${mainTab === v ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-700'}`}>
+            {l}
+            {badge > 0 && <span className="bg-blue-500 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">{badge}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Claims tab */}
+      {mainTab === 'claims' && (
+        <div className="space-y-4">
+          {claims.length === 0 ? (
+            <div className="py-12 text-center text-gray-400">
+              <FileText size={32} className="mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No expense claims yet</p>
+            </div>
+          ) : claims.map((claim: any) => {
+            const exps: any[] = claim.expenses ?? []
+            const reimbursable = exps.filter((e:any) => e.paid_by === 'employee')
+            const reimbursableTotal = reimbursable.reduce((s:number, e:any) => s + Number(e.amount_sgd ?? 0), 0)
+            const submitter = claim.user_profiles
+            return (
+              <div key={claim.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-50">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <User size={13} className="text-gray-400" />
+                      <span className="text-sm font-medium text-gray-700">{submitter?.full_name || submitter?.email || 'Unknown'}</span>
+                    </div>
+                    <h3 className="font-semibold text-gray-900">{claim.title}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">{exps.length} expense(s) · Created {new Date(claim.created_at).toLocaleDateString('en-SG')}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${CLAIM_STATUS_COLORS[claim.status]}`}>
+                    {claim.status}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-6 px-5 py-3 border-b border-gray-50 bg-gray-50/50">
+                  <div>
+                    <p className="text-xs text-gray-400">Total</p>
+                    <p className="font-bold text-gray-900">{sgd(claim.total_amount ?? 0)}</p>
+                  </div>
+                  {reimbursableTotal > 0 && (
+                    <div>
+                      <p className="text-xs text-orange-500">To reimburse</p>
+                      <p className="font-bold text-orange-600">{sgd(reimbursableTotal)}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="divide-y divide-gray-50">
+                  {exps.map((exp: any) => (
+                    <div key={exp.id} className="flex items-center gap-3 px-5 py-2.5">
+                      {exp.receipt_url && (
+                        <a href={exp.receipt_url} target="_blank" rel="noopener noreferrer">
+                          <img src={exp.receipt_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200 shrink-0" />
+                        </a>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-gray-800 truncate block">{exp.vendor}</span>
+                        <span className="text-xs text-gray-400">{new Date(exp.date).toLocaleDateString('en-SG')}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-sm font-medium text-gray-900">{sgd(exp.amount_sgd)}</span>
+                        {exp.paid_by === 'employee' && (
+                          <p className="text-xs text-orange-500">reimburse</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {(claim.status === 'submitted' || claim.status === 'approved') && (
+                  <div className="flex gap-2 px-5 py-3 border-t border-gray-100">
+                    {claim.status === 'submitted' && (
+                      <>
+                        <button onClick={() => handleClaimAction(claim.id, 'rejected')}
+                          disabled={processingClaim === claim.id}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50 disabled:opacity-50">
+                          <ThumbsDown size={13} /> Reject
+                        </button>
+                        <button onClick={() => handleClaimAction(claim.id, 'approved')}
+                          disabled={processingClaim === claim.id}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-50">
+                          {processingClaim === claim.id ? <Loader2 size={13} className="animate-spin" /> : <ThumbsUp size={13} />}
+                          Approve
+                        </button>
+                      </>
+                    )}
+                    {claim.status === 'approved' && (
+                      <button onClick={() => handleClaimAction(claim.id, 'paid')}
+                        disabled={processingClaim === claim.id}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 disabled:opacity-50">
+                        {processingClaim === claim.id ? <Loader2 size={13} className="animate-spin" /> : <Banknote size={13} />}
+                        Mark as Paid
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Filters — only shown on expenses tab */}
+      {mainTab === 'expenses' && (<>
       {/* Filters */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         {['all','pending','approved','posted','rejected'].map(s => (
@@ -448,6 +592,7 @@ export default function ExpensesPage() {
           </>
         )}
       </div>
+      </>)}
 
       {/* Drawer */}
       {drawerOpen && (
@@ -604,8 +749,10 @@ export default function ExpensesPage() {
                       if (!file) return
                       const localUrl = URL.createObjectURL(file)
                       setReceiptPreview(localUrl)
+                      const { data: { user } } = await supabase.auth.getUser()
+                      const uid = user?.id ?? 'unknown'
                       const ext = file.name.split('.').pop() ?? 'jpg'
-                      const filePath = `expenses/${Date.now()}.${ext}`
+                      const filePath = `expenses/${uid}/${Date.now()}.${ext}`
                       const { error } = await supabase.storage.from('receipts').upload(filePath, file)
                       if (!error) {
                         const { data: { publicUrl } } = supabase.storage.from('receipts').getPublicUrl(filePath)
