@@ -78,13 +78,23 @@ export default function ExpensesPage() {
   const { data: claims = [] } = useQuery({
     queryKey: ['admin-claims'],
     queryFn: async () => {
-      const { data } = await supabase
+      // Fetch claims
+      const { data: claimsData } = await supabase
         .from('expense_claims')
-        .select('*, expenses(id, vendor, amount_sgd, date, paid_by, receipt_url), user_profiles!submitted_by(full_name, email)')
+        .select('*, expenses(id, vendor, amount_sgd, date, paid_by, receipt_url)')
         .order('created_at', { ascending: false })
-      return data ?? []
+      if (!claimsData?.length) return []
+
+      // Fetch submitter profiles separately
+      const submitterIds = Array.from(new Set(claimsData.map((c: any) => c.submitted_by).filter(Boolean)))
+      const { data: profiles } = submitterIds.length
+        ? await supabase.from('user_profiles').select('id, full_name, email').in('id', submitterIds)
+        : { data: [] }
+      const profileMap: Record<string, any> = {}
+      for (const p of (profiles ?? []) as any[]) profileMap[p.id] = p
+
+      return claimsData.map((c: any) => ({ ...c, submitter: profileMap[c.submitted_by] ?? null }))
     },
-    enabled: mainTab === 'claims',
   })
 
   const handleClaimAction = async (claimId: string, action: 'approved' | 'rejected' | 'paid') => {
@@ -335,7 +345,7 @@ export default function ExpensesPage() {
             const exps: any[] = claim.expenses ?? []
             const reimbursable = exps.filter((e:any) => e.paid_by === 'employee')
             const reimbursableTotal = reimbursable.reduce((s:number, e:any) => s + Number(e.amount_sgd ?? 0), 0)
-            const submitter = claim.user_profiles
+            const submitter = claim.submitter
             return (
               <div key={claim.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-50">
