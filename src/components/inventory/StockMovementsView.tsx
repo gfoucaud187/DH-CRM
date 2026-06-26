@@ -34,12 +34,12 @@ export default function StockMovementsView() {
   const [warehouse, setWarehouse] = useState('All')
   const [unit, setUnit]           = useState<'units' | 'packs'>('units')
 
-  // Fetch stock movements in date range
+  // Fetch stock movements in date range — joined with order data via view
   const { data: movements = [], isLoading } = useQuery({
     queryKey: ['stock-movements-range', dateFrom, dateTo, warehouse],
     queryFn: async () => {
       let q = supabase
-        .from('stock_movements')
+        .from('v_stock_movements_full')
         .select('*')
         .gte('created_at', dateFrom + 'T00:00:00')
         .lte('created_at', dateTo + 'T23:59:59')
@@ -52,33 +52,8 @@ export default function StockMovementsView() {
     }
   })
 
-  // Fetch orders for these movements
-  const referenceIds = useMemo(() =>
-    Array.from(new Set((movements as any[]).map((m: any) => m.reference_id).filter(Boolean))),
-    [movements]
-  )
-
-  const { data: orders = [] } = useQuery({
-    queryKey: ['movements-orders', referenceIds.join(',')],
-    queryFn: async () => {
-      if (referenceIds.length === 0) return []
-      const CHUNK = 50
-      const chunks: string[][] = []
-      for (let i = 0; i < referenceIds.length; i += CHUNK)
-        chunks.push(referenceIds.slice(i, i + CHUNK))
-      const results = await Promise.all(
-        chunks.map(ids =>
-          supabase
-            .from('sales_orders')
-            .select('id, order_number, document_type, is_foc, is_sample, customer_name, order_date, warehouse')
-            .in('id', ids)
-            .then(({ data }) => data ?? [])
-        )
-      )
-      return results.flat()
-    },
-    enabled: referenceIds.length > 0
-  })
+  // Order data is now embedded in each movement row via the view
+  const orders: any[] = []
 
   // Fetch current stock levels
   const { data: currentStock = [] } = useQuery({
@@ -109,11 +84,24 @@ export default function StockMovementsView() {
     }
   })
 
+  // Build orderMap from embedded view data (no secondary query needed)
   const orderMap = useMemo(() => {
     const m: Record<string, any> = {}
-    ;(orders as any[]).forEach((o: any) => { m[o.id] = o })
+    ;(movements as any[]).forEach((mv: any) => {
+      if (mv.reference_id && !m[mv.reference_id]) {
+        m[mv.reference_id] = {
+          id: mv.reference_id,
+          order_number: mv.so_order_number ?? mv.reference_number,
+          document_type: mv.document_type,
+          is_foc: mv.is_foc,
+          is_sample: mv.is_sample,
+          customer_name: mv.customer_name,
+          order_date: mv.order_date,
+        }
+      }
+    })
     return m
-  }, [orders])
+  }, [movements])
 
   const productMap = useMemo(() => {
     const m: Record<string, any> = {}
