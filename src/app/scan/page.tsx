@@ -257,7 +257,7 @@ export default function ScanPage() {
 
     if (claimErr || !claim) { alert('Error creating claim'); setCreatingClaim(false); return }
 
-    await supabase.from('expenses').update({ claim_id: claim.id }).in('id', [...selected])
+    await supabase.from('expenses').update({ claim_id: claim.id }).in('id', Array.from(selected))
 
     setCreatingClaim(false)
     setClaimMode(false)
