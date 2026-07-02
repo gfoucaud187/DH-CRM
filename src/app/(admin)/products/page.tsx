@@ -31,7 +31,9 @@ export default function ProductsPage() {
     const matchSearch = !search ||
       p.sku?.toLowerCase().includes(search.toLowerCase()) ||
       p.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-      p.brand?.toLowerCase().includes(search.toLowerCase())
+      p.brand?.toLowerCase().includes(search.toLowerCase()) ||
+      p.fixmer_reference?.toLowerCase().includes(search.toLowerCase()) ||
+      p.eu_ceg_id?.toLowerCase().includes(search.toLowerCase())
     const matchBrand  = brandFilter  === 'All' || p.brand        === brandFilter
     const matchStatus = statusFilter === 'All' || p.status       === statusFilter
     const matchRole   = roleFilter   === 'All' || p.product_role === roleFilter
@@ -95,7 +97,7 @@ export default function ProductsPage() {
       <div className="flex flex-wrap gap-2 md:gap-3 mb-6">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <input type="text" placeholder="Search SKU, name, brand..."
+          <input type="text" placeholder="Search SKU, name, brand, Fixmer, EU-CEG..."
             value={search} onChange={e => setSearch(e.target.value)}
             className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
