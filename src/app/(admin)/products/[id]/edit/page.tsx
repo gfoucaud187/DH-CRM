@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, Copy } from 'lucide-react'
 import Link from 'next/link'
 import { logActivity } from '@/lib/log-activity'
 
@@ -91,6 +91,42 @@ export default function EditProductPage() {
     setPrices(p)
   }, [priceEntries])
 
+  const handleDuplicate = async () => {
+    const newSku = window.prompt('New SKU for the duplicate:', sku + '-COPY')
+    if (!newSku || newSku.trim() === '') return
+    const trimmedSku = newSku.trim().toUpperCase()
+
+    const { data: existing } = await supabase.from('products').select('id').eq('sku', trimmedSku).single()
+    if (existing) { alert('SKU ' + trimmedSku + ' already exists.'); return }
+
+    const { data: newProduct, error } = await supabase.from('products').insert({
+      sku: trimmedSku, full_name: fullName + ' (copy)', brand, line: line || null,
+      vitola: vitola || null, shape: shape || null, wrapper: wrapper || null,
+      units_per_pack: unitsPerPack ? parseInt(unitsPerPack) : null,
+      pack_type: packType || null, fixmer_reference: fixmerReference || null,
+      eu_ceg_id: euCegId || null, status, notes: notes || null,
+      length_inches: lengthInches ? parseFloat(lengthInches) : null,
+      ring_gauge: ringGauge ? parseFloat(ringGauge) : null,
+      net_weight_g: netWeightG ? parseFloat(netWeightG) : null,
+      product_role: product.product_role ?? 'original',
+    }).select().single()
+
+    if (error) { alert('Error: ' + error.message); return }
+
+    for (const list of LISTS) {
+      const priceVal = parseFloat(prices[list])
+      if (prices[list] && !isNaN(priceVal) && priceVal > 0) {
+        await supabase.from('price_list_entries').insert({
+          sku: trimmedSku, product_name: fullName + ' (copy)',
+          price_list: list, price_per_unit: priceVal, currency: 'USD',
+        })
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['products'] })
+    router.push('/products/' + newProduct.id + '/edit')
+  }
+
   const handleSave = async () => {
     if (!fullName) return alert('Product name is required')
     setSaving(true)
@@ -148,6 +184,10 @@ export default function EditProductPage() {
           <h1 className="text-2xl font-bold text-gray-900">Edit {product.full_name}</h1>
           <p className="text-gray-500 text-sm font-mono">{product.sku}</p>
         </div>
+        <button onClick={handleDuplicate}
+          className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          <Copy className="h-4 w-4" />Duplicate
+        </button>
         <button onClick={handleSave} disabled={saving}
           className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
           <Save className="h-4 w-4" />{saving ? 'Saving...' : 'Save Changes'}
