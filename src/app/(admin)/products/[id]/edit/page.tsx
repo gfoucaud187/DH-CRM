@@ -41,6 +41,7 @@ export default function EditProductPage() {
   const [netWeightG, setNetWeightG] = useState('')
   const [gtin, setGtin] = useState('')
   const [prices, setPrices] = useState<Record<string, string>>({ G: '', G1: '', A1: '', SPECIAL: '' })
+  const [productRole, setProductRole] = useState('original')
   const [saving, setSaving] = useState(false)
 
   const { data: product, isLoading } = useQuery({
@@ -75,6 +76,7 @@ export default function EditProductPage() {
     setFixmerReference(product.fixmer_reference ?? '')
     setEuCegId(product.eu_ceg_id ?? '')
     setStatus(product.status ?? 'active')
+    setProductRole(product.product_role ?? 'original')
     setNotes(product.notes ?? '')
     setGtin(product.gtin ?? '')
     setLengthInches(product.length_inches?.toString() ?? '')
@@ -137,7 +139,7 @@ export default function EditProductPage() {
       shape: shape || null, wrapper: wrapper || null,
       units_per_pack: unitsPerPack ? parseInt(unitsPerPack) : null,
       pack_type: packType || null, fixmer_reference: fixmerReference || null,
-      eu_ceg_id: euCegId || null, status, notes: notes || null,
+      eu_ceg_id: euCegId || null, status, product_role: productRole, notes: notes || null,
       length_inches: lengthInches ? parseFloat(lengthInches) : null,
       ring_gauge: ringGauge ? parseFloat(ringGauge) : null,
       net_weight_g: netWeightG ? parseFloat(netWeightG) : null,
@@ -209,6 +211,16 @@ export default function EditProductPage() {
               <select value={status} onChange={e => setStatus(e.target.value)}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Product Role</label>
+              <select value={productRole} onChange={e => setProductRole(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                <option value="original">Original</option>
+                <option value="aged">Aged</option>
+                <option value="sample">Sample</option>
+                <option value="foc">FOC</option>
               </select>
             </div>
             <div className="col-span-2">
