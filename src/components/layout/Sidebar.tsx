@@ -17,7 +17,7 @@ import './sidebar.css';
 const NAV_ITEMS = [
   { label: 'Dashboard',    href: '/dashboard',   icon: LayoutDashboard },
   { label: 'Products',     href: '/products',    icon: Package },
-  { label: 'Distributors', href: '/customers',   icon: Users },
+  { label: 'Clients',      href: '/clients',      icon: Users },
   { label: 'Retailers',    href: '/retailers',   icon: Store },
   { label: 'Partners',     href: '/partners',    icon: Handshake },
   { label: 'Price Lists',  href: '/price-lists', icon: DollarSign },

@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Search, MapPin, Phone, Mail, Camera, Trash2, X, ChevronDown, ChevronUp, Edit, Save, ArrowLeft, Users, Store, User, Map } from 'lucide-react'
+import { Plus, Search, MapPin, Phone, Mail, Camera, Trash2, X, ChevronDown, ChevronUp, Edit, Save, ArrowLeft, Users, Store, User, Map, Download } from 'lucide-react'
 import { logActivity } from '@/lib/log-activity'
 import dynamic from 'next/dynamic'
 
@@ -31,6 +31,7 @@ export default function RetailersPage() {
   const photoInputRef = useRef<HTMLInputElement>(null)
 
   const [tab, setTab] = useState<'shops' | 'b2c' | 'map'>('shops')
+  const [showExport, setShowExport] = useState(false)
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'list' | 'new' | 'edit'>('list')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -63,6 +64,32 @@ export default function RetailersPage() {
     r.city?.toLowerCase().includes(search.toLowerCase()) ||
     r.country?.toLowerCase().includes(search.toLowerCase())
   )
+
+  const exportCSV = () => {
+    const isShops = tab !== 'b2c'
+    const headers = isShops
+      ? ['Shop Name', 'Country', 'City', 'Street', 'Postal Code', 'Comments']
+      : ['First Name', 'Last Name', 'Email', 'Mobile', 'Country', 'Comments']
+    const rows = isShops
+      ? filteredShops.map((r: any) => [r.shop_name, r.country, r.city, r.street, r.postal_code, r.comments])
+      : (b2cContacts as any[]).map((c: any) => [c.first_name, c.last_name, c.email, c.mobile, c.country, c.comments])
+    const csv = [headers, ...rows].map(r => r.map((v: any) => v == null ? '' : `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+    a.download = isShops ? 'retailers.csv' : 'b2c-contacts.csv'; a.click()
+  }
+
+  const exportExcel = async () => {
+    const XLSX = await import('xlsx')
+    const isShops = tab !== 'b2c'
+    const rows = isShops
+      ? filteredShops.map((r: any) => ({ 'Shop Name': r.shop_name, Country: r.country, City: r.city, Street: r.street, 'Postal Code': r.postal_code, Comments: r.comments }))
+      : (b2cContacts as any[]).map((c: any) => ({ 'First Name': c.first_name, 'Last Name': c.last_name, Email: c.email, Mobile: c.mobile, Country: c.country, Comments: c.comments }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, isShops ? 'Retailers' : 'B2C Contacts')
+    XLSX.writeFile(wb, isShops ? 'retailers.xlsx' : 'b2c-contacts.xlsx')
+  }
 
   const openNewShop = () => { setShopForm(emptyShopForm()); setEditingId(null); setView('new') }
   const openEditShop = (r: any) => {
@@ -378,10 +405,28 @@ export default function RetailersPage() {
             {(retailers as any[]).length} shops · {(b2cContacts as any[]).length} B2C contacts
           </p>
         </div>
-        <button onClick={tab === 'shops' ? openNewShop : tab === 'b2c' ? openNewB2c : undefined}
-          className={`flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors ${tab === 'map' ? 'invisible' : ''}`}>
-          <Plus className="h-4 w-4" /> {tab === 'shops' ? 'Add shop' : 'Add contact'}
-        </button>
+        <div className="flex items-center gap-2">
+          {tab !== 'map' && (
+            <div className="relative">
+              <button onClick={() => setShowExport(v => !v)}
+                className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+                <Download className="h-4 w-4" /> Export
+              </button>
+              {showExport && (
+                <div className="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                  <button onClick={() => { exportExcel(); setShowExport(false) }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 rounded-t-lg">Excel (.xlsx)</button>
+                  <button onClick={() => { exportCSV(); setShowExport(false) }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 rounded-b-lg">CSV (.csv)</button>
+                </div>
+              )}
+            </div>
+          )}
+          <button onClick={tab === 'shops' ? openNewShop : tab === 'b2c' ? openNewB2c : undefined}
+            className={`flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors ${tab === 'map' ? 'invisible' : ''}`}>
+            <Plus className="h-4 w-4" /> {tab === 'shops' ? 'Add shop' : 'Add contact'}
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}

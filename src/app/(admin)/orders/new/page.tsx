@@ -267,7 +267,7 @@ export default function NewOrderPage() {
                       <option key={c.id} value={c.id}>{c.legal_name}</option>
                     ))}
                   </select>
-                  <button onClick={() => router.push('/customers/new?returnTo=/orders/new')}
+                  <button onClick={() => router.push('/clients/new?returnTo=/orders/new')}
                     title="Add new distributor"
                     className="h-9 w-9 flex items-center justify-center border border-gray-200 rounded-md text-gray-600 hover:bg-gray-50 flex-shrink-0">
                     <Plus className="h-4 w-4" />

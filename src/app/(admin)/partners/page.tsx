@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Edit, Handshake } from 'lucide-react'
+import { Plus, Search, Edit, Handshake, Download } from 'lucide-react'
 
 const TYPE_COLORS: Record<string, string> = {
   supplier: 'bg-blue-100 text-blue-700',
@@ -24,6 +24,26 @@ export default function PartnersPage() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [showExport, setShowExport] = useState(false)
+
+  const exportCSV = () => {
+    const headers = ['Name', 'Type', 'Country', 'Contact', 'Email', 'Status']
+    const rows = filtered.map((p: any) => [p.name, p.type, p.country, p.contact_name, p.contact_email, p.status])
+    const csv = [headers, ...rows].map(r => r.map((v: any) => v == null ? '' : `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+    a.download = 'partners.csv'; a.click()
+  }
+
+  const exportExcel = async () => {
+    const XLSX = await import('xlsx')
+    const rows = filtered.map((p: any) => ({ Name: p.name, Type: TYPE_LABELS[p.type] ?? p.type, Country: p.country, Contact: p.contact_name, Email: p.contact_email, Status: p.status }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    ws['!cols'] = [25, 12, 15, 25, 30, 10].map(w => ({ wch: w }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Partners')
+    XLSX.writeFile(wb, 'partners.xlsx')
+  }
 
   const { data: partners = [], isLoading } = useQuery({
     queryKey: ['partners'],
@@ -53,10 +73,26 @@ export default function PartnersPage() {
           <h1 className="text-2xl font-bold text-gray-900">Partners</h1>
           <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {(partners as any[]).length} partners</p>
         </div>
-        <button onClick={() => router.push('/partners/new')}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors self-start sm:self-auto">
-          <Plus className="h-4 w-4" /> Add Partner
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="relative">
+            <button onClick={() => setShowExport(v => !v)}
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+              <Download className="h-4 w-4" /> Export
+            </button>
+            {showExport && (
+              <div className="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                <button onClick={() => { exportExcel(); setShowExport(false) }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 rounded-t-lg">Excel (.xlsx)</button>
+                <button onClick={() => { exportCSV(); setShowExport(false) }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 rounded-b-lg">CSV (.csv)</button>
+              </div>
+            )}
+          </div>
+          <button onClick={() => router.push('/partners/new')}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
+            <Plus className="h-4 w-4" /> Add Partner
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 md:gap-3 mb-6">

@@ -130,7 +130,7 @@ export default function ClientReportPage() {
           className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
           <Download className="h-4 w-4" /> Export PDF
         </button>
-        <Link href={'/customers/' + id + '/edit'}
+        <Link href={'/clients/' + id + '/edit'}
           className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
           Edit distributor
         </Link>
