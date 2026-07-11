@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Package, Plus, Search, Upload, Edit, Download, ChevronDown, Cigarette, ShoppingBag, BookOpen } from 'lucide-react'
+import { Package, Plus, Search, Upload, Edit, Download, ChevronDown, Cigarette, ShoppingBag, BookOpen, Eye } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import ProductSheet from '@/components/products/ProductSheet'
 
 export default function ProductsPage() {
   const supabase = createClient()
@@ -15,6 +16,7 @@ export default function ProductsPage() {
   const [roleFilter, setRoleFilter] = useState('All')
   const [showTypeModal, setShowTypeModal] = useState(false)
   const [showExport, setShowExport] = useState(false)
+  const [sheetProduct, setSheetProduct] = useState<any>(null)
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['products'],
@@ -179,8 +181,11 @@ export default function ProductsPage() {
                     <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
                       {p.status}
                     </span>
-                    <button
-                      onClick={() => router.push('/products/' + p.id + '/edit')}
+                    <button onClick={() => setSheetProduct(p)}
+                      className="text-gray-400 hover:text-gray-900 p-1 rounded hover:bg-gray-100">
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => router.push('/products/' + p.id + '/edit')}
                       className="text-gray-400 hover:text-gray-900 p-1 rounded hover:bg-gray-100">
                       <Edit className="h-4 w-4" />
                     </button>
@@ -223,11 +228,16 @@ export default function ProductsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => router.push('/products/' + p.id + '/edit')}
-                          className="text-gray-400 hover:text-gray-900 p-1 rounded hover:bg-gray-100">
-                          <Edit className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => setSheetProduct(p)}
+                            className="text-gray-400 hover:text-gray-900 p-1 rounded hover:bg-gray-100" title="Product Sheet">
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => router.push('/products/' + p.id + '/edit')}
+                            className="text-gray-400 hover:text-gray-900 p-1 rounded hover:bg-gray-100" title="Edit">
+                            <Edit className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -237,6 +247,11 @@ export default function ProductsPage() {
           </>
         )}
       </div>
+      {/* Product Sheet modal */}
+      {sheetProduct && (
+        <ProductSheet product={sheetProduct} onClose={() => setSheetProduct(null)} />
+      )}
+
       {/* Add Product type modal */}
       {showTypeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowTypeModal(false)}>
