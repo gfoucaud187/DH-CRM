@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import Link from 'next/link'
 import { COUNTRIES } from '@/lib/countries'
 import { logActivity } from '@/lib/log-activity'
@@ -161,8 +162,12 @@ export default function NewPartnerPage() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-400">Phone</label>
-                  <input value={c.phone ?? ''} onChange={e => updateContact(i, 'phone', e.target.value)}
-                    className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
+                  <PhoneInput
+                    value={c.phone ?? ''}
+                    onChange={v => updateContact(i, 'phone', v)}
+                    small
+                    className="mt-1"
+                  />
                 </div>
               </div>
             </div>

@@ -3,8 +3,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
-import { ArrowLeft, Save, Trash2, Plus } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ArrowLeft, Save, Trash2, Plus, Upload, X } from 'lucide-react'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import Link from 'next/link'
 import { COUNTRIES } from '@/lib/countries'
 import { logActivity } from '@/lib/log-activity'
@@ -34,6 +35,8 @@ export default function EditPartnerPage() {
   const router = useRouter()
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   const [name, setName]                 = useState('')
   const [type, setType]                 = useState('supplier')
@@ -47,6 +50,12 @@ export default function EditPartnerPage() {
   const [currency, setCurrency]         = useState('USD')
   const [notes, setNotes]               = useState('')
   const [status, setStatus]             = useState('active')
+  const [logoUrl, setLogoUrl]           = useState<string | null>(null)
+  const [logoPreview, setLogoPreview]   = useState<string | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [photoUrl, setPhotoUrl]         = useState<string | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [saving, setSaving]             = useState(false)
 
   const { data: partner, isLoading } = useQuery({
@@ -71,6 +80,10 @@ export default function EditPartnerPage() {
     setCurrency(partner.currency ?? 'USD')
     setNotes(partner.notes ?? '')
     setStatus(partner.status ?? 'active')
+    setLogoUrl(partner.logo_url ?? null)
+    setLogoPreview(partner.logo_url ?? null)
+    setPhotoUrl(partner.photo_url ?? null)
+    setPhotoPreview(partner.photo_url ?? null)
 
     const existingContacts = partner.contacts ?? []
     if (existingContacts.length === 0 && (partner.contact_name || partner.contact_email || partner.contact_phone)) {
@@ -84,6 +97,56 @@ export default function EditPartnerPage() {
       setContacts(existingContacts)
     }
   }, [partner])
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!['image/jpeg', 'image/png'].includes(file.type)) { alert('JPEG or PNG only'); return }
+    if (file.size > 200 * 1024) { alert('Max size is 200KB'); return }
+    setUploadingLogo(true)
+    try {
+      const ext = file.type === 'image/png' ? 'png' : 'jpg'
+      const path = `partners/${id}/logo.${ext}`
+      const { error } = await supabase.storage.from('customer-logos').upload(path, file, { upsert: true, contentType: file.type })
+      if (error) { alert('Upload error: ' + error.message); return }
+      const { data: urlData } = supabase.storage.from('customer-logos').getPublicUrl(path)
+      const url = urlData.publicUrl + '?t=' + Date.now()
+      setLogoUrl(url); setLogoPreview(url)
+    } catch (err: any) { alert('Error: ' + err.message) }
+    setUploadingLogo(false)
+  }
+
+  const handleRemoveLogo = async () => {
+    if (!confirm('Remove logo?')) return
+    await supabase.storage.from('customer-logos').remove([`partners/${id}/logo.jpg`, `partners/${id}/logo.png`])
+    setLogoUrl(null); setLogoPreview(null)
+    if (logoInputRef.current) logoInputRef.current.value = ''
+  }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { alert('JPEG, PNG or WebP only'); return }
+    if (file.size > 2 * 1024 * 1024) { alert('Max size is 2MB'); return }
+    setUploadingPhoto(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `partners/${id}/photo.${ext}`
+      const { error } = await supabase.storage.from('customer-logos').upload(path, file, { upsert: true, contentType: file.type })
+      if (error) { alert('Upload error: ' + error.message); return }
+      const { data: urlData } = supabase.storage.from('customer-logos').getPublicUrl(path)
+      const url = urlData.publicUrl + '?t=' + Date.now()
+      setPhotoUrl(url); setPhotoPreview(url)
+    } catch (err: any) { alert('Error: ' + err.message) }
+    setUploadingPhoto(false)
+  }
+
+  const handleRemovePhoto = async () => {
+    if (!confirm('Remove photo?')) return
+    await supabase.storage.from('customer-logos').remove([`partners/${id}/photo.jpg`, `partners/${id}/photo.png`, `partners/${id}/photo.webp`])
+    setPhotoUrl(null); setPhotoPreview(null)
+    if (photoInputRef.current) photoInputRef.current.value = ''
+  }
 
   const addContact = () => setContacts(c => [...c, { name: '', email: '', phone: '', role: 'Sales' }])
   const removeContact = (i: number) => setContacts(c => c.filter((_, idx) => idx !== i))
@@ -109,6 +172,8 @@ export default function EditPartnerPage() {
       currency,
       notes:         notes        || null,
       status,
+      logo_url:      logoUrl      || null,
+      photo_url:     photoUrl     || null,
       updated_at: new Date().toISOString(),
     }
 
@@ -214,6 +279,61 @@ export default function EditPartnerPage() {
           </div>
         </div>
 
+        {/* Media */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="font-semibold text-gray-900 mb-4">Media</h2>
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase mb-3">Logo</p>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
+                  {logoPreview
+                    ? <img src={logoPreview} alt="Logo" className="w-full h-full object-contain p-1" />
+                    : <span className="text-gray-300 text-xs text-center">No logo</span>}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-400">JPEG/PNG, max 200KB</p>
+                  <button onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                    <Upload className="h-3.5 w-3.5" />{uploadingLogo ? 'Uploading...' : 'Upload'}
+                  </button>
+                  {logoPreview && (
+                    <button onClick={handleRemoveLogo}
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50">
+                      <X className="h-3.5 w-3.5" /> Remove
+                    </button>
+                  )}
+                  <input ref={logoInputRef} type="file" accept="image/jpeg,image/png" onChange={handleLogoUpload} className="hidden" />
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase mb-3">Photo</p>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
+                  {photoPreview
+                    ? <img src={photoPreview} alt="Photo" className="w-full h-full object-cover" />
+                    : <span className="text-gray-300 text-xs text-center">No photo</span>}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-400">JPEG/PNG/WebP, max 2MB</p>
+                  <button onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                    <Upload className="h-3.5 w-3.5" />{uploadingPhoto ? 'Uploading...' : 'Upload'}
+                  </button>
+                  {photoPreview && (
+                    <button onClick={handleRemovePhoto}
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50">
+                      <X className="h-3.5 w-3.5" /> Remove
+                    </button>
+                  )}
+                  <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoUpload} className="hidden" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Contacts */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-4">
@@ -255,8 +375,12 @@ export default function EditPartnerPage() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-400">Phone</label>
-                  <input value={c.phone ?? ''} onChange={e => updateContact(i, 'phone', e.target.value)}
-                    className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
+                  <PhoneInput
+                    value={c.phone ?? ''}
+                    onChange={v => updateContact(i, 'phone', v)}
+                    small
+                    className="mt-1"
+                  />
                 </div>
               </div>
             </div>

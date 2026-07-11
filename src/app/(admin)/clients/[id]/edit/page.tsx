@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Save, Plus, Trash2, Copy, Upload, X, AlertTriangle, Info, Globe } from 'lucide-react'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import Link from 'next/link'
 
 const PRICE_LISTS = ['G', 'G1', 'A1', 'SPECIAL']
@@ -49,6 +50,7 @@ export default function EditCustomerPage() {
   const supabase = createClient()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   const [legalName, setLegalName] = useState('')
   const [tradingName, setTradingName] = useState('')
@@ -71,6 +73,9 @@ export default function EditCustomerPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [saving, setSaving] = useState(false)
 
   // EU Compliance
@@ -130,6 +135,8 @@ export default function EditCustomerPage() {
     setAddresses(customer.addresses ?? [])
     setLogoUrl(customer.logo_url ?? null)
     setLogoPreview(customer.logo_url ?? null)
+    setPhotoUrl(customer.photo_url ?? null)
+    setPhotoPreview(customer.photo_url ?? null)
     setIsEuropean(customer.is_european ?? false)
     setEuComplianceType(customer.eu_compliance_type ?? '')
     setTrackTrace(customer.track_trace_enabled ?? false)
@@ -172,6 +179,31 @@ export default function EditCustomerPage() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { alert('JPEG, PNG or WebP only'); return }
+    if (file.size > 2 * 1024 * 1024) { alert('Max size is 2MB'); return }
+    setUploadingPhoto(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${id}/photo.${ext}`
+      const { error } = await supabase.storage.from('customer-logos').upload(path, file, { upsert: true, contentType: file.type })
+      if (error) { alert('Upload error: ' + error.message); return }
+      const { data: urlData } = supabase.storage.from('customer-logos').getPublicUrl(path)
+      const url = urlData.publicUrl + '?t=' + Date.now()
+      setPhotoUrl(url); setPhotoPreview(url)
+    } catch (err: any) { alert('Error: ' + err.message) }
+    setUploadingPhoto(false)
+  }
+
+  const handleRemovePhoto = async () => {
+    if (!confirm('Remove photo?')) return
+    await supabase.storage.from('customer-logos').remove([`${id}/photo.jpg`, `${id}/photo.png`, `${id}/photo.webp`])
+    setPhotoUrl(null); setPhotoPreview(null)
+    if (photoInputRef.current) photoInputRef.current.value = ''
+  }
+
   const handleSave = async () => {
     setSaving(true)
     const { error } = await supabase.from('customers').update({
@@ -184,7 +216,7 @@ export default function EditCustomerPage() {
       contact_person_first_name: contactPersonFirstName || null,
       contact_person_last_name: contactPersonLastName || null,
       sales_manager: [contactPersonFirstName, contactPersonLastName].filter(Boolean).join(' ') || null,
-      notes: notes || null, contacts, addresses, logo_url: logoUrl || null,
+      notes: notes || null, contacts, addresses, logo_url: logoUrl || null, photo_url: photoUrl || null,
       is_european: isEuropean, eu_compliance_type: euComplianceType || null,
       track_trace_enabled: trackTrace, tpd_activated: tpdActivated,
       primary_repository: primaryRepository, pr_contracted: prContracted,
@@ -244,30 +276,57 @@ export default function EditCustomerPage() {
 
       <div className="space-y-6">
 
-        {/* Logo */}
+        {/* Media */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">Company Logo</h2>
-          <div className="flex items-center gap-6">
-            <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
-              {logoPreview
-                ? <img src={logoPreview} alt="Logo" className="w-full h-full object-contain p-1" />
-                : <span className="text-gray-300 text-xs text-center">No logo</span>}
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-500">JPEG or PNG, max 200KB.</p>
-              <div className="flex gap-2">
-                <button onClick={() => fileInputRef.current?.click()} disabled={uploadingLogo}
-                  className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
-                  <Upload className="h-4 w-4" />{uploadingLogo ? 'Uploading...' : 'Upload logo'}
-                </button>
-                {logoPreview && (
-                  <button onClick={handleRemoveLogo}
-                    className="flex items-center gap-2 px-3 py-2 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50">
-                    <X className="h-4 w-4" /> Remove
+          <h2 className="font-semibold text-gray-900 mb-4">Media</h2>
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase mb-3">Logo</p>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
+                  {logoPreview
+                    ? <img src={logoPreview} alt="Logo" className="w-full h-full object-contain p-1" />
+                    : <span className="text-gray-300 text-xs text-center">No logo</span>}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-400">JPEG/PNG, max 200KB</p>
+                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingLogo}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                    <Upload className="h-3.5 w-3.5" />{uploadingLogo ? 'Uploading...' : 'Upload'}
                   </button>
-                )}
+                  {logoPreview && (
+                    <button onClick={handleRemoveLogo}
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50">
+                      <X className="h-3.5 w-3.5" /> Remove
+                    </button>
+                  )}
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png" onChange={handleLogoUpload} className="hidden" />
+                </div>
               </div>
-              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png" onChange={handleLogoUpload} className="hidden" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase mb-3">Photo</p>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
+                  {photoPreview
+                    ? <img src={photoPreview} alt="Photo" className="w-full h-full object-cover" />
+                    : <span className="text-gray-300 text-xs text-center">No photo</span>}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-400">JPEG/PNG/WebP, max 2MB</p>
+                  <button onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                    <Upload className="h-3.5 w-3.5" />{uploadingPhoto ? 'Uploading...' : 'Upload'}
+                  </button>
+                  {photoPreview && (
+                    <button onClick={handleRemovePhoto}
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50">
+                      <X className="h-3.5 w-3.5" /> Remove
+                    </button>
+                  )}
+                  <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoUpload} className="hidden" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -686,9 +745,12 @@ export default function EditCustomerPage() {
                     className="h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none w-24 flex-shrink-0">
                     {PHONE_TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
-                  <input value={c.phone ?? ''} onChange={e => updateContact(i,'phone',e.target.value)}
-                    placeholder="Phone number"
-                    className="flex-1 h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
+                  <PhoneInput
+                    value={c.phone ?? ''}
+                    onChange={v => updateContact(i, 'phone', v)}
+                    small
+                    className="flex-1"
+                  />
                 </div>
               </div>
             ))}

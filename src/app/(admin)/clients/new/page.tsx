@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Save, Plus, Trash2, Copy, AlertTriangle, Info } from 'lucide-react'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import Link from 'next/link'
 
 const PRICE_LISTS = ['G', 'G1', 'A1', 'SPECIAL']
@@ -491,9 +492,12 @@ export default function NewCustomerPage() {
                     className="h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none w-24 flex-shrink-0">
                     {PHONE_TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
-                  <input value={c.phone ?? ''} onChange={e => updateContact(i,'phone',e.target.value)}
-                    placeholder="Phone number"
-                    className="flex-1 h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
+                  <PhoneInput
+                    value={c.phone ?? ''}
+                    onChange={v => updateContact(i, 'phone', v)}
+                    small
+                    className="flex-1"
+                  />
                 </div>
               </div>
             ))}

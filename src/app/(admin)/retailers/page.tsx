@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Search, MapPin, Phone, Mail, Camera, Trash2, X, ChevronDown, ChevronUp, Edit, Save, ArrowLeft, Users, Store, User, Map, Download } from 'lucide-react'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import { logActivity } from '@/lib/log-activity'
 import dynamic from 'next/dynamic'
 
@@ -213,7 +214,7 @@ export default function RetailersPage() {
         <div className="flex items-center gap-4 mb-6">
           <button onClick={() => setView('list')} className="text-gray-400 hover:text-gray-900"><ArrowLeft className="h-5 w-5" /></button>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">{view === 'new' ? 'Add Shop' : 'Edit ' + shopForm.shop_name}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{view === 'new' ? 'Add Retailer' : 'Edit ' + shopForm.shop_name}</h1>
           </div>
           <button onClick={handleSaveShop} disabled={saving}
             className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
@@ -222,30 +223,26 @@ export default function RetailersPage() {
         </div>
         <div className="space-y-5">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">Shop Information</h2>
+            <h2 className="font-semibold text-gray-900 mb-4">Retailer Information</h2>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Retailer Name *</label>
+              <input value={shopForm.shop_name} onChange={e => setShopForm(f => ({ ...f, shop_name: e.target.value }))}
+                placeholder="e.g. La Casa del Habano Paris"
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="font-semibold text-gray-900 mb-4">Address</h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="text-xs font-medium text-gray-500 uppercase">Shop Name *</label>
-                <input value={shopForm.shop_name} onChange={e => setShopForm(f => ({ ...f, shop_name: e.target.value }))}
-                  placeholder="e.g. La Casa del Habano Paris"
+                <label className="text-xs font-medium text-gray-500 uppercase">Street & Number</label>
+                <input value={shopForm.street} onChange={e => setShopForm(f => ({ ...f, street: e.target.value }))}
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 uppercase">Country</label>
-                <select value={shopForm.country} onChange={e => setShopForm(f => ({ ...f, country: e.target.value }))}
-                  className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-                  <option value="">Select country...</option>
-                  {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
-                </select>
               </div>
               <div>
                 <label className="text-xs font-medium text-gray-500 uppercase">City</label>
                 <input value={shopForm.city} onChange={e => setShopForm(f => ({ ...f, city: e.target.value }))}
-                  className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs font-medium text-gray-500 uppercase">Street & Number</label>
-                <input value={shopForm.street} onChange={e => setShopForm(f => ({ ...f, street: e.target.value }))}
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
               </div>
               <div>
@@ -253,12 +250,14 @@ export default function RetailersPage() {
                 <input value={shopForm.postal_code} onChange={e => setShopForm(f => ({ ...f, postal_code: e.target.value }))}
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
               </div>
-            </div>
-            <div className="mt-4">
-              <label className="text-xs font-medium text-gray-500 uppercase">Comments</label>
-              <textarea value={shopForm.comments} onChange={e => setShopForm(f => ({ ...f, comments: e.target.value }))}
-                rows={3} placeholder="Visit notes, product preferences..."
-                className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none resize-none" />
+              <div className="col-span-2">
+                <label className="text-xs font-medium text-gray-500 uppercase">Country</label>
+                <select value={shopForm.country} onChange={e => setShopForm(f => ({ ...f, country: e.target.value }))}
+                  className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                  <option value="">Select country...</option>
+                  {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -274,18 +273,42 @@ export default function RetailersPage() {
               ? <p className="text-sm text-gray-400">No contacts yet</p>
               : shopForm.contacts.map((c, i) => (
                 <div key={i} className="p-3 bg-gray-50 rounded-lg mb-3">
-                  <div className="grid grid-cols-4 gap-2">
-                    {[['first_name','First Name'],['last_name','Last Name'],['email','Email'],['mobile','Mobile']].map(([field, label]) => (
-                      <div key={field} className={field === 'email' ? 'relative' : ''}>
-                        <label className="text-xs text-gray-400">{label}</label>
-                        <input value={(c as any)[field]} onChange={e => updateContact(i, field, e.target.value)}
-                          className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-4 gap-2 mb-2">
+                    <div>
+                      <label className="text-xs text-gray-400">First Name</label>
+                      <input value={c.first_name} onChange={e => updateContact(i, 'first_name', e.target.value)}
+                        className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400">Last Name</label>
+                      <input value={c.last_name} onChange={e => updateContact(i, 'last_name', e.target.value)}
+                        className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400">Email</label>
+                      <input value={c.email} onChange={e => updateContact(i, 'email', e.target.value)}
+                        className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400">Mobile</label>
+                      <PhoneInput
+                        value={c.mobile ?? ''}
+                        onChange={v => updateContact(i, 'mobile', v)}
+                        small
+                        className="mt-1"
+                      />
+                    </div>
                   </div>
-                  <button onClick={() => removeContact(i)} className="mt-2 text-xs text-gray-400 hover:text-red-500">Remove</button>
+                  <button onClick={() => removeContact(i)} className="text-xs text-gray-400 hover:text-red-500">Remove</button>
                 </div>
               ))}
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="font-semibold text-gray-900 mb-4">Notes</h2>
+            <textarea value={shopForm.comments} onChange={e => setShopForm(f => ({ ...f, comments: e.target.value }))}
+              rows={3} placeholder="Visit notes, product preferences..."
+              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none resize-none" />
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -356,8 +379,11 @@ export default function RetailersPage() {
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Mobile</label>
-              <input value={b2cForm.mobile} onChange={e => setB2cForm(f => ({ ...f, mobile: e.target.value }))}
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+              <PhoneInput
+                value={b2cForm.mobile}
+                onChange={v => setB2cForm(f => ({ ...f, mobile: v }))}
+                className="mt-1"
+              />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Country</label>
@@ -402,7 +428,7 @@ export default function RetailersPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Retailers & Contacts</h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            {(retailers as any[]).length} shops · {(b2cContacts as any[]).length} B2C contacts
+            {(retailers as any[]).length} retailers · {(b2cContacts as any[]).length} B2C contacts
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -424,7 +450,7 @@ export default function RetailersPage() {
           )}
           <button onClick={tab === 'shops' ? openNewShop : tab === 'b2c' ? openNewB2c : undefined}
             className={`flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors ${tab === 'map' ? 'invisible' : ''}`}>
-            <Plus className="h-4 w-4" /> {tab === 'shops' ? 'Add shop' : 'Add contact'}
+            <Plus className="h-4 w-4" /> {tab === 'shops' ? 'Add retailer' : 'Add contact'}
           </button>
         </div>
       </div>
@@ -433,7 +459,7 @@ export default function RetailersPage() {
       <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
         <button onClick={() => { setTab('shops'); setSearch('') }}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'shops' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-          <Store className="h-4 w-4" /> Shops
+          <Store className="h-4 w-4" /> Retailers
           <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{(retailers as any[]).length}</span>
         </button>
         <button onClick={() => { setTab('b2c'); setSearch('') }}
@@ -463,7 +489,7 @@ export default function RetailersPage() {
         filteredShops.length === 0
           ? <div className="text-center py-16 text-gray-400">
               <Store className="h-8 w-8 mx-auto mb-2" />
-              <p>{search ? 'No shops match' : 'No shops yet'}</p>
+              <p>{search ? 'No retailers match' : 'No retailers yet'}</p>
             </div>
           : <div className="space-y-2">
               {filteredShops.map((r: any) => {
@@ -518,7 +544,7 @@ export default function RetailersPage() {
                         )}
                         {r.comments && (
                           <div>
-                            <p className="text-xs font-medium text-gray-500 uppercase mb-1">Comments</p>
+                            <p className="text-xs font-medium text-gray-500 uppercase mb-1">Notes</p>
                             <p className="text-sm text-gray-700 whitespace-pre-wrap">{r.comments}</p>
                           </div>
                         )}
