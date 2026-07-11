@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
-import { PhoneInput } from '@/components/ui/PhoneInput'
+import { PhoneField } from '@/components/ui/PhoneField'
 import Link from 'next/link'
 import { COUNTRIES } from '@/lib/countries'
 import { logActivity } from '@/lib/log-activity'
@@ -41,7 +41,7 @@ export default function NewPartnerPage() {
   const [notes, setNotes]             = useState('')
   const [saving, setSaving]           = useState(false)
 
-  const addContact = () => setContacts(c => [...c, { name: '', email: '', phone: '', role: 'Sales' }])
+  const addContact = () => setContacts(c => [...c, { name: '', email: '', phone_dial: '33', phone: '', role: 'Sales' }])
   const removeContact = (i: number) => setContacts(c => c.filter((_, idx) => idx !== i))
   const updateContact = (i: number, field: string, value: string) =>
     setContacts(c => c.map((ct, idx) => idx === i ? { ...ct, [field]: value } : ct))
@@ -162,9 +162,11 @@ export default function NewPartnerPage() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-400">Phone</label>
-                  <PhoneInput
-                    value={c.phone ?? ''}
-                    onChange={v => updateContact(i, 'phone', v)}
+                  <PhoneField
+                    dialCode={c.phone_dial ?? '33'}
+                    number={c.phone ?? ''}
+                    onDialChange={(v: string) => updateContact(i, 'phone_dial', v)}
+                    onNumberChange={(v: string) => updateContact(i, 'phone', v)}
                     small
                     className="mt-1"
                   />

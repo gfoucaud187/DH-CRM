@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Save, Trash2, Plus, Upload, X } from 'lucide-react'
-import { PhoneInput } from '@/components/ui/PhoneInput'
+import { PhoneField, parseDialAndNumber } from '@/components/ui/PhoneField'
 import Link from 'next/link'
 import { COUNTRIES } from '@/lib/countries'
 import { logActivity } from '@/lib/log-activity'
@@ -86,15 +86,23 @@ export default function EditPartnerPage() {
     setPhotoPreview(partner.photo_url ?? null)
 
     const existingContacts = partner.contacts ?? []
+    const normalize = (c: any) => {
+      if (c.phone && !c.phone_dial) {
+        const { dial, number } = parseDialAndNumber(c.phone)
+        return { ...c, phone_dial: dial, phone: number }
+      }
+      return { phone_dial: '33', ...c }
+    }
     if (existingContacts.length === 0 && (partner.contact_name || partner.contact_email || partner.contact_phone)) {
-      setContacts([{
+      const { dial, number } = parseDialAndNumber(partner.contact_phone ?? '')
+      setContacts([normalize({
         name:  partner.contact_name  ?? '',
         email: partner.contact_email ?? '',
-        phone: partner.contact_phone ?? '',
+        phone_dial: dial, phone: number,
         role:  'Sales',
-      }])
+      })])
     } else {
-      setContacts(existingContacts)
+      setContacts(existingContacts.map(normalize))
     }
   }, [partner])
 
@@ -148,7 +156,7 @@ export default function EditPartnerPage() {
     if (photoInputRef.current) photoInputRef.current.value = ''
   }
 
-  const addContact = () => setContacts(c => [...c, { name: '', email: '', phone: '', role: 'Sales' }])
+  const addContact = () => setContacts(c => [...c, { name: '', email: '', phone_dial: '33', phone: '', role: 'Sales' }])
   const removeContact = (i: number) => setContacts(c => c.filter((_, idx) => idx !== i))
   const updateContact = (i: number, field: string, value: string) =>
     setContacts(c => c.map((ct, idx) => idx === i ? { ...ct, [field]: value } : ct))
@@ -375,9 +383,11 @@ export default function EditPartnerPage() {
                 </div>
                 <div>
                   <label className="text-xs text-gray-400">Phone</label>
-                  <PhoneInput
-                    value={c.phone ?? ''}
-                    onChange={v => updateContact(i, 'phone', v)}
+                  <PhoneField
+                    dialCode={c.phone_dial ?? '33'}
+                    number={c.phone ?? ''}
+                    onDialChange={(v: string) => updateContact(i, 'phone_dial', v)}
+                    onNumberChange={(v: string) => updateContact(i, 'phone', v)}
                     small
                     className="mt-1"
                   />

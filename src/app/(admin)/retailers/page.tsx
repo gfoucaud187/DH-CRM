@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Search, MapPin, Phone, Mail, Camera, Trash2, X, ChevronDown, ChevronUp, Edit, Save, ArrowLeft, Users, Store, User, Map, Download } from 'lucide-react'
-import { PhoneInput } from '@/components/ui/PhoneInput'
+import { PhoneField, parseDialAndNumber } from '@/components/ui/PhoneField'
 import { logActivity } from '@/lib/log-activity'
 import dynamic from 'next/dynamic'
 
@@ -22,7 +22,7 @@ const emptyShopForm = () => ({
 })
 
 const emptyB2cForm = () => ({
-  first_name: '', last_name: '', email: '', mobile: '',
+  first_name: '', last_name: '', email: '', mobile_dial: '33', mobile: '',
   country: '', retailer_id: '', event: '', comments: '',
 })
 
@@ -97,7 +97,14 @@ export default function RetailersPage() {
     setShopForm({
       shop_name: r.shop_name ?? '', country: r.country ?? '',
       street: r.street ?? '', city: r.city ?? '', postal_code: r.postal_code ?? '',
-      contacts: r.contacts ?? [], photos: r.photos ?? [], comments: r.comments ?? '',
+      contacts: (r.contacts ?? []).map((c: any) => {
+        if (c.mobile && !c.mobile_dial) {
+          const { dial, number } = parseDialAndNumber(c.mobile)
+          return { ...c, mobile_dial: dial, mobile: number }
+        }
+        return { mobile_dial: '33', ...c }
+      }),
+      photos: r.photos ?? [], comments: r.comments ?? '',
     })
     setEditingId(r.id); setView('edit')
   }
@@ -151,7 +158,7 @@ export default function RetailersPage() {
   }
 
   const removePhoto = (url: string) => setShopForm(f => ({ ...f, photos: f.photos.filter(p => p !== url) }))
-  const addContact = () => setShopForm(f => ({ ...f, contacts: [...f.contacts, { first_name: '', last_name: '', email: '', mobile: '' }] }))
+  const addContact = () => setShopForm(f => ({ ...f, contacts: [...f.contacts, { first_name: '', last_name: '', email: '', mobile_dial: '33', mobile: '' }] }))
   const removeContact = (i: number) => setShopForm(f => ({ ...f, contacts: f.contacts.filter((_, idx) => idx !== i) }))
   const updateContact = (i: number, field: string, value: string) =>
     setShopForm(f => ({ ...f, contacts: f.contacts.map((c, idx) => idx === i ? { ...c, [field]: value } : c) }))
@@ -168,9 +175,12 @@ export default function RetailersPage() {
 
   const openNewB2c = () => { setB2cForm(emptyB2cForm()); setEditingId(null); setView('new') }
   const openEditB2c = (c: any) => {
+    const parsed = parseDialAndNumber(c.mobile ?? '')
     setB2cForm({
       first_name: c.first_name ?? '', last_name: c.last_name ?? '',
-      email: c.email ?? '', mobile: c.mobile ?? '',
+      email: c.email ?? '',
+      mobile_dial: c.mobile_dial ?? parsed.dial,
+      mobile: c.mobile_dial ? (c.mobile ?? '') : parsed.number,
       country: c.country ?? '', retailer_id: c.retailer_id ?? '',
       event: c.event ?? '', comments: c.comments ?? '',
     })
@@ -291,9 +301,11 @@ export default function RetailersPage() {
                     </div>
                     <div>
                       <label className="text-xs text-gray-400">Mobile</label>
-                      <PhoneInput
-                        value={c.mobile ?? ''}
-                        onChange={v => updateContact(i, 'mobile', v)}
+                      <PhoneField
+                        dialCode={c.mobile_dial ?? '33'}
+                        number={c.mobile ?? ''}
+                        onDialChange={(v: string) => updateContact(i, 'mobile_dial', v)}
+                        onNumberChange={(v: string) => updateContact(i, 'mobile', v)}
                         small
                         className="mt-1"
                       />
@@ -379,9 +391,11 @@ export default function RetailersPage() {
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">Mobile</label>
-              <PhoneInput
-                value={b2cForm.mobile}
-                onChange={v => setB2cForm(f => ({ ...f, mobile: v }))}
+              <PhoneField
+                dialCode={b2cForm.mobile_dial}
+                number={b2cForm.mobile}
+                onDialChange={(v: string) => setB2cForm(f => ({ ...f, mobile_dial: v }))}
+                onNumberChange={(v: string) => setB2cForm(f => ({ ...f, mobile: v }))}
                 className="mt-1"
               />
             </div>

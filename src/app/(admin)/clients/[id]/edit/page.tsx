@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Save, Plus, Trash2, Copy, Upload, X, AlertTriangle, Info, Globe } from 'lucide-react'
-import { PhoneInput } from '@/components/ui/PhoneInput'
+import { PhoneField, parseDialAndNumber } from '@/components/ui/PhoneField'
 import Link from 'next/link'
 
 const PRICE_LISTS = ['G', 'G1', 'A1', 'SPECIAL']
@@ -131,7 +131,13 @@ export default function EditCustomerPage() {
     setContactPersonFirstName(customer.contact_person_first_name ?? nameParts[0] ?? '')
     setContactPersonLastName(customer.contact_person_last_name ?? nameParts.slice(1).join(' ') ?? '')
     setNotes(customer.notes ?? '')
-    setContacts(customer.contacts ?? [])
+    setContacts((customer.contacts ?? []).map((c: any) => {
+      if (c.phone && !c.phone_dial) {
+        const { dial, number } = parseDialAndNumber(c.phone)
+        return { ...c, phone_dial: dial, phone: number }
+      }
+      return { phone_dial: '33', ...c }
+    }))
     setAddresses(customer.addresses ?? [])
     setLogoUrl(customer.logo_url ?? null)
     setLogoPreview(customer.logo_url ?? null)
@@ -243,7 +249,7 @@ export default function EditCustomerPage() {
     else alert('Error: ' + error.message)
   }
 
-  const addContact = () => setContacts(c => [...c, { first_name: '', last_name: '', role: 'Sales', role_other: '', email: '', phone: '', phone_type: 'Mobile' }])
+  const addContact = () => setContacts(c => [...c, { first_name: '', last_name: '', role: 'Sales', role_other: '', email: '', phone_dial: '33', phone: '', phone_type: 'Mobile' }])
   const removeContact = (i: number) => setContacts(c => c.filter((_, idx) => idx !== i))
   const updateContact = (i: number, field: string, value: string) =>
     setContacts(c => c.map((ct, idx) => idx === i ? { ...ct, [field]: value } : ct))
@@ -742,12 +748,14 @@ export default function EditCustomerPage() {
                 )}
                 <div className="flex gap-3 mt-1">
                   <select value={c.phone_type ?? 'Mobile'} onChange={e => updateContact(i,'phone_type',e.target.value)}
-                    className="h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none w-24 flex-shrink-0">
+                    className="h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none w-20 flex-shrink-0">
                     {PHONE_TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
-                  <PhoneInput
-                    value={c.phone ?? ''}
-                    onChange={v => updateContact(i, 'phone', v)}
+                  <PhoneField
+                    dialCode={c.phone_dial ?? '33'}
+                    number={c.phone ?? ''}
+                    onDialChange={(v: string) => updateContact(i, 'phone_dial', v)}
+                    onNumberChange={(v: string) => updateContact(i, 'phone', v)}
                     small
                     className="flex-1"
                   />

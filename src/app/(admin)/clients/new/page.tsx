@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Save, Plus, Trash2, Copy, AlertTriangle, Info } from 'lucide-react'
-import { PhoneInput } from '@/components/ui/PhoneInput'
+import { PhoneField, parseDialAndNumber } from '@/components/ui/PhoneField'
 import Link from 'next/link'
 
 const PRICE_LISTS = ['G', 'G1', 'A1', 'SPECIAL']
@@ -125,7 +125,7 @@ export default function NewCustomerPage() {
     } else alert('Error: ' + error.message)
   }
 
-  const addContact = () => setContacts(c => [...c, { first_name: '', last_name: '', role: 'Sales', role_other: '', email: '', phone: '', phone_type: 'Mobile' }])
+  const addContact = () => setContacts(c => [...c, { first_name: '', last_name: '', role: 'Sales', role_other: '', email: '', phone_dial: '33', phone: '', phone_type: 'Mobile' }])
   const removeContact = (i: number) => setContacts(c => c.filter((_, idx) => idx !== i))
   const updateContact = (i: number, field: string, value: string) =>
     setContacts(c => c.map((ct, idx) => idx === i ? { ...ct, [field]: value } : ct))
@@ -489,12 +489,14 @@ export default function NewCustomerPage() {
                 )}
                 <div className="flex gap-3 mt-1">
                   <select value={c.phone_type ?? 'Mobile'} onChange={e => updateContact(i,'phone_type',e.target.value)}
-                    className="h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none w-24 flex-shrink-0">
+                    className="h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none w-20 flex-shrink-0">
                     {PHONE_TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
-                  <PhoneInput
-                    value={c.phone ?? ''}
-                    onChange={v => updateContact(i, 'phone', v)}
+                  <PhoneField
+                    dialCode={c.phone_dial ?? '33'}
+                    number={c.phone ?? ''}
+                    onDialChange={(v: string) => updateContact(i, 'phone_dial', v)}
+                    onNumberChange={(v: string) => updateContact(i, 'phone', v)}
                     small
                     className="flex-1"
                   />
