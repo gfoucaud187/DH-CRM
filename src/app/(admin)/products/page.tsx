@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Package, Plus, Search, Upload, Edit } from 'lucide-react'
+import { Package, Plus, Search, Upload, Edit, Download, ChevronDown, Cigarette, ShoppingBag, BookOpen } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 export default function ProductsPage() {
@@ -13,6 +13,8 @@ export default function ProductsPage() {
   const [brandFilter, setBrandFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
   const [roleFilter, setRoleFilter] = useState('All')
+  const [showTypeModal, setShowTypeModal] = useState(false)
+  const [showExport, setShowExport] = useState(false)
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['products'],
@@ -26,6 +28,36 @@ export default function ProductsPage() {
   })
 
   const brands = ['All', ...Array.from(new Set((products as any[]).map((p: any) => p.brand))).sort() as string[]]
+
+  const exportCSV = () => {
+    const headers = ['SKU','Full Name','Brand','Line','Vitola','Shape','Wrapper','Units/Pack','Pack Type','Fixmer Ref','EU-CEG ID','GTIN','Length (in)','Ring Gauge','Weight (g)','Status','Role','Notes']
+    const rows = (products as any[]).map((p: any) => [
+      p.sku, p.full_name, p.brand, p.line, p.vitola, p.shape, p.wrapper,
+      p.units_per_pack, p.pack_type, p.fixmer_reference, p.eu_ceg_id, p.gtin,
+      p.length_inches, p.ring_gauge, p.net_weight_g, p.status, p.product_role, p.notes
+    ])
+    const csv = [headers, ...rows].map(r => r.map((v: any) => v == null ? '' : `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+    a.download = 'products.csv'; a.click()
+  }
+
+  const exportExcel = async () => {
+    const XLSX = await import('xlsx')
+    const rows = (products as any[]).map((p: any) => ({
+      SKU: p.sku, 'Full Name': p.full_name, Brand: p.brand, Line: p.line,
+      Vitola: p.vitola, Shape: p.shape, Wrapper: p.wrapper,
+      'Units/Pack': p.units_per_pack, 'Pack Type': p.pack_type,
+      'Fixmer Ref': p.fixmer_reference, 'EU-CEG ID': p.eu_ceg_id, GTIN: p.gtin,
+      'Length (in)': p.length_inches, 'Ring Gauge': p.ring_gauge, 'Weight (g)': p.net_weight_g,
+      Status: p.status, Role: p.product_role, Notes: p.notes,
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    ws['!cols'] = [10,30,15,15,12,12,15,10,10,15,15,15,10,10,10,10,10,25].map(w => ({ wch: w }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Products')
+    XLSX.writeFile(wb, 'products.xlsx')
+  }
 
   const filtered = (products as any[]).filter((p: any) => {
     const matchSearch = !search ||
@@ -56,23 +88,23 @@ export default function ProductsPage() {
           <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {(products as any[]).length} products</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => {
-              const headers = 'sku,full_name,brand,line,vitola,shape,wrapper,binder,filler,units_per_pack,pack_type,fixmer_reference,eu_ceg_id,length_inches,ring_gauge,net_weight_g,status,notes,price_g,price_g1,price_a1,price_special,currency'
-              const example = 'NI-ROBUS-B10,Nicarao Exclusivo Robusto B10,Nicarao,Exclusivo,Robusto,Robusto,Ecuador Connecticut,Nicaragua,Nicaragua,10,Box,REF001,,5.0,50,12.5,active,,85.00,90.00,95.00,,USD'
-              const csv = headers + '\n' + example
-              const blob = new Blob([csv], { type: 'text/csv' })
-              const url = URL.createObjectURL(blob)
-              const a = document.createElement('a')
-              a.href = url; a.download = 'products-template.csv'; a.click()
-              URL.revokeObjectURL(url)
-            }}
-            className="hidden md:flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
-            📥 CSV Template
-          </button>
+          {/* Export dropdown */}
+          <div className="relative hidden md:block">
+            <button onClick={() => setShowExport(v => !v)}
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+              <Download className="h-4 w-4" />Export<ChevronDown className="h-3 w-3" />
+            </button>
+            {showExport && (
+              <div className="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                <button onClick={() => { exportExcel(); setShowExport(false) }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 rounded-t-lg">Excel (.xlsx)</button>
+                <button onClick={() => { exportCSV(); setShowExport(false) }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 rounded-b-lg">CSV (.csv)</button>
+              </div>
+            )}
+          </div>
           <label className="hidden md:flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer transition-colors">
-            <Upload className="h-4 w-4" />
-            Import CSV
+            <Upload className="h-4 w-4" />Import CSV
             <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
               const file = e.target.files?.[0]
               if (!file) return
@@ -84,11 +116,9 @@ export default function ProductsPage() {
               window.location.reload()
             }} />
           </label>
-          <button
-            onClick={() => router.push('/products/new')}
+          <button onClick={() => setShowTypeModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
-            <Plus className="h-4 w-4" />
-            Add Product
+            <Plus className="h-4 w-4" />Add Product
           </button>
         </div>
       </div>
@@ -103,17 +133,17 @@ export default function ProductsPage() {
         </div>
         <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
-          {brands.map(b => <option key={b}>{b}</option>)}
+          {brands.map(b => <option key={b} value={b}>{b === 'All' ? 'Brands' : b}</option>)}
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
-          <option>All</option>
+          <option value="All">Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
         <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
-          <option value="All">All Roles</option>
+          <option value="All">Inventory</option>
           <option value="original">Original</option>
           <option value="aged">Aged</option>
           <option value="sample">Sample</option>
@@ -207,6 +237,34 @@ export default function ProductsPage() {
           </>
         )}
       </div>
+      {/* Add Product type modal */}
+      {showTypeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowTypeModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Add Product</h2>
+            <p className="text-sm text-gray-500 mb-6">Choose the type of product to add</p>
+            <div className="grid grid-cols-3 gap-3">
+              <button onClick={() => { setShowTypeModal(false); router.push('/products/new?type=cigar') }}
+                className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-gray-900 hover:bg-gray-50 transition-all group">
+                <Cigarette className="h-8 w-8 text-gray-400 group-hover:text-gray-900 transition-colors" />
+                <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">Cigars</span>
+              </button>
+              <button onClick={() => { setShowTypeModal(false); router.push('/products/new?type=accessory') }}
+                className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-gray-900 hover:bg-gray-50 transition-all group">
+                <ShoppingBag className="h-8 w-8 text-gray-400 group-hover:text-gray-900 transition-colors" />
+                <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">Accessories</span>
+              </button>
+              <button onClick={() => { setShowTypeModal(false); router.push('/products/new?type=book') }}
+                className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-gray-900 hover:bg-gray-50 transition-all group">
+                <BookOpen className="h-8 w-8 text-gray-400 group-hover:text-gray-900 transition-colors" />
+                <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">Books</span>
+              </button>
+            </div>
+            <button onClick={() => setShowTypeModal(false)}
+              className="mt-4 w-full py-2 text-sm text-gray-500 hover:text-gray-900">Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

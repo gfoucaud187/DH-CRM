@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
 import { logActivity } from '@/lib/log-activity'
@@ -16,7 +16,204 @@ const LIST_COLORS: Record<string, string> = {
   A1: 'bg-amber-100 text-amber-700', SPECIAL: 'bg-red-100 text-red-700',
 }
 
+function SimplifiedForm({ productType }: { productType: 'accessory' | 'book' }) {
+  const router = useRouter()
+  const supabase = createClient()
+
+  const [sku, setSku] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [status, setStatus] = useState('active')
+  const [lengthCm, setLengthCm] = useState('')
+  const [widthCm, setWidthCm] = useState('')
+  const [heightCm, setHeightCm] = useState('')
+  const [weightG, setWeightG] = useState('')
+  const [costPrice, setCostPrice] = useState('')
+  const [sellingPrice, setSellingPrice] = useState('')
+  const [unitsPerPack, setUnitsPerPack] = useState('')
+  const [packType, setPackType] = useState('Box')
+  const [gtin, setGtin] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const label = productType === 'accessory' ? 'Accessory' : 'Book'
+
+  const handleSave = async () => {
+    if (!sku) return alert('SKU is required')
+    if (!fullName) return alert('Product name is required')
+    setSaving(true)
+
+    const dimNote = [lengthCm && `L:${lengthCm}cm`, widthCm && `W:${widthCm}cm`, heightCm && `H:${heightCm}cm`].filter(Boolean).join(' ')
+    const fullNotes = [dimNote, notes].filter(Boolean).join(' | ')
+
+    const { data: product, error } = await supabase.from('products').insert({
+      sku,
+      full_name: fullName,
+      status,
+      net_weight_g: weightG ? parseFloat(weightG) : null,
+      units_per_pack: unitsPerPack ? parseInt(unitsPerPack) : null,
+      pack_type: packType || null,
+      gtin: gtin || null,
+      notes: fullNotes || null,
+      product_role: 'original',
+    }).select().single()
+
+    if (error) { setSaving(false); alert('Error: ' + error.message); return }
+
+    // Insert price entries
+    const priceRows = []
+    if (costPrice && parseFloat(costPrice) > 0)
+      priceRows.push({ sku, product_name: fullName, price_list: 'G', price_per_unit: parseFloat(costPrice), currency: 'USD' })
+    if (sellingPrice && parseFloat(sellingPrice) > 0)
+      priceRows.push({ sku, product_name: fullName, price_list: 'G1', price_per_unit: parseFloat(sellingPrice), currency: 'USD' })
+    if (priceRows.length > 0) await supabase.from('price_list_entries').insert(priceRows)
+
+    await logActivity({
+      action: 'create_product',
+      entityType: 'product',
+      entityId: product.id,
+      entityRef: sku,
+      metadata: { name: fullName, type: productType, status },
+    })
+    setSaving(false)
+    router.push('/products/' + product.id + '/edit')
+  }
+
+  return (
+    <div className="max-w-3xl">
+      <div className="flex items-center gap-4 mb-6">
+        <Link href="/products" className="text-gray-400 hover:text-gray-900"><ArrowLeft className="h-5 w-5" /></Link>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold text-gray-900">New {label}</h1>
+          <p className="text-gray-500 text-sm">Add a new {label.toLowerCase()} to the catalogue</p>
+        </div>
+        <button onClick={handleSave} disabled={saving}
+          className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
+          <Save className="h-4 w-4" />{saving ? 'Saving...' : 'Create Product'}
+        </button>
+      </div>
+
+      <div className="space-y-6">
+        {/* Product Info */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="font-semibold text-gray-900 mb-4">Product Information</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">SKU (Ref. DH) *</label>
+              <input value={sku} onChange={e => setSku(e.target.value.toUpperCase())}
+                placeholder="e.g. ACC-001"
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none font-mono" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Status</label>
+              <select value={status} onChange={e => setStatus(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-medium text-gray-500 uppercase">Full Name *</label>
+              <input value={fullName} onChange={e => setFullName(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+          </div>
+        </div>
+
+        {/* Dimensions */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="font-semibold text-gray-900 mb-4">Dimensions & Weight</h2>
+          <div className="grid grid-cols-4 gap-4">
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">L (cm)</label>
+              <input type="number" step="0.1" min="0" value={lengthCm} onChange={e => setLengthCm(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">W (cm)</label>
+              <input type="number" step="0.1" min="0" value={widthCm} onChange={e => setWidthCm(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">H (cm)</label>
+              <input type="number" step="0.1" min="0" value={heightCm} onChange={e => setHeightCm(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Weight (g)</label>
+              <input type="number" step="0.1" min="0" value={weightG} onChange={e => setWeightG(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+          </div>
+        </div>
+
+        {/* Pricing */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="font-semibold text-gray-900 mb-4">Pricing</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Cost Price (USD)</label>
+              <input type="number" step="0.01" min="0" value={costPrice} onChange={e => setCostPrice(e.target.value)}
+                placeholder="0.00"
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none text-right" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Selling Price (USD)</label>
+              <input type="number" step="0.01" min="0" value={sellingPrice} onChange={e => setSellingPrice(e.target.value)}
+                placeholder="0.00"
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none text-right" />
+            </div>
+          </div>
+        </div>
+
+        {/* Packaging */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="font-semibold text-gray-900 mb-4">Packaging & References</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Units per Pack</label>
+              <input type="number" min="1" value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Pack Type</label>
+              <select value={packType} onChange={e => setPackType(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                {PACK_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-medium text-gray-500 uppercase">GTIN (Barcode)</label>
+              <input value={gtin} onChange={e => setGtin(e.target.value)}
+                placeholder="e.g. 5404021000011"
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none font-mono" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <label className="text-xs font-medium text-gray-500 uppercase">Notes</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+              className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none resize-none" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function NewProductContent() {
+  const searchParams = useSearchParams()
+  const productType = searchParams.get('type') ?? 'cigar'
+
+  if (productType === 'accessory' || productType === 'book') {
+    return <SimplifiedForm productType={productType} />
+  }
+
+  return <CigarForm />
+}
+
 export default function NewProductPage() {
+  return <Suspense><NewProductContent /></Suspense>
+}
+
+function CigarForm() {
   const router = useRouter()
   const supabase = createClient()
 
@@ -67,7 +264,6 @@ export default function NewProductPage() {
 
     if (error) { setSaving(false); alert('Error: ' + error.message); return }
 
-    // Insert price entries
     const priceRows = LISTS
       .filter(l => prices[l] && parseFloat(prices[l]) > 0)
       .map(l => ({ sku, product_name: fullName, price_list: l, price_per_unit: parseFloat(prices[l]), currency: 'USD' }))
