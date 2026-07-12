@@ -5,7 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useT } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { BarChart3, Globe, Package, Users, Target, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, Clock, XCircle, Calendar } from 'lucide-react'
+import { COUNTRIES } from '@/lib/countries'
+import { BarChart3, Globe, Package, Users, Target, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, Clock, XCircle, Calendar, Download } from 'lucide-react'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -24,11 +25,33 @@ function fmt(n: number) {
   return `$${n.toFixed(0)}`
 }
 
+function flagFor(code?: string | null) {
+  return COUNTRIES.find(c => c.code === code)?.flag ?? ''
+}
+
+function downloadCsv(rows: (string | number)[][], filename: string) {
+  const csv = rows.map(r => r.map(v => v == null ? '' : `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+}
+
 function getHealthScore(lastOrderDays: number, freqPerMonth: number) {
   if (lastOrderDays > 365) return { label: 'Lost',    color: 'bg-gray-100 text-gray-500',   dot: 'bg-gray-400',   priority: 4 }
   if (lastOrderDays > 120) return { label: 'Dormant', color: 'bg-red-100 text-red-600',     dot: 'bg-red-500',    priority: 3 }
   if (lastOrderDays > 60 || freqPerMonth < 0.5) return { label: 'At risk', color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500', priority: 2 }
   return { label: 'Active', color: 'bg-green-100 text-green-700', dot: 'bg-green-500', priority: 1 }
+}
+
+function ExportButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+      className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex-shrink-0">
+      <Download className="h-4 w-4" /> {label}
+    </button>
+  )
 }
 
 function Delta({ curr, prev }: { curr: number; prev: number }) {
@@ -82,6 +105,7 @@ export default function ReportsPage() {
   const [period, setPeriod] = useState('ytd')
   const [activityFilter, setActivityFilter] = useState<'all'|'active'|'at_risk'|'dormant'|'lost'>('all')
   const [expandedRegion, setExpandedRegion] = useState<string | null>(null)
+  const [geoTypeFilter, setGeoTypeFilter] = useState<'all'|'distributor'|'private'>('all')
 
   const t = useT()
 
@@ -99,7 +123,7 @@ export default function ReportsPage() {
     queryKey: ['report-customers'],
     queryFn: async () => {
       const { data } = await supabase.from('customers')
-        .select('id, legal_name, country, region, assigned_price_list, currency, status, is_european, eu_compliance_type, internal_owner')
+        .select('id, legal_name, country, region, client_type, assigned_price_list, currency, status, is_european, eu_compliance_type, internal_owner')
         .eq('status', 'active')
       return data ?? []
     }
@@ -161,17 +185,32 @@ export default function ReportsPage() {
   })
   const maxMonthly = Math.max(...monthlyRevenue.map(m => m.value), 1)
 
-  const regionMap: Record<string, { clients: any[], revenue: number, units: number, prevRevenue: number }> = {}
+  const countryMap: Record<string, { clients: any[], revenue: number, units: number, prevRevenue: number }> = {}
   customers.forEach((c: any) => {
-    const region = c.region ?? c.country ?? 'Unknown'
-    if (!regionMap[region]) regionMap[region] = { clients: [], revenue: 0, units: 0, prevRevenue: 0 }
-    regionMap[region].clients.push(c)
-    regionMap[region].revenue += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-    regionMap[region].prevRevenue += prevInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-    regionMap[region].units += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+    const country = c.country ?? 'Unknown'
+    if (!countryMap[country]) countryMap[country] = { clients: [], revenue: 0, units: 0, prevRevenue: 0 }
+    countryMap[country].clients.push(c)
+    countryMap[country].revenue += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    countryMap[country].prevRevenue += prevInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    countryMap[country].units += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
   })
-  const regionList = Object.entries(regionMap).sort(([,a],[,b]) => b.revenue - a.revenue)
-  const maxRegionRevenue = Math.max(...regionList.map(([,v]) => v.revenue), 1)
+  const countryList = Object.entries(countryMap).sort(([,a],[,b]) => b.revenue - a.revenue)
+  const maxCountryRevenue = Math.max(...countryList.map(([,v]) => v.revenue), 1)
+
+  const geoCustomers = customers.filter((c: any) => geoTypeFilter === 'all' || (c.client_type ?? 'distributor') === geoTypeFilter)
+  const geoRegionMap: Record<string, { clients: any[], revenue: number, units: number, prevRevenue: number }> = {}
+  geoCustomers.forEach((c: any) => {
+    const region = c.region ?? c.country ?? 'Unknown'
+    if (!geoRegionMap[region]) geoRegionMap[region] = { clients: [], revenue: 0, units: 0, prevRevenue: 0 }
+    geoRegionMap[region].clients.push(c)
+    geoRegionMap[region].revenue += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    geoRegionMap[region].prevRevenue += prevInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    geoRegionMap[region].units += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+  })
+  const geoRegionList = Object.entries(geoRegionMap).sort(([,a],[,b]) => b.revenue - a.revenue)
+  const maxGeoRegionRevenue = Math.max(...geoRegionList.map(([,v]) => v.revenue), 1)
+  const geoRevenue = geoRegionList.reduce((s, [,v]) => s + v.revenue, 0)
+  const geoCountryCount = new Set(geoCustomers.map((c: any) => c.country).filter(Boolean)).size
 
   const brandMap: Record<string, { units: number, revenue: number }> = {}
   const productMap: Record<string, { units: number, revenue: number, brand: string }> = {}
@@ -235,6 +274,52 @@ export default function ReportsPage() {
     lost:    activityData.filter((c: any) => c.health.label === 'Lost').length,
   }
 
+  const exportOverview = () => downloadCsv([
+    ['Metric', 'Value', 'Previous'],
+    [t('reports.kpi_revenue'), periodRevenue, prevRevenue],
+    [t('reports.kpi_units_shipped'), periodUnits, prevUnits],
+    [t('reports.kpi_active_clients'), activeClients, prevClients],
+    [],
+    ['Month', 'Revenue'],
+    ...monthlyRevenue.map(m => [m.label, m.value]),
+    [],
+    [t('reports.col_country'), t('reports.col_revenue')],
+    ...countryList.map(([country, d]: any) => [country, d.revenue]),
+    [],
+    ['Brand', t('reports.col_revenue')],
+    ...brandList.map(([brand, d]: any) => [brand, d.revenue]),
+  ], 'overview.csv')
+
+  const exportGeography = () => downloadCsv([
+    [t('reports.col_region'), t('reports.col_clients'), t('reports.col_country'), t('reports.col_revenue'), t('reports.col_units'), t('reports.col_avg_unit')],
+    ...geoRegionList.map(([region, d]: any) => [
+      region, d.clients.length,
+      new Set(d.clients.map((c: any) => c.country).filter(Boolean)).size,
+      d.revenue, d.units, d.units ? (d.revenue / d.units).toFixed(2) : '',
+    ]),
+  ], 'geography.csv')
+
+  const exportProducts = () => downloadCsv([
+    ['Brand', t('reports.col_revenue'), t('reports.col_units'), t('reports.col_avg_unit')],
+    ...brandList.map(([brand, d]: any) => [brand, d.revenue, d.units, d.units ? (d.revenue / d.units).toFixed(2) : '']),
+    [],
+    ['Product', 'Brand', t('reports.col_units'), t('reports.col_revenue'), t('reports.col_avg_unit')],
+    ...productList.map(([name, d]: any) => [name, d.brand, d.units, d.revenue, d.units ? (d.revenue / d.units).toFixed(2) : '']),
+  ], 'products.csv')
+
+  const exportClients = () => downloadCsv([
+    ['Client', t('reports.col_country'), t('reports.col_revenue'), t('reports.col_units'), t('reports.col_orders')],
+    ...clientRevenue.map((c: any) => [c.legal_name, c.country, c.revenue, c.units, c.orders]),
+  ], 'clients.csv')
+
+  const exportActivity = () => downloadCsv([
+    ['Client', t('reports.col_country'), 'Last order', 'Days since', 'Freq/mo', '12M revenue', 'Health'],
+    ...filteredActivity.map((c: any) => [
+      c.legal_name, c.country, c.lastOrderDate ? c.lastOrderDate.toLocaleDateString('en-GB') : '',
+      c.lastOrderDays, c.freqPerMonth.toFixed(2), c.revenue12m, c.health.label,
+    ]),
+  ], 'activity.csv')
+
   return (
     <div className="max-w-6xl">
       {/* Header */}
@@ -276,6 +361,9 @@ export default function ReportsPage() {
       {/* ── OVERVIEW ── */}
       {tab === 'overview' && (
         <div className="space-y-5">
+          <div className="flex justify-end">
+            <ExportButton label={t('reports.export')} onClick={exportOverview} />
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
               { label: t('reports.kpi_revenue'),        value: fmt(periodRevenue), curr: periodRevenue, prev: prevRevenue, sub: `${periodInvoices.length} invoices` },
@@ -309,12 +397,12 @@ export default function ReportsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
-              <h2 className="font-semibold text-gray-900 mb-3">Top regions</h2>
-              {regionList.slice(0,6).map(([region, data]) => (
-                <div key={region} className="flex items-center gap-3 mb-2.5">
-                  <span className="text-sm text-gray-600 w-24 md:w-28 truncate">{region}</span>
+              <h2 className="font-semibold text-gray-900 mb-3">{t('reports.top_countries')}</h2>
+              {countryList.slice(0,6).map(([country, data]) => (
+                <div key={country} className="flex items-center gap-3 mb-2.5">
+                  <span className="text-sm text-gray-600 w-24 md:w-28 truncate">{flagFor(country)} {country}</span>
                   <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxRegionRevenue)*100}%`, background: '#185FA5' }} />
+                    <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxCountryRevenue)*100}%`, background: '#185FA5' }} />
                   </div>
                   <span className="text-xs font-semibold text-gray-900 w-14 md:w-16 text-right">{fmt(data.revenue)}</span>
                 </div>
@@ -339,12 +427,24 @@ export default function ReportsPage() {
       {/* ── GEOGRAPHY ── */}
       {tab === 'geography' && (
         <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">{t('reports.filter_type')}:</span>
+              {(['all','distributor','private'] as const).map(f => (
+                <button key={f} onClick={() => setGeoTypeFilter(f)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${geoTypeFilter === f ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  {f === 'all' ? t('common.all') : f === 'distributor' ? t('clients.type_distributor') : t('clients.type_private')}
+                </button>
+              ))}
+            </div>
+            <ExportButton label={t('reports.export')} onClick={exportGeography} />
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: 'Regions',        value: regionList.length },
-              { label: 'Active clients', value: customers.length },
-              { label: 'Revenue',        value: fmt(periodRevenue) },
-              { label: 'Avg per region', value: fmt(periodRevenue / Math.max(regionList.length, 1)) },
+              { label: t('reports.stat_regions'),        value: geoRegionList.length },
+              { label: t('reports.kpi_active_clients'),   value: geoCustomers.length },
+              { label: t('reports.kpi_revenue'),          value: fmt(geoRevenue) },
+              { label: t('reports.avg_per_country'),      value: fmt(geoRevenue / Math.max(geoCountryCount, 1)) },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white rounded-xl border border-gray-200 p-3 md:p-4">
                 <p className="text-xs text-gray-500 mb-1">{label}</p>
@@ -359,14 +459,16 @@ export default function ReportsPage() {
                   <tr>
                     <th className="text-left px-4 md:px-5 py-3 font-medium text-gray-600">{t('reports.col_region')}</th>
                     <th className="text-center px-3 md:px-4 py-3 font-medium text-gray-600">{t('reports.col_clients')}</th>
+                    <th className="text-center px-3 md:px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">{t('reports.col_country')}</th>
                     <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600">{t('reports.col_revenue')}</th>
                     <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">{t('reports.col_units')}</th>
+                    <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">{t('reports.col_avg_unit')}</th>
                     <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600 hidden md:table-cell">{currentPeriod.vsLabel}</th>
                     <th className="px-3 md:px-4 py-3 w-24 md:w-40 hidden sm:table-cell" />
                   </tr>
                 </thead>
                 <tbody>
-                  {regionList.map(([region, data]) => (
+                  {geoRegionList.map(([region, data]) => (
                     <>
                       <tr key={region} onClick={() => setExpandedRegion(expandedRegion === region ? null : region)}
                         className="cursor-pointer hover:bg-gray-50 border-b border-gray-100">
@@ -377,12 +479,16 @@ export default function ReportsPage() {
                           </div>
                         </td>
                         <td className="px-3 md:px-4 py-3 text-center text-gray-600">{data.clients.length}</td>
+                        <td className="px-3 md:px-4 py-3 text-center text-gray-600 hidden sm:table-cell">
+                          {new Set(data.clients.map((c: any) => c.country).filter(Boolean)).size}
+                        </td>
                         <td className="px-3 md:px-4 py-3 text-right font-semibold text-gray-900">{fmt(data.revenue)}</td>
                         <td className="px-3 md:px-4 py-3 text-right text-gray-600 hidden sm:table-cell">{data.units.toLocaleString()}</td>
+                        <td className="px-3 md:px-4 py-3 text-right text-gray-600 hidden sm:table-cell">{data.units ? fmt(data.revenue/data.units) : '—'}</td>
                         <td className="px-3 md:px-4 py-3 text-right hidden md:table-cell"><Delta curr={data.revenue} prev={data.prevRevenue} /></td>
                         <td className="px-3 md:px-4 py-3 hidden sm:table-cell">
                           <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxRegionRevenue)*100}%`, background: '#185FA5' }} />
+                            <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxGeoRegionRevenue)*100}%`, background: '#185FA5' }} />
                           </div>
                         </td>
                       </tr>
@@ -399,8 +505,10 @@ export default function ReportsPage() {
                                 {c.eu_compliance_type ?? 'EXP'}
                               </span>
                             </td>
+                            <td className="px-3 md:px-4 py-2.5 text-center text-xs text-gray-600 hidden sm:table-cell">{flagFor(c.country)} {c.country ?? '—'}</td>
                             <td className="px-3 md:px-4 py-2.5 text-right text-sm font-medium text-gray-900">{cRev > 0 ? fmt(cRev) : '—'}</td>
                             <td className="px-3 md:px-4 py-2.5 text-right text-sm text-gray-600 hidden sm:table-cell">{cUnits > 0 ? cUnits.toLocaleString() : '—'}</td>
+                            <td className="px-3 md:px-4 py-2.5 text-right text-sm text-gray-600 hidden sm:table-cell">{cUnits ? fmt(cRev/cUnits) : '—'}</td>
                             <td className="px-3 md:px-4 py-2.5 text-right hidden md:table-cell"><Delta curr={cRev} prev={cPrev} /></td>
                             <td className="px-3 md:px-4 py-2.5 text-right text-xs text-blue-600 hidden sm:table-cell">View →</td>
                           </tr>
@@ -418,6 +526,9 @@ export default function ReportsPage() {
       {/* ── PRODUCTS ── */}
       {tab === 'products' && (
         <div className="space-y-5">
+          <div className="flex justify-end">
+            <ExportButton label={t('reports.export')} onClick={exportProducts} />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
               <h2 className="font-semibold text-gray-900 mb-4">Revenue by brand</h2>
@@ -431,6 +542,9 @@ export default function ReportsPage() {
                     </div>
                   </div>
                   <span className="text-xs text-gray-400 w-12 md:w-16 text-right">{data.units.toLocaleString()}u</span>
+                  <span className="text-xs text-gray-400 w-16 md:w-20 text-right" title={t('reports.col_avg_unit')}>
+                    {data.units ? fmt(data.revenue/data.units) : '—'}/u
+                  </span>
                 </div>
               ))}
             </div>
@@ -444,6 +558,9 @@ export default function ReportsPage() {
                     <div className="h-full rounded-full" style={{ width: `${(data.units/maxProduct)*100}%`, background: '#185FA5' }} />
                   </div>
                   <span className="text-xs font-semibold text-gray-900 w-10 md:w-12 text-right">{data.units.toLocaleString()}</span>
+                  <span className="text-xs text-gray-400 w-14 md:w-16 text-right" title={t('reports.col_avg_unit')}>
+                    {data.units ? fmt(data.revenue/data.units) : '—'}/u
+                  </span>
                 </div>
               ))}
             </div>
@@ -453,7 +570,11 @@ export default function ReportsPage() {
 
       {/* ── CLIENTS ── */}
       {tab === 'clients' && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <ExportButton label={t('reports.export')} onClick={exportClients} />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {/* Mobile cards */}
           <div className="md:hidden divide-y divide-gray-100">
             {clientRevenue.map((c: any, i: number) => (
@@ -466,7 +587,7 @@ export default function ReportsPage() {
                   <Delta curr={c.revenue} prev={c.prevRevenue} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">{c.region ?? c.country ?? '—'}</span>
+                  <span className="text-xs text-gray-500">{flagFor(c.country)} {c.region ?? c.country ?? '—'}</span>
                   <span className="font-semibold text-gray-900">{fmt(c.revenue)}</span>
                 </div>
               </div>
@@ -493,7 +614,7 @@ export default function ReportsPage() {
                   <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push('/reports/client/' + c.id)}>
                     <td className="px-5 py-3 text-gray-400 text-xs">{i+1}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{c.legal_name}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{c.region ?? c.country ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{flagFor(c.country)} {c.region ?? c.country ?? '—'}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -510,6 +631,7 @@ export default function ReportsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
           </div>
         </div>
       )}
@@ -551,6 +673,7 @@ export default function ReportsPage() {
                   <div className="w-3 h-3 rounded bg-blue-400 ml-1" />2
                   <div className="w-3 h-3 rounded bg-blue-600 ml-1" />3+
                 </div>
+                <ExportButton label={t('reports.export')} onClick={exportActivity} />
               </div>
             </div>
 
