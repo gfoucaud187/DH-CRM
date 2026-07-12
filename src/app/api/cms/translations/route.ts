@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json(map, {
-    headers: { 'Cache-Control': 'public, max-age=3600' },
+    headers: { 'Cache-Control': 'no-store' },
   })
 }
 
