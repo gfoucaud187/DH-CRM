@@ -15,7 +15,7 @@ interface LanguageContextValue {
 }
 
 const LanguageContext = createContext<LanguageContextValue>({
-  lang: 'fr',
+  lang: 'en',
   setLang: async () => {},
   t: (key) => key,
   languages: [],
@@ -65,7 +65,7 @@ function clearCache(lang?: string) {
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const supabase = createClient()
-  const [lang, setLangState] = useState('fr')
+  const [lang, setLangState] = useState('en')
   const [languages, setLanguages] = useState<Language[]>([])
   const [translations, setTranslations] = useState<TranslationMap>({})
   const [isLoading, setIsLoading] = useState(true)
@@ -98,7 +98,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         .order('name')
       if (langs) setLanguages(langs)
 
-      let userLang = 'fr'
+      let userLang = 'en'
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: profile } = await supabase
@@ -108,7 +108,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
           .single()
         if (profile?.preferred_lang) userLang = profile.preferred_lang
       } else {
-        userLang = (typeof window !== 'undefined' && localStorage.getItem('preferred_lang')) || 'fr'
+        userLang = (typeof window !== 'undefined' && localStorage.getItem('preferred_lang')) || 'en'
       }
 
       setLangState(userLang)

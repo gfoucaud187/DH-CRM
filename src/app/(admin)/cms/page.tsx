@@ -1,8 +1,8 @@
 'use client'
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, AlertCircle, Wand2, Plus, ChevronDown, Loader2, Globe } from 'lucide-react'
-import { useLanguage } from '@/lib/i18n/LanguageProvider'
+import { useLanguage, useT } from '@/lib/i18n/LanguageProvider'
 import type { CmsLabelWithTranslation, Language } from '@/lib/i18n/types'
 
 const LANG_FLAGS: Record<string, string> = {
@@ -11,9 +11,10 @@ const LANG_FLAGS: Record<string, string> = {
 
 export default function CmsPage() {
   const { languages, invalidateCache } = useLanguage()
+  const t = useT()
   const queryClient = useQueryClient()
 
-  const [selectedLang, setSelectedLang] = useState('fr')
+  const [selectedLang, setSelectedLang] = useState('en')
   const [selectedNamespace, setSelectedNamespace] = useState<string>('common')
   const [editValues, setEditValues] = useState<Record<string, string>>({})
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set())
@@ -92,15 +93,15 @@ export default function CmsPage() {
       const res = await fetch('/api/cms/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ namespace: selectedNamespace, from_lang: 'fr', to_lang: selectedLang }),
+        body: JSON.stringify({ namespace: selectedNamespace, from_lang: 'en', to_lang: selectedLang }),
       })
       const data = await res.json()
       if (res.ok) {
-        setTranslateResult(`${data.translated} label(s) traduit(s) automatiquement`)
+        setTranslateResult(`${data.translated} ${t('cms.translated_result')}`)
         invalidateCache(selectedLang)
         refetch()
       } else {
-        setTranslateResult(`Erreur : ${data.error}`)
+        setTranslateResult(`Error: ${data.error}`)
       }
     } finally {
       setTranslating(false)
@@ -124,7 +125,7 @@ export default function CmsPage() {
 
   const activeLanguages: Language[] = languages.length > 0
     ? languages
-    : [{ code: 'fr', name: 'Français', is_default: true, is_active: true }]
+    : [{ code: 'en', name: 'English', is_default: true, is_active: true }]
 
   return (
     <div className="max-w-5xl">
@@ -133,25 +134,25 @@ export default function CmsPage() {
         <div className="flex items-center gap-3">
           <Globe className="h-6 w-6 text-gray-400" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Content Management</h1>
-            <p className="text-sm text-gray-500">{allLabels.length} labels dans {namespaces.length} namespaces</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t('cms.page_title')}</h1>
+            <p className="text-sm text-gray-500">{allLabels.length} {t('cms.labels_count')}</p>
           </div>
         </div>
         <button
           onClick={() => setNewLabelForm(!newLabelForm)}
           className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
         >
-          <Plus className="h-4 w-4" /> Nouveau label
+          <Plus className="h-4 w-4" /> {t('cms.new_label')}
         </button>
       </div>
 
       {/* New label form */}
       {newLabelForm && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 mb-4">
-          <h2 className="font-semibold text-gray-900 mb-4 text-sm">Nouveau label</h2>
+          <h2 className="font-semibold text-gray-900 mb-4 text-sm">{t('cms.new_label')}</h2>
           <div className="grid grid-cols-3 gap-3 mb-3">
             <div>
-              <label className="text-xs text-gray-400">Namespace</label>
+              <label className="text-xs text-gray-400">{t('cms.label_namespace')}</label>
               <input
                 value={newLabel.namespace}
                 onChange={e => setNewLabel(f => ({ ...f, namespace: e.target.value.toLowerCase() }))}
@@ -160,7 +161,7 @@ export default function CmsPage() {
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400">Clé</label>
+              <label className="text-xs text-gray-400">{t('cms.label_key')}</label>
               <input
                 value={newLabel.key}
                 onChange={e => setNewLabel(f => ({ ...f, key: e.target.value.toLowerCase().replace(/\s+/g, '_') }))}
@@ -169,11 +170,11 @@ export default function CmsPage() {
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400">Description</label>
+              <label className="text-xs text-gray-400">{t('cms.label_description')}</label>
               <input
                 value={newLabel.description}
                 onChange={e => setNewLabel(f => ({ ...f, description: e.target.value }))}
-                placeholder="Contexte d'usage..."
+                placeholder="Usage context..."
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
             </div>
@@ -181,11 +182,11 @@ export default function CmsPage() {
           <div className="flex gap-2">
             <button onClick={handleAddLabel}
               className="px-4 py-1.5 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-700">
-              Créer
+              {t('cms.create')}
             </button>
             <button onClick={() => setNewLabelForm(false)}
               className="px-4 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-              Annuler
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -228,14 +229,14 @@ export default function CmsPage() {
           <div className="flex-1" />
 
           {/* Auto-translate */}
-          {selectedLang !== 'fr' && (
+          {selectedLang !== 'en' && (
             <button
               onClick={handleAutoTranslate}
               disabled={translating}
               className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
             >
               {translating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-              Auto-traduire (FR → {selectedLang.toUpperCase()})
+              {t('cms.auto_translate')} (EN → {selectedLang.toUpperCase()})
             </button>
           )}
         </div>
@@ -249,20 +250,20 @@ export default function CmsPage() {
         {/* Table */}
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Chargement...
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t('common.loading')}
           </div>
         ) : labels.length === 0 ? (
           <div className="py-16 text-center text-gray-400 text-sm">
-            Aucun label dans le namespace <strong>{selectedNamespace}</strong>
+            {t('cms.no_labels')}: <strong>{selectedNamespace}</strong>
           </div>
         ) : (
           <table className="w-full">
             <thead>
               <tr className="text-xs font-medium text-gray-400 uppercase bg-gray-50">
-                <th className="text-left px-4 py-3 w-40">Clé</th>
-                <th className="text-left px-4 py-3 w-48 hidden md:table-cell">Description</th>
-                <th className="text-left px-4 py-3">Traduction ({selectedLang.toUpperCase()})</th>
-                <th className="px-4 py-3 w-24 text-center">Statut</th>
+                <th className="text-left px-4 py-3 w-40">{t('cms.col_key')}</th>
+                <th className="text-left px-4 py-3 w-48 hidden md:table-cell">{t('cms.col_description')}</th>
+                <th className="text-left px-4 py-3">{t('cms.col_translation')} ({selectedLang.toUpperCase()})</th>
+                <th className="px-4 py-3 w-24 text-center">{t('cms.col_status')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -281,7 +282,7 @@ export default function CmsPage() {
                       onKeyDown={e => { if (e.key === 'Enter') saveTranslation(label.id) }}
                       onBlur={() => { if (isDirty(label)) saveTranslation(label.id) }}
                       className="w-full h-8 rounded border border-transparent bg-transparent px-2 text-sm focus:outline-none focus:border-gray-300 focus:bg-white hover:border-gray-200 hover:bg-white transition-colors"
-                      placeholder="Pas de traduction..."
+                      placeholder={t('cms.no_translation_placeholder')}
                     />
                   </td>
                   <td className="px-4 py-2.5 text-center">
