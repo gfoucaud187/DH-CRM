@@ -76,11 +76,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     if (cached) {
       setTranslations(cached)
       setIsLoading(false)
-      // Stale-while-revalidate: background fetch to detect new labels
+      // Stale-while-revalidate: background fetch to detect any change
       fetch(`/api/cms/translations?lang=${targetLang}`)
         .then(r => r.ok ? r.json() : null)
         .then((map: TranslationMap | null) => {
-          if (map && Object.keys(map).length !== Object.keys(cached).length) {
+          if (map && JSON.stringify(map) !== JSON.stringify(cached)) {
             saveCache(targetLang, map)
             setTranslations(map)
           }
