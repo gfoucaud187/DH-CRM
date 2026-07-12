@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Plus, Package, Wrench, Box, Trash2 } from 'lucide-react'
+import { useT } from '@/lib/i18n/LanguageProvider'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:     'bg-gray-100 text-gray-600',
@@ -26,6 +27,7 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 export default function PurchaseOrdersPage() {
+  const t = useT()
   const supabase = createClient()
   const queryClient = useQueryClient()
 
@@ -50,30 +52,30 @@ export default function PurchaseOrdersPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Purchase Orders</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('purchase_orders.page_title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{pos?.length ?? 0} orders</p>
         </div>
         <Link href="/purchase-orders/new"
           className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
-          <Plus className="h-4 w-4" /> New PO
+          <Plus className="h-4 w-4" /> {t('purchase_orders.new_po')}
         </Link>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-48 text-gray-400">Loading...</div>
+        <div className="flex items-center justify-center h-48 text-gray-400">{t('common.loading')}</div>
       ) : pos?.length === 0 ? (
-        <div className="text-center py-20 text-gray-400">No purchase orders yet.</div>
+        <div className="text-center py-20 text-gray-400">{t('purchase_orders.no_purchase_orders')}</div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">PO Number</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">{t('purchase_orders.col_po_number')}</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Partner</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">{t('purchase_orders.col_partner')}</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Delivery</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">{t('purchase_orders.col_delivery')}</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">{t('purchase_orders.col_total')}</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -113,7 +115,7 @@ export default function PurchaseOrdersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[po.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {po.status}
+                        {t('purchase_orders.status_' + po.status)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">

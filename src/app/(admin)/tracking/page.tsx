@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import { useT } from '@/lib/i18n/LanguageProvider'
 import { Search, Filter, LogIn, LogOut, ShoppingCart, FileText, Users, CheckCircle, XCircle, ArrowRight, Edit, Send, Package, Trash2, DollarSign, Warehouse, Store } from 'lucide-react'
 
 const ACTION_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
@@ -78,6 +79,7 @@ function timeAgo(date: string) {
 
 export default function TrackingPage() {
   const supabase = createClient()
+  const t = useT()
   const [search, setSearch] = useState('')
   const [filterGroup, setFilterGroup] = useState('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -119,18 +121,18 @@ export default function TrackingPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tracking Log</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Complete audit trail — who did what and when</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('tracking.page_title')}</h1>
+          <p className="text-gray-500 text-sm mt-0.5">{t('tracking.subtitle')}</p>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Events today',   value: todayLogs.length },
-          { label: 'Active users',   value: uniqueUsers },
-          { label: 'Admin actions',  value: adminLogs },
-          { label: 'Client actions', value: clientLogs },
+          { label: t('tracking.stat_today'),  value: todayLogs.length },
+          { label: t('tracking.stat_users'),  value: uniqueUsers },
+          { label: t('tracking.stat_admin'),  value: adminLogs },
+          { label: t('tracking.stat_client'), value: clientLogs },
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">{label}</p>
@@ -143,7 +145,7 @@ export default function TrackingPage() {
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <input type="text" placeholder="Search user, document, action..."
+          <input type="text" placeholder={t('tracking.search_placeholder')}
             value={search} onChange={e => setSearch(e.target.value)}
             className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none" />
         </div>
@@ -160,11 +162,11 @@ export default function TrackingPage() {
       {/* Timeline */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading...</div>
+          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">{t('common.loading')}</div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <Filter className="h-8 w-8 mb-2" />
-            <p className="text-sm">No events found</p>
+            <p className="text-sm">{t('tracking.no_events')}</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">

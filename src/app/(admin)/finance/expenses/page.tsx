@@ -4,19 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Send, Trash2, Camera, Loader2, CheckCircle, ImageIcon, FileText, User, ThumbsUp, ThumbsDown, Banknote } from 'lucide-react'
-
-const CATEGORIES = [
-  { value: 'office',       label: 'Office & Admin' },
-  { value: 'travel',       label: 'Travel & Entertainment' },
-  { value: 'meals',        label: 'Meals & Beverages' },
-  { value: 'utilities',    label: 'Utilities' },
-  { value: 'professional', label: 'Professional Fees' },
-  { value: 'marketing',    label: 'Marketing & Events' },
-  { value: 'rent',         label: 'Rent' },
-  { value: 'bank_charges', label: 'Bank Charges' },
-  { value: 'freight',      label: 'Freight & Logistics' },
-  { value: 'other',        label: 'Other' },
-]
+import { useT } from '@/lib/i18n/LanguageProvider'
 
 const PAYMENT_METHODS = [
   { value: 'bank_transfer', label: 'Bank Transfer' },
@@ -62,6 +50,30 @@ const CLAIM_STATUS_COLORS: Record<string, string> = {
 export default function ExpensesPage() {
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const t = useT()
+
+  const CATEGORIES = [
+    { value: 'office',       label: t('finance.cat_office') },
+    { value: 'travel',       label: t('finance.cat_travel') },
+    { value: 'meals',        label: t('finance.cat_meals') },
+    { value: 'utilities',    label: t('finance.cat_utilities') },
+    { value: 'professional', label: t('finance.cat_professional') },
+    { value: 'marketing',    label: t('finance.cat_marketing') },
+    { value: 'rent',         label: t('finance.cat_rent') },
+    { value: 'bank_charges', label: t('finance.cat_bank_charges') },
+    { value: 'freight',      label: t('finance.cat_freight') },
+    { value: 'other',        label: t('finance.cat_other') },
+  ]
+
+  const STATUS_LABELS: Record<string, string> = {
+    pending:   t('finance.status_pending'),
+    approved:  t('finance.status_approved'),
+    posted:    t('finance.status_posted'),
+    rejected:  t('finance.status_rejected'),
+    paid:      t('finance.status_paid'),
+    submitted: t('finance.status_submitted'),
+  }
+
   const [mainTab, setMainTab] = useState<'expenses' | 'claims'>('expenses')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
@@ -311,20 +323,20 @@ export default function ExpensesPage() {
     <div>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Expenses</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('finance.expenses_title')}</h1>
           <p className="text-xs text-gray-500 mt-0.5">
             {expenses.length} entries · {sgd(totalAmt)} · Posted {sgd(postedAmt)}
           </p>
         </div>
         <button onClick={openNew}
           className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 shrink-0">
-          <Plus size={16} /> <span className="hidden sm:inline">New Expense</span><span className="sm:hidden">New</span>
+          <Plus size={16} /> <span className="hidden sm:inline">{t('finance.new_expense')}</span><span className="sm:hidden">New</span>
         </button>
       </div>
 
       {/* Main tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-5">
-        {([['expenses', 'All Expenses', null], ['claims', 'Expense Claims', claims.filter((c:any) => c.status === 'submitted').length]] as any[]).map(([v, l, badge]) => (
+        {([['expenses', t('finance.tab_all_expenses'), null], ['claims', t('finance.tab_claims'), claims.filter((c:any) => c.status === 'submitted').length]] as any[]).map(([v, l, badge]) => (
           <button key={v} onClick={() => setMainTab(v)}
             className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${mainTab === v ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-700'}`}>
             {l}
@@ -358,7 +370,7 @@ export default function ExpensesPage() {
                     <p className="text-xs text-gray-400 mt-0.5">{exps.length} expense(s) · Created {new Date(claim.created_at).toLocaleDateString('en-SG')}</p>
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${CLAIM_STATUS_COLORS[claim.status]}`}>
-                    {claim.status}
+                    {STATUS_LABELS[claim.status] ?? claim.status}
                   </span>
                 </div>
 
@@ -369,7 +381,7 @@ export default function ExpensesPage() {
                   </div>
                   {reimbursableTotal > 0 && (
                     <div>
-                      <p className="text-xs text-orange-500">To reimburse</p>
+                      <p className="text-xs text-orange-500">{t('finance.to_reimburse')}</p>
                       <p className="font-bold text-orange-600">{sgd(reimbursableTotal)}</p>
                     </div>
                   )}
@@ -419,7 +431,7 @@ export default function ExpensesPage() {
                         disabled={processingClaim === claim.id}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 disabled:opacity-50">
                         {processingClaim === claim.id ? <Loader2 size={13} className="animate-spin" /> : <Banknote size={13} />}
-                        Mark as Paid
+                        {t('finance.mark_as_paid')}
                       </button>
                     )}
                   </div>
@@ -439,7 +451,7 @@ export default function ExpensesPage() {
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               filterStatus === s ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
-            {s === 'all' ? 'All Status' : s.charAt(0).toUpperCase() + s.slice(1)}
+            {s === 'all' ? 'All Status' : STATUS_LABELS[s] ?? s.charAt(0).toUpperCase() + s.slice(1)}
           </button>
         ))}
         <div className="ml-2 h-5 border-l border-gray-200" />
@@ -453,11 +465,11 @@ export default function ExpensesPage() {
       {/* Mobile cards + Desktop table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
-          <div className="py-12 text-center text-gray-400">Loading...</div>
+          <div className="py-12 text-center text-gray-400">{t('common.loading')}</div>
         ) : expenses.length === 0 ? (
           <div className="py-12 text-center text-gray-400">
             <ReceiptIcon size={32} className="mx-auto mb-2 opacity-30" />
-            <p className="text-sm">No expenses found</p>
+            <p className="text-sm">{t('finance.no_expenses')}</p>
           </div>
         ) : (
           <>
@@ -487,7 +499,7 @@ export default function ExpensesPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[exp.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                        {exp.status}
+                        {STATUS_LABELS[exp.status] ?? exp.status}
                       </span>
                       <span className="text-xs text-gray-400">{CATEGORIES.find(c => c.value === exp.category)?.label ?? exp.category}</span>
                     </div>
@@ -522,13 +534,13 @@ export default function ExpensesPage() {
             <table className="hidden md:table w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 text-xs text-gray-500 uppercase">
-                  <th className="text-left px-4 py-3 font-medium">Date</th>
-                  <th className="text-left px-4 py-3 font-medium">Vendor</th>
-                  <th className="text-left px-4 py-3 font-medium">Category</th>
-                  <th className="text-right px-4 py-3 font-medium">Amount (SGD)</th>
+                  <th className="text-left px-4 py-3 font-medium">{t('finance.col_date')}</th>
+                  <th className="text-left px-4 py-3 font-medium">{t('finance.col_vendor')}</th>
+                  <th className="text-left px-4 py-3 font-medium">{t('finance.col_category')}</th>
+                  <th className="text-right px-4 py-3 font-medium">{t('finance.col_amount')}</th>
                   <th className="text-right px-4 py-3 font-medium">GST</th>
                   <th className="text-left px-4 py-3 font-medium">Payment</th>
-                  <th className="text-center px-3 py-3 font-medium">Receipt</th>
+                  <th className="text-center px-3 py-3 font-medium">{t('finance.col_receipt')}</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>
                   <th className="text-right px-4 py-3 font-medium">Actions</th>
                 </tr>
@@ -562,7 +574,7 @@ export default function ExpensesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[exp.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                        {exp.status}
+                        {STATUS_LABELS[exp.status] ?? exp.status}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -615,7 +627,7 @@ export default function ExpensesPage() {
                 {/* AI Receipt Scan + Photo Attach */}
                 <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium cursor-pointer transition-colors ${scanning ? 'opacity-50' : 'hover:bg-gray-50'}`}>
                   {scanning ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
-                  {scanning ? 'Scanning…' : 'Scan Receipt'}
+                  {scanning ? 'Scanning…' : t('finance.scan_receipt')}
                   <input type="file" accept="image/*" className="hidden" onChange={handleScanReceipt} disabled={scanning} />
                 </label>
                 <button onClick={() => setDrawerOpen(false)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400">
@@ -647,12 +659,12 @@ export default function ExpensesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase">Date *</label>
+                  <label className="text-xs font-medium text-gray-500 uppercase">{t('finance.field_date')} *</label>
                   <input type="date" value={form.date} onChange={e => f('date', e.target.value)}
                     className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase">Category</label>
+                  <label className="text-xs font-medium text-gray-500 uppercase">{t('finance.field_category')}</label>
                   <select value={form.category} onChange={e => f('category', e.target.value)}
                     className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
                     {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -661,14 +673,14 @@ export default function ExpensesPage() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-500 uppercase">Vendor / Payee *</label>
+                <label className="text-xs font-medium text-gray-500 uppercase">{t('finance.field_vendor')} *</label>
                 <input value={form.vendor} onChange={e => f('vendor', e.target.value)}
                   placeholder="e.g. DHL Express, WeWork"
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-500 uppercase">Description</label>
+                <label className="text-xs font-medium text-gray-500 uppercase">{t('finance.field_description')}</label>
                 <input value={form.description} onChange={e => f('description', e.target.value)}
                   placeholder="What was this for?"
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
@@ -676,7 +688,7 @@ export default function ExpensesPage() {
 
               {/* Currency section — currency selector always visible */}
               <div className="border border-gray-100 rounded-lg p-3 bg-gray-50/50 space-y-2">
-                <label className="text-xs font-medium text-gray-500 uppercase">Amount</label>
+                <label className="text-xs font-medium text-gray-500 uppercase">{t('finance.field_amount')}</label>
                 <div className="grid grid-cols-3 gap-2">
                   <select value={form.currency} onChange={e => f('currency', e.target.value)}
                     className="h-9 rounded-md border border-gray-200 px-2 text-sm bg-white focus:outline-none">
@@ -735,7 +747,7 @@ export default function ExpensesPage() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-500 uppercase">Payment Method</label>
+                <label className="text-xs font-medium text-gray-500 uppercase">{t('finance.field_payment_method')}</label>
                 <select value={form.payment_method} onChange={e => f('payment_method', e.target.value)}
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
                   {PAYMENT_METHODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
@@ -778,11 +790,11 @@ export default function ExpensesPage() {
             <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
               <button onClick={() => setDrawerOpen(false)}
                 className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-                Cancel
+                {t('common.cancel')}
               </button>
               <button onClick={handleSave} disabled={saving}
                 className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
-                {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Expense'}
+                {saving ? t('common.saving') : editing ? 'Save Changes' : t('finance.add_expense')}
               </button>
             </div>
           </div>

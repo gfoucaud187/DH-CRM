@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Target, Save, TrendingUp, Check } from 'lucide-react'
+import { useT } from '@/lib/i18n/LanguageProvider'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -41,6 +42,7 @@ const fmt = (n: number) => {
 export default function TargetsPage() {
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const t = useT()
   const [year, setYear] = useState(CURRENT_YEAR)
   const [saving, setSaving] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, { standard: string; push: string; stretch: string }>>({})
@@ -140,7 +142,7 @@ export default function TargetsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Financial Targets</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('targets.page_title')}</h1>
           <p className="text-gray-500 text-sm mt-0.5">Set annual objectives per distributor</p>
         </div>
         <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
@@ -179,12 +181,12 @@ export default function TargetsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="text-left px-5 py-3 font-medium text-gray-600">Distributor</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Standard ($)</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Push ($)</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">Stretch ($)</th>
+              <th className="text-left px-5 py-3 font-medium text-gray-600">{t('targets.col_distributor')}</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">{t('targets.col_standard')} ($)</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">{t('targets.col_push')} ($)</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">{t('targets.col_stretch')} ($)</th>
               <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue YTD</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Progress</th>
+              <th className="text-center px-4 py-3 font-medium text-gray-600">{t('targets.col_progress')}</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
               <th className="px-4 py-3 w-20" />
             </tr>
@@ -262,7 +264,7 @@ export default function TargetsPage() {
                         </div>
                         <p className="text-xs text-gray-400 mt-0.5 text-center">{fmt(rev)} / {fmt(proratedStd)}</p>
                       </div>
-                    ) : <span className="text-gray-300 text-xs">No target</span>}
+                    ) : <span className="text-gray-300 text-xs">{t('targets.no_target')}</span>}
                   </td>
                   {/* Status */}
                   <td className="px-4 py-3 text-center">
@@ -281,7 +283,7 @@ export default function TargetsPage() {
                     {hasEdits && (
                       <button onClick={() => handleSave(c.id)} disabled={saving === c.id}
                         className="flex items-center gap-1 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors mx-auto">
-                        {saving === c.id ? '...' : <><Check className="h-3 w-3" /> Save</>}
+                        {saving === c.id ? '...' : <><Check className="h-3 w-3" /> {t('common.save')}</>}
                       </button>
                     )}
                   </td>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useT } from '@/lib/i18n/LanguageProvider'
 import { getSignedUrl } from '@/lib/documents'
 import { Folder, FileText, Download, ChevronRight, ChevronDown, Search, Calendar, Upload, X } from 'lucide-react'
 
@@ -49,6 +50,7 @@ function formatDate(dateStr: string): string {
 
 export default function DocumentsPage() {
   const supabase = createClient()
+  const t = useT()
   const [folders, setFolders] = useState<FolderData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -180,15 +182,15 @@ export default function DocumentsPage() {
     <div style={{ maxWidth: '1100px' }}>
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', marginBottom: '6px' }}>Documents</h1>
+        <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', marginBottom: '6px' }}>{t('documents.page_title')}</h1>
         <p style={{ fontSize: '14px', color: '#6B7280' }}>All generated PDFs — versioned on each save</p>
       </div>
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {[
-          { label: 'Total Folders', value: folders.length, icon: <Folder size={18} color="#1C4B3C" /> },
-          { label: 'Total Files', value: folders.reduce((s, f) => s + f.file_count, 0), icon: <FileText size={18} color="#6A1E2A" /> },
+          { label: t('documents.total_folders'), value: folders.length, icon: <Folder size={18} color="#1C4B3C" /> },
+          { label: t('documents.total_files'), value: folders.reduce((s, f) => s + f.file_count, 0), icon: <FileText size={18} color="#6A1E2A" /> },
           { label: 'Last Activity', value: folders[0] ? formatDate(folders[0].last_updated).split(',')[0] : '—', icon: <Calendar size={18} color="#2D4E8A" /> },
         ].map((stat, i) => (
           <div key={i} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -224,7 +226,7 @@ export default function DocumentsPage() {
           <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#111827', margin: 0 }}>Add External Document</h3>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#111827', margin: 0 }}>{t('documents.add_external')}</h3>
                 <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '3px' }}>{uploadingFolder}</p>
               </div>
               <button onClick={closeUploadModal} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9CA3AF' }}>
@@ -234,7 +236,7 @@ export default function DocumentsPage() {
 
             <div style={{ marginBottom: '16px' }}>
               <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                File name / Label
+                {t('documents.file_label')}
               </label>
               <input
                 type="text"
@@ -252,7 +254,7 @@ export default function DocumentsPage() {
               style={{ width: '100%', height: '44px', borderRadius: '10px', border: '2px dashed #E5E7EB', background: '#F9FAFB', cursor: uploading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '14px', fontWeight: 500, color: '#374151', transition: 'all 0.15s' }}
             >
               <Upload size={18} color="#6B7280" />
-              {uploading ? 'Uploading…' : 'Choose file to upload'}
+              {uploading ? t('common.uploading') : 'Choose file to upload'}
             </button>
 
             <p style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '10px', textAlign: 'center' }}>
@@ -264,10 +266,10 @@ export default function DocumentsPage() {
 
       {/* Folders list */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: '#9CA3AF', fontSize: '14px' }}>Loading documents…</div>
+        <div style={{ textAlign: 'center', padding: '60px', color: '#9CA3AF', fontSize: '14px' }}>{t('common.loading')}</div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: '#9CA3AF', fontSize: '14px' }}>
-          {search ? 'No folders match your search.' : 'No documents yet.'}
+          {search ? t('documents.no_folders') : t('documents.no_documents')}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

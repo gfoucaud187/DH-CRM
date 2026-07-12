@@ -7,6 +7,7 @@ import { Warehouse, Plus, Search } from 'lucide-react'
 import { logActivity } from '@/lib/log-activity'
 import SkuMovementsModal from '@/components/inventory/SkuMovementsModal'
 import StockMovementsView from '@/components/inventory/StockMovementsView'
+import { useT } from '@/lib/i18n/LanguageProvider'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 
@@ -20,6 +21,7 @@ const WH_COLORS: Record<string, string> = {
 
 export default function InventoryPage() {
   const supabase = createClient()
+  const t = useT()
   const [search, setSearch] = useState('')
   const [warehouseFilter, setWarehouseFilter] = useState('All')
   const [showAddStock, setShowAddStock] = useState(false)
@@ -107,7 +109,7 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('inventory.page_title')}</h1>
           <p className="text-gray-500 text-sm mt-0.5">
             {totalPacks.toLocaleString()} packs · {totalUnits.toLocaleString()} units total
           </p>
@@ -117,14 +119,14 @@ export default function InventoryPage() {
             onClick={() => document.getElementById('stock-movements-section')?.scrollIntoView({ behavior: 'smooth' })}
             className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
-            Stock Movements
+            {t('inventory.stock_movements')}
           </button>
           <button
             onClick={() => setShowAddStock(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            Add Stock
+            {t('inventory.add_stock')}
           </button>
         </div>
       </div>
@@ -135,7 +137,7 @@ export default function InventoryPage() {
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search SKU, product, brand..."
+            placeholder={t('inventory.search_placeholder')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
@@ -152,7 +154,7 @@ export default function InventoryPage() {
                   : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
             >
-              {w}
+              {w === 'All' ? t('common.all') : w}
             </button>
           ))}
         </div>
@@ -181,11 +183,11 @@ export default function InventoryPage() {
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading...</div>
+          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">{t('common.loading')}</div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <Warehouse className="h-8 w-8 mb-2" />
-            <p className="text-sm">No inventory records</p>
+            <p className="text-sm">{t('inventory.no_records')}</p>
           </div>
         ) : (
           <>
@@ -222,9 +224,9 @@ export default function InventoryPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">SKU</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Brand</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('inventory.col_sku')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('inventory.col_product')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('inventory.col_brand')}</th>
                     {warehouseFilter === 'All' ? (
                       WAREHOUSES.map(w => (
                         <th key={w} className="text-right px-3 py-3 font-medium text-gray-600">
@@ -233,7 +235,7 @@ export default function InventoryPage() {
                       ))
                     ) : null}
                     <th className="text-right px-4 py-3 font-medium text-gray-600">
-                      {warehouseFilter === 'All' ? 'Total' : warehouseFilter}
+                      {warehouseFilter === 'All' ? t('inventory.col_total') : warehouseFilter}
                     </th>
                   </tr>
                 </thead>
@@ -302,10 +304,10 @@ export default function InventoryPage() {
       {showAddStock && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40">
           <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl border border-gray-200 w-full sm:max-w-md p-6">
-            <h2 className="font-semibold text-lg mb-4">Add Stock</h2>
+            <h2 className="font-semibold text-lg mb-4">{t('inventory.add_stock')}</h2>
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-gray-500 uppercase">Product</label>
+                <label className="text-xs font-medium text-gray-500 uppercase">{t('inventory.col_product')}</label>
                 <select
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none"
                   value={addForm.sku}
@@ -314,14 +316,14 @@ export default function InventoryPage() {
                     setAddForm(f => ({ ...f, sku: e.target.value, product_name: p?.full_name ?? '', brand: p?.brand ?? '' }))
                   }}
                 >
-                  <option value="">Select a product...</option>
+                  <option value="">{t('inventory.select_product')}</option>
                   {(products as any[]).map((p: any) => (
                     <option key={p.sku} value={p.sku}>{p.full_name}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-500 uppercase">Warehouse</label>
+                <label className="text-xs font-medium text-gray-500 uppercase">{t('inventory.label_warehouse')}</label>
                 <select
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none"
                   value={addForm.warehouse}
@@ -332,7 +334,7 @@ export default function InventoryPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase">Packs</label>
+                  <label className="text-xs font-medium text-gray-500 uppercase">{t('inventory.label_packs')}</label>
                   <input
                     type="number"
                     min={0}
@@ -342,7 +344,7 @@ export default function InventoryPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 uppercase">Units</label>
+                  <label className="text-xs font-medium text-gray-500 uppercase">{t('inventory.label_units')}</label>
                   <input
                     type="number"
                     min={0}
@@ -354,13 +356,13 @@ export default function InventoryPage() {
               </div>
             </div>
             <div className="flex justify-between mt-6">
-              <button onClick={() => setShowAddStock(false)} className="text-sm text-gray-500 hover:text-gray-900">Cancel</button>
+              <button onClick={() => setShowAddStock(false)} className="text-sm text-gray-500 hover:text-gray-900">{t('common.cancel')}</button>
               <button
                 onClick={handleAddStock}
                 disabled={saving || !addForm.sku}
                 className="px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50"
               >
-                {saving ? 'Saving...' : 'Add Stock'}
+                {saving ? t('common.saving') : t('inventory.add_stock')}
               </button>
             </div>
           </div>

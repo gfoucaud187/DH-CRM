@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Users, Plus, Search, Upload, X, Edit, Mail, Phone, CheckCircle, XCircle, ChevronDown, ChevronUp, Download } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useT } from '@/lib/i18n/LanguageProvider'
 
 const CLIENT_TYPE_COLORS: Record<string, string> = {
   distributor: 'bg-blue-100 text-blue-700',
@@ -19,21 +20,17 @@ const STATUS_COLORS: Record<string, string> = {
   closed:   'bg-red-100 text-red-600',
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Active', inactive: 'Inactive', lead: 'Lead', dying: 'Dying', closed: 'Closed',
-}
-
-const FIELD_LABELS: Record<string, string> = {
-  legal_name: 'Legal Name', trading_name: 'Trading Name', country: 'Country',
-  region: 'Region', vat_number: 'VAT Number', excise_number: 'Excise Number',
-  payment_terms: 'Payment Terms', incoterms: 'Incoterms',
-  is_european: 'European Client', eu_compliance_type: 'EU Compliance Type',
-  track_trace_enabled: 'Track & Trace', primary_repository: 'Primary Repository',
-  fiscal_warehouse_number: 'Fiscal Warehouse Number', notes: 'Notes',
-  contacts: 'Contacts', addresses: 'Addresses',
-}
-
 function FieldDiff({ fieldKey, current, requested }: { fieldKey: string; current: any; requested: any }) {
+  const t = useT()
+  const FIELD_LABELS: Record<string, string> = {
+    legal_name: t('clients.legal_name'), trading_name: t('clients.trading_name'), country: 'Country',
+    region: 'Region', vat_number: t('clients.vat_number'), excise_number: t('clients.excise_number'),
+    payment_terms: t('common.payment_terms'), incoterms: 'Incoterms',
+    is_european: t('clients.european_client'), eu_compliance_type: 'EU Compliance Type',
+    track_trace_enabled: 'Track & Trace', primary_repository: 'Primary Repository',
+    fiscal_warehouse_number: 'Fiscal Warehouse Number', notes: 'Notes',
+    contacts: t('common.contacts'), addresses: 'Addresses',
+  }
   const label = FIELD_LABELS[fieldKey] ?? fieldKey
 
   if (typeof requested === 'boolean') return (
@@ -120,6 +117,7 @@ function FieldDiff({ fieldKey, current, requested }: { fieldKey: string; current
 function ModificationRequestsSection() {
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const t = useT()
   const [expanded, setExpanded] = useState(true)
   const [expandedReq, setExpandedReq] = useState<string | null>(null)
 
@@ -151,7 +149,7 @@ function ModificationRequestsSection() {
     <div className="mb-6">
       <button onClick={() => setExpanded(v => !v)} className="flex items-center gap-2 mb-3 w-full text-left">
         <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-        <span className="font-semibold text-gray-900">Modification Requests</span>
+        <span className="font-semibold text-gray-900">{t('clients.modification_requests')}</span>
         <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">{requests.length} pending</span>
         {expanded ? <ChevronUp className="h-4 w-4 text-gray-400 ml-auto" /> : <ChevronDown className="h-4 w-4 text-gray-400 ml-auto" />}
       </button>
@@ -177,11 +175,11 @@ function ModificationRequestsSection() {
                   </button>
                   <button onClick={() => handleApprove(req)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors">
-                    <CheckCircle className="h-3.5 w-3.5" /> Approve all
+                    <CheckCircle className="h-3.5 w-3.5" /> {t('clients.approve_all')}
                   </button>
                   <button onClick={() => handleReject(req)}
                     className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50 transition-colors">
-                    <XCircle className="h-3.5 w-3.5" /> Reject
+                    <XCircle className="h-3.5 w-3.5" /> {t('common.reject')}
                   </button>
                 </div>
               </div>
@@ -219,6 +217,11 @@ function LogoAvatar({ customer }: { customer: any }) {
 }
 
 function DistributorPopup({ customer, onClose, onEdit }: { customer: any; onClose: () => void; onEdit: () => void }) {
+  const t = useT()
+  const STATUS_LABELS: Record<string, string> = {
+    active: t('clients.status_active'), inactive: t('clients.status_inactive'),
+    lead: t('clients.status_lead'), dying: t('clients.status_dying'), closed: t('clients.status_closed'),
+  }
   const primaryContact = customer.contacts?.[0]
   const address = customer.addresses?.[0]
   return (
@@ -239,7 +242,7 @@ function DistributorPopup({ customer, onClose, onEdit }: { customer: any; onClos
           </div>
           <div className="flex items-center gap-2">
             <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-              <Edit className="h-3.5 w-3.5" /> Edit
+              <Edit className="h-3.5 w-3.5" /> {t('common.edit')}
             </button>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-900 p-1"><X className="h-5 w-5" /></button>
           </div>
@@ -291,12 +294,18 @@ function DistributorPopup({ customer, onClose, onEdit }: { customer: any; onClos
 export default function CustomersPage() {
   const supabase = createClient()
   const router = useRouter()
+  const t = useT()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [countryFilter, setCountryFilter] = useState('All')
   const [typeFilter, setTypeFilter] = useState('All')
   const [showExport, setShowExport] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
+
+  const STATUS_LABELS: Record<string, string> = {
+    active: t('clients.status_active'), inactive: t('clients.status_inactive'),
+    lead: t('clients.status_lead'), dying: t('clients.status_dying'), closed: t('clients.status_closed'),
+  }
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ['customers'],
@@ -366,7 +375,7 @@ export default function CustomersPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('clients.page_title')}</h1>
           <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {customers.length} clients</p>
         </div>
         <div className="flex items-center gap-3">
@@ -390,7 +399,7 @@ export default function CustomersPage() {
           </label>
           <button onClick={() => router.push('/clients/new')}
             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700">
-            <Plus className="h-4 w-4" /> Add Client
+            <Plus className="h-4 w-4" /> {t('clients.add_client')}
           </button>
         </div>
       </div>
@@ -400,16 +409,16 @@ export default function CustomersPage() {
       <div className="flex flex-wrap gap-3 mb-6">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <input type="text" placeholder="Search name, country..." value={search} onChange={e => setSearch(e.target.value)}
+          <input type="text" placeholder={t('clients.search_placeholder')} value={search} onChange={e => setSearch(e.target.value)}
             className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none" />
         </div>
         <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
           {countries.map(c => <option key={c}>{c}</option>)}
         </select>
         <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
-          <option value="All">Type</option>
-          <option value="distributor">Distributor</option>
-          <option value="private">Private</option>
+          <option value="All">{t('common.type')}</option>
+          <option value="distributor">{t('clients.type_distributor')}</option>
+          <option value="private">{t('clients.type_private')}</option>
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
           <option value="All">Status</option>
@@ -422,18 +431,18 @@ export default function CustomersPage() {
           <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading...</div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-            <Users className="h-8 w-8 mb-2" /><p className="text-sm">No clients found</p>
+            <Users className="h-8 w-8 mb-2" /><p className="text-sm">{t('clients.no_clients')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">{t('common.type')}</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Country</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Price List</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Contact</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Compliance</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">{t('common.contact')}</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">{t('clients.compliance')}</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -454,7 +463,7 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${CLIENT_TYPE_COLORS[c.client_type ?? 'distributor'] ?? 'bg-gray-100 text-gray-500'}`}>
-                        {c.client_type === 'private' ? 'Private' : 'Distributor'}
+                        {c.client_type === 'private' ? t('clients.type_private') : t('clients.type_distributor')}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-600 text-sm">

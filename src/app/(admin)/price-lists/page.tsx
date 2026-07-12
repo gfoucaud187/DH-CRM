@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { DollarSign, Search, Save, Check } from 'lucide-react'
 import { logActivity } from '@/lib/log-activity'
+import { useT } from '@/lib/i18n/LanguageProvider'
 
 const LISTS = ['G', 'G1', 'A1', 'SPECIAL']
 const LIST_COLORS: Record<string, string> = {
@@ -17,6 +18,7 @@ const LIST_COLORS: Record<string, string> = {
 export default function PriceListsPage() {
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const t = useT()
   const [search, setSearch] = useState('')
   const [listFilter, setListFilter] = useState('All')
   const [edits, setEdits] = useState<Record<string, string>>({})
@@ -112,7 +114,7 @@ export default function PriceListsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Price Lists</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('price_lists.page_title')}</h1>
           <p className="text-gray-500 text-sm mt-0.5">{rows.length} products · tap any price to edit</p>
         </div>
       </div>
@@ -120,7 +122,7 @@ export default function PriceListsPage() {
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <input type="text" placeholder="Search SKU or product..."
+          <input type="text" placeholder={t('price_lists.search_placeholder')}
             value={search} onChange={e => setSearch(e.target.value)}
             className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none" />
         </div>
@@ -138,11 +140,11 @@ export default function PriceListsPage() {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading...</div>
+          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">{t('common.loading')}</div>
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <DollarSign className="h-8 w-8 mb-2" />
-            <p className="text-sm">No price entries found</p>
+            <p className="text-sm">{t('price_lists.no_entries')}</p>
           </div>
         ) : (
           <>
@@ -199,8 +201,8 @@ export default function PriceListsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">SKU</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('price_lists.col_sku')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('price_lists.col_product')}</th>
                     {LISTS.map(l => (
                       <th key={l} className="text-right px-4 py-3 font-medium text-gray-600">
                         <span className={`px-2 py-0.5 rounded text-xs ${LIST_COLORS[l]}`}>{l}</span>
@@ -255,7 +257,7 @@ export default function PriceListsPage() {
           </>
         )}
       </div>
-      <p className="text-xs text-gray-400 mt-3 text-center">Tap any price field to edit · Save button appears when a value is changed</p>
+      <p className="text-xs text-gray-400 mt-3 text-center">{t('price_lists.edit_hint')}</p>
     </div>
   )
 }

@@ -7,6 +7,7 @@ import { Plus, Search, MapPin, Phone, Mail, Camera, Trash2, X, ChevronDown, Chev
 import { PhoneField, parseDialAndNumber } from '@/components/ui/PhoneField'
 import { logActivity } from '@/lib/log-activity'
 import dynamic from 'next/dynamic'
+import { useT } from '@/lib/i18n/LanguageProvider'
 
 const RetailersMap = dynamic(() => import('./map'), { ssr: false, loading: () => (
   <div className="flex items-center justify-center h-96 text-gray-400">
@@ -30,6 +31,7 @@ export default function RetailersPage() {
   const supabase = createClient()
   const queryClient = useQueryClient()
   const photoInputRef = useRef<HTMLInputElement>(null)
+  const t = useT()
 
   const [tab, setTab] = useState<'shops' | 'b2c' | 'map'>('shops')
   const [showExport, setShowExport] = useState(false)
@@ -224,18 +226,18 @@ export default function RetailersPage() {
         <div className="flex items-center gap-4 mb-6">
           <button onClick={() => setView('list')} className="text-gray-400 hover:text-gray-900"><ArrowLeft className="h-5 w-5" /></button>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">{view === 'new' ? 'Add Retailer' : 'Edit ' + shopForm.shop_name}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{view === 'new' ? t('retailers.form_add_title') : 'Edit ' + shopForm.shop_name}</h1>
           </div>
           <button onClick={handleSaveShop} disabled={saving}
             className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
-            <Save className="h-4 w-4" />{saving ? 'Saving...' : 'Save'}
+            <Save className="h-4 w-4" />{saving ? t('common.saving') : t('common.save')}
           </button>
         </div>
         <div className="space-y-5">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">Retailer Information</h2>
+            <h2 className="font-semibold text-gray-900 mb-4">{t('retailers.retailer_information')}</h2>
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Retailer Name *</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">{t('retailers.retailer_name')} *</label>
               <input value={shopForm.shop_name} onChange={e => setShopForm(f => ({ ...f, shop_name: e.target.value }))}
                 placeholder="e.g. La Casa del Habano Paris"
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
@@ -285,12 +287,12 @@ export default function RetailersPage() {
                 <div key={i} className="p-3 bg-gray-50 rounded-lg mb-3">
                   <div className="grid grid-cols-4 gap-2 mb-2">
                     <div>
-                      <label className="text-xs text-gray-400">First Name</label>
+                      <label className="text-xs text-gray-400">{t('common.first_name')}</label>
                       <input value={c.first_name} onChange={e => updateContact(i, 'first_name', e.target.value)}
                         className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400">Last Name</label>
+                      <label className="text-xs text-gray-400">{t('common.last_name')}</label>
                       <input value={c.last_name} onChange={e => updateContact(i, 'last_name', e.target.value)}
                         className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
                     </div>
@@ -300,7 +302,7 @@ export default function RetailersPage() {
                         className="mt-1 w-full h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none" />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400">Mobile</label>
+                      <label className="text-xs text-gray-400">{t('common.mobile')}</label>
                       <PhoneField
                         dialCode={c.mobile_dial ?? '33'}
                         number={c.mobile ?? ''}
@@ -319,21 +321,21 @@ export default function RetailersPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h2 className="font-semibold text-gray-900 mb-4">Notes</h2>
             <textarea value={shopForm.comments} onChange={e => setShopForm(f => ({ ...f, comments: e.target.value }))}
-              rows={3} placeholder="Visit notes, product preferences..."
+              rows={3} placeholder={t('retailers.visit_notes_placeholder')}
               className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none resize-none" />
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-900">Photos</h2>
+              <h2 className="font-semibold text-gray-900">{t('retailers.photos_section')}</h2>
               <button onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
-                <Camera className="h-3.5 w-3.5" />{uploadingPhoto ? 'Uploading...' : 'Add photo'}
+                <Camera className="h-3.5 w-3.5" />{uploadingPhoto ? 'Uploading...' : t('retailers.add_photo')}
               </button>
               <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoUpload} className="hidden" />
             </div>
             {shopForm.photos.length === 0
-              ? <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">No photos yet</div>
+              ? <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">{t('retailers.no_photos')}</div>
               : <div className="grid grid-cols-3 gap-3">
                   {shopForm.photos.map((url, i) => (
                     <div key={i} className="relative group rounded-lg overflow-hidden aspect-square">
@@ -363,24 +365,24 @@ export default function RetailersPage() {
           <button onClick={() => setView('list')} className="text-gray-400 hover:text-gray-900"><ArrowLeft className="h-5 w-5" /></button>
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900">
-              {view === 'new' ? 'Add B2C Contact' : `Edit ${b2cForm.first_name} ${b2cForm.last_name}`}
+              {view === 'new' ? t('retailers.add_b2c_title') : `Edit ${b2cForm.first_name} ${b2cForm.last_name}`}
             </h1>
           </div>
           <button onClick={handleSaveB2c} disabled={saving}
             className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
-            <Save className="h-4 w-4" />{saving ? 'Saving...' : 'Save'}
+            <Save className="h-4 w-4" />{saving ? t('common.saving') : t('common.save')}
           </button>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
           <h2 className="font-semibold text-gray-900 mb-2">Contact Information</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">First Name</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">{t('common.first_name')}</label>
               <input value={b2cForm.first_name} onChange={e => setB2cForm(f => ({ ...f, first_name: e.target.value }))}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Last Name</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">{t('common.last_name')}</label>
               <input value={b2cForm.last_name} onChange={e => setB2cForm(f => ({ ...f, last_name: e.target.value }))}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
             </div>
@@ -390,7 +392,7 @@ export default function RetailersPage() {
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Mobile</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">{t('common.mobile')}</label>
               <PhoneField
                 dialCode={b2cForm.mobile_dial}
                 number={b2cForm.mobile}
@@ -408,7 +410,7 @@ export default function RetailersPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase">Linked Retailer</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">{t('retailers.linked_retailer')}</label>
               <select value={b2cForm.retailer_id} onChange={e => setB2cForm(f => ({ ...f, retailer_id: e.target.value }))}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
                 <option value="">None</option>
@@ -418,7 +420,7 @@ export default function RetailersPage() {
               </select>
             </div>
             <div className="col-span-2">
-              <label className="text-xs font-medium text-gray-500 uppercase">Event / Occasion</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">{t('retailers.event_occasion')}</label>
               <input value={b2cForm.event} onChange={e => setB2cForm(f => ({ ...f, event: e.target.value }))}
                 placeholder="e.g. ProCigar 2026, Geneva Nov 2025, Cannes Film Festival..."
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
@@ -440,7 +442,7 @@ export default function RetailersPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Retailers & Contacts</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('retailers.page_title')}</h1>
           <p className="text-gray-500 text-sm mt-0.5">
             {(retailers as any[]).length} retailers · {(b2cContacts as any[]).length} B2C contacts
           </p>
@@ -464,7 +466,7 @@ export default function RetailersPage() {
           )}
           <button onClick={tab === 'shops' ? openNewShop : tab === 'b2c' ? openNewB2c : undefined}
             className={`flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors ${tab === 'map' ? 'invisible' : ''}`}>
-            <Plus className="h-4 w-4" /> {tab === 'shops' ? 'Add retailer' : 'Add contact'}
+            <Plus className="h-4 w-4" /> {tab === 'shops' ? t('retailers.add_retailer') : t('retailers.add_contact')}
           </button>
         </div>
       </div>
@@ -473,17 +475,17 @@ export default function RetailersPage() {
       <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
         <button onClick={() => { setTab('shops'); setSearch('') }}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'shops' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-          <Store className="h-4 w-4" /> Retailers
+          <Store className="h-4 w-4" /> {t('retailers.tab_retailers')}
           <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{(retailers as any[]).length}</span>
         </button>
         <button onClick={() => { setTab('b2c'); setSearch('') }}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'b2c' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-          <Users className="h-4 w-4" /> B2C Contacts
+          <Users className="h-4 w-4" /> {t('retailers.tab_b2c')}
           <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{(b2cContacts as any[]).length}</span>
         </button>
         <button onClick={() => { setTab('map'); setSearch('') }}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'map' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-          <Map className="h-4 w-4" /> Map
+          <Map className="h-4 w-4" /> {t('retailers.tab_map')}
         </button>
       </div>
 
@@ -492,7 +494,7 @@ export default function RetailersPage() {
       <div className="relative mb-4">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
         <input type="text"
-          placeholder={tab === 'shops' ? 'Search by shop, city, country...' : 'Search by name, email, event, country...'}
+          placeholder={t('retailers.search_placeholder')}
           value={search} onChange={e => setSearch(e.target.value)}
           className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none" />
       </div>
@@ -628,11 +630,11 @@ export default function RetailersPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-5 py-3 font-medium text-gray-600">Name</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Country</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Contact</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Event</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Retailer</th>
+                    <th className="text-left px-5 py-3 font-medium text-gray-600">{t('retailers.b2c_col_name')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('retailers.b2c_col_country')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('retailers.b2c_col_contact')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('retailers.b2c_col_event')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('retailers.b2c_col_retailer')}</th>
                     <th className="px-4 py-3 w-20" />
                   </tr>
                 </thead>

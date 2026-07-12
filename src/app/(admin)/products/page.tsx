@@ -6,8 +6,10 @@ import { createClient } from '@/lib/supabase/client'
 import { Package, Plus, Search, Upload, Edit, Download, ChevronDown, Cigarette, ShoppingBag, BookOpen, Eye } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import ProductSheet from '@/components/products/ProductSheet'
+import { useT } from '@/lib/i18n/LanguageProvider'
 
 export default function ProductsPage() {
+  const t = useT()
   const supabase = createClient()
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -86,7 +88,7 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('products.page_title')}</h1>
           <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {(products as any[]).length} products</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -120,7 +122,7 @@ export default function ProductsPage() {
           </label>
           <button onClick={() => setShowTypeModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
-            <Plus className="h-4 w-4" />Add Product
+            <Plus className="h-4 w-4" />{t('products.add_product')}
           </button>
         </div>
       </div>
@@ -129,13 +131,13 @@ export default function ProductsPage() {
       <div className="flex flex-wrap gap-2 md:gap-3 mb-6">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <input type="text" placeholder="Search SKU, name, brand, Fixmer, EU-CEG..."
+          <input type="text" placeholder={t('products.search_placeholder')}
             value={search} onChange={e => setSearch(e.target.value)}
             className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
         <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
-          {brands.map(b => <option key={b} value={b}>{b === 'All' ? 'Brands' : b}</option>)}
+          {brands.map(b => <option key={b} value={b}>{b === 'All' ? t('products.filter_brands') : b}</option>)}
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
@@ -146,20 +148,20 @@ export default function ProductsPage() {
         <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
           <option value="All">Inventory</option>
-          <option value="original">Original</option>
-          <option value="aged">Aged</option>
-          <option value="sample">Sample</option>
-          <option value="foc">FOC</option>
+          <option value="original">{t('products.role_original')}</option>
+          <option value="aged">{t('products.role_aged')}</option>
+          <option value="sample">{t('products.role_sample')}</option>
+          <option value="foc">{t('products.role_foc')}</option>
         </select>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading...</div>
+          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">{t('common.loading')}</div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <Package className="h-8 w-8 mb-2" />
-            <p className="text-sm">No products found</p>
+            <p className="text-sm">{t('products.no_products')}</p>
           </div>
         ) : (
           <>
@@ -199,12 +201,12 @@ export default function ProductsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">SKU</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Brand</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Vitola</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Units/Pack</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('products.col_sku')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('products.col_product')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('products.col_brand')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('products.col_vitola')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('products.col_units_pack')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('products.col_role')}</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                     <th className="px-4 py-3" />
                   </tr>
@@ -256,7 +258,7 @@ export default function ProductsPage() {
       {showTypeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowTypeModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">Add Product</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">{t('products.add_product')}</h2>
             <p className="text-sm text-gray-500 mb-6">Choose the type of product to add</p>
             <div className="grid grid-cols-3 gap-3">
               <button onClick={() => { setShowTypeModal(false); router.push('/products/new?type=cigar') }}
@@ -276,7 +278,7 @@ export default function ProductsPage() {
               </button>
             </div>
             <button onClick={() => setShowTypeModal(false)}
-              className="mt-4 w-full py-2 text-sm text-gray-500 hover:text-gray-900">Cancel</button>
+              className="mt-4 w-full py-2 text-sm text-gray-500 hover:text-gray-900">{t('common.cancel')}</button>
           </div>
         </div>
       )}

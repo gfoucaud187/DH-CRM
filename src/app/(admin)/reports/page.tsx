@@ -2,19 +2,13 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useT } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { BarChart3, Globe, Package, Users, Target, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, Clock, XCircle, Calendar } from 'lucide-react'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
-const TABS = [
-  { id: 'overview',  label: 'Overview',  icon: BarChart3 },
-  { id: 'geography', label: 'Geography', icon: Globe },
-  { id: 'products',  label: 'Products',  icon: Package },
-  { id: 'clients',   label: 'Clients',   icon: Users },
-  { id: 'activity',  label: 'Activity',  icon: Target },
-]
 
 const PERIODS = [
   { id: 'ytd', label: 'YTD',       vsLabel: 'vs. same period last year' },
@@ -88,6 +82,16 @@ export default function ReportsPage() {
   const [period, setPeriod] = useState('ytd')
   const [activityFilter, setActivityFilter] = useState<'all'|'active'|'at_risk'|'dormant'|'lost'>('all')
   const [expandedRegion, setExpandedRegion] = useState<string | null>(null)
+
+  const t = useT()
+
+  const TABS = [
+    { id: 'overview',  label: t('reports.tab_overview'),  icon: BarChart3 },
+    { id: 'geography', label: t('reports.tab_geography'), icon: Globe },
+    { id: 'products',  label: t('reports.tab_products'),  icon: Package },
+    { id: 'clients',   label: t('reports.tab_clients'),   icon: Users },
+    { id: 'activity',  label: t('reports.tab_activity'),  icon: Target },
+  ]
 
   const currentPeriod = PERIODS.find(p => p.id === period) ?? PERIODS[0]
 
@@ -236,7 +240,7 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('reports.page_title')}</h1>
           <p className="text-gray-500 text-sm mt-0.5">Business intelligence & analytics</p>
         </div>
         <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl overflow-x-auto flex-nowrap">
@@ -252,14 +256,14 @@ export default function ReportsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl overflow-x-auto flex-nowrap">
-        {TABS.map(t => {
-          const Icon = t.icon
+        {TABS.map(tabItem => {
+          const Icon = tabItem.icon
           return (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg text-sm font-medium transition-all flex-shrink-0 ${tab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <button key={tabItem.id} onClick={() => setTab(tabItem.id)}
+              className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg text-sm font-medium transition-all flex-shrink-0 ${tab === tabItem.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               <Icon className="h-4 w-4" />
-              <span className="hidden sm:inline">{t.label}</span>
-              {t.id === 'activity' && (healthCounts.dormant + healthCounts.at_risk) > 0 && (
+              <span className="hidden sm:inline">{tabItem.label}</span>
+              {tabItem.id === 'activity' && (healthCounts.dormant + healthCounts.at_risk) > 0 && (
                 <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
                   {healthCounts.dormant + healthCounts.at_risk}
                 </span>
@@ -274,9 +278,9 @@ export default function ReportsPage() {
         <div className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
-              { label: 'Revenue',        value: fmt(periodRevenue), curr: periodRevenue, prev: prevRevenue, sub: `${periodInvoices.length} invoices` },
-              { label: 'Units shipped',  value: periodUnits.toLocaleString(), curr: periodUnits, prev: prevUnits, sub: 'units' },
-              { label: 'Active clients', value: activeClients.toString(), curr: activeClients, prev: prevClients, sub: 'ordered in period' },
+              { label: t('reports.kpi_revenue'),        value: fmt(periodRevenue), curr: periodRevenue, prev: prevRevenue, sub: `${periodInvoices.length} invoices` },
+              { label: t('reports.kpi_units_shipped'),  value: periodUnits.toLocaleString(), curr: periodUnits, prev: prevUnits, sub: 'units' },
+              { label: t('reports.kpi_active_clients'), value: activeClients.toString(), curr: activeClients, prev: prevClients, sub: 'ordered in period' },
             ].map(({ label, value, curr, prev, sub }) => (
               <div key={label} className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
                 <p className="text-sm text-gray-500 mb-1">{label}</p>
@@ -353,10 +357,10 @@ export default function ReportsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-4 md:px-5 py-3 font-medium text-gray-600">Region</th>
-                    <th className="text-center px-3 md:px-4 py-3 font-medium text-gray-600">Clients</th>
-                    <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600">Revenue</th>
-                    <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Units</th>
+                    <th className="text-left px-4 md:px-5 py-3 font-medium text-gray-600">{t('reports.col_region')}</th>
+                    <th className="text-center px-3 md:px-4 py-3 font-medium text-gray-600">{t('reports.col_clients')}</th>
+                    <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600">{t('reports.col_revenue')}</th>
+                    <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">{t('reports.col_units')}</th>
                     <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600 hidden md:table-cell">{currentPeriod.vsLabel}</th>
                     <th className="px-3 md:px-4 py-3 w-24 md:w-40 hidden sm:table-cell" />
                   </tr>
@@ -476,10 +480,10 @@ export default function ReportsPage() {
                 <tr>
                   <th className="text-left px-5 py-3 font-medium text-gray-600">#</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Region</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Revenue</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Orders</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">{t('reports.col_region')}</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">{t('reports.col_revenue')}</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">{t('reports.col_units')}</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">{t('reports.col_orders')}</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">{currentPeriod.vsLabel}</th>
                   <th className="px-4 py-3 w-20" />
                 </tr>
@@ -515,10 +519,10 @@ export default function ReportsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { key: 'active',  label: 'Active',  count: healthCounts.active,  icon: CheckCircle,  color: 'text-green-600', bg: 'bg-green-50',  border: 'border-green-200', desc: '< 60 days, regular' },
-              { key: 'at_risk', label: 'At risk', count: healthCounts.at_risk, icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50',  border: 'border-amber-200', desc: '60–120 days or low freq' },
-              { key: 'dormant', label: 'Dormant', count: healthCounts.dormant, icon: Clock,         color: 'text-red-600',   bg: 'bg-red-50',    border: 'border-red-200',   desc: '120–365 days' },
-              { key: 'lost',    label: 'Lost',    count: healthCounts.lost,    icon: XCircle,       color: 'text-gray-500',  bg: 'bg-gray-50',   border: 'border-gray-200',  desc: '> 365 days' },
+              { key: 'active',  label: t('reports.health_active'),  count: healthCounts.active,  icon: CheckCircle,  color: 'text-green-600', bg: 'bg-green-50',  border: 'border-green-200', desc: '< 60 days, regular' },
+              { key: 'at_risk', label: t('reports.health_at_risk'), count: healthCounts.at_risk, icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50',  border: 'border-amber-200', desc: '60–120 days or low freq' },
+              { key: 'dormant', label: t('reports.health_dormant'), count: healthCounts.dormant, icon: Clock,         color: 'text-red-600',   bg: 'bg-red-50',    border: 'border-red-200',   desc: '120–365 days' },
+              { key: 'lost',    label: t('reports.health_lost'),    count: healthCounts.lost,    icon: XCircle,       color: 'text-gray-500',  bg: 'bg-gray-50',   border: 'border-gray-200',  desc: '> 365 days' },
             ].map(({ key, label, count, icon: Icon, color, bg, border, desc }) => (
               <button key={key}
                 onClick={() => setActivityFilter(activityFilter === key as any ? 'all' : key as any)}
@@ -568,7 +572,7 @@ export default function ReportsPage() {
                         <p className={`text-xs ${c.lastOrderDays > 120 ? 'text-red-500 font-semibold' : c.lastOrderDays > 60 ? 'text-amber-600' : 'text-gray-400'}`}>
                           {c.lastOrderDays}d ago
                         </p>
-                      ) : <p className="text-xs text-gray-300">Never ordered</p>}
+                      ) : <p className="text-xs text-gray-300">{t('reports.never_ordered')}</p>}
                     </div>
                     <div className="flex items-center gap-0.5">
                       {(c.heatmap ?? []).map((count: number, i: number) => (

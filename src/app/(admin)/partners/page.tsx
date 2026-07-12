@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, Edit, Handshake, Download } from 'lucide-react'
+import { useT } from '@/lib/i18n/LanguageProvider'
 
 const TYPE_COLORS: Record<string, string> = {
   supplier: 'bg-blue-100 text-blue-700',
@@ -12,19 +13,20 @@ const TYPE_COLORS: Record<string, string> = {
   broker:   'bg-amber-100 text-amber-700',
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  supplier: 'Supplier',
-  agent:    'Agent',
-  broker:   'Broker',
-}
-
 export default function PartnersPage() {
   const supabase = createClient()
   const router = useRouter()
+  const t = useT()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
   const [showExport, setShowExport] = useState(false)
+
+  const TYPE_LABELS: Record<string, string> = {
+    supplier: t('partners.type_supplier'),
+    agent:    t('partners.type_agent'),
+    broker:   t('partners.type_broker'),
+  }
 
   const exportCSV = () => {
     const headers = ['Name', 'Type', 'Country', 'Contact', 'Email', 'Status']
@@ -70,7 +72,7 @@ export default function PartnersPage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Partners</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('partners.page_title')}</h1>
           <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {(partners as any[]).length} partners</p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -90,7 +92,7 @@ export default function PartnersPage() {
           </div>
           <button onClick={() => router.push('/partners/new')}
             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
-            <Plus className="h-4 w-4" /> Add Partner
+            <Plus className="h-4 w-4" /> {t('partners.add_partner')}
           </button>
         </div>
       </div>
@@ -98,16 +100,16 @@ export default function PartnersPage() {
       <div className="flex flex-wrap gap-2 md:gap-3 mb-6">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <input type="text" placeholder="Search name, contact, country..."
+          <input type="text" placeholder={t('partners.search_placeholder')}
             value={search} onChange={e => setSearch(e.target.value)}
             className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
         <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
-          <option value="All">All Types</option>
-          <option value="supplier">Supplier</option>
-          <option value="agent">Agent</option>
-          <option value="broker">Broker</option>
+          <option value="All">{t('partners.filter_all_types')}</option>
+          <option value="supplier">{t('partners.type_supplier')}</option>
+          <option value="agent">{t('partners.type_agent')}</option>
+          <option value="broker">{t('partners.type_broker')}</option>
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
@@ -119,11 +121,11 @@ export default function PartnersPage() {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading...</div>
+          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">{t('common.loading')}</div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <Handshake className="h-8 w-8 mb-2" />
-            <p className="text-sm">No partners found</p>
+            <p className="text-sm">{t('partners.no_partners')}</p>
           </div>
         ) : (
           <>
@@ -157,12 +159,12 @@ export default function PartnersPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Contact</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Country</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Payment Terms</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_name')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_type')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_contact')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_country')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_payment_terms')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_status')}</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>

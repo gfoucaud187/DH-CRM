@@ -6,6 +6,7 @@ import { ShoppingCart, Plus, Search, RotateCcw, X, AlertTriangle, Info, ChevronR
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useMemo } from 'react'
+import { useT } from '@/lib/i18n/LanguageProvider'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:                'bg-gray-100 text-gray-500',
@@ -69,6 +70,7 @@ export default function OrdersPage() {
   const supabase = createClient()
   const router = useRouter()
   const queryClient = useQueryClient()
+  const t = useT()
   const [docFilter, setDocFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [showCancelled, setShowCancelled] = useState(false)
@@ -256,14 +258,14 @@ export default function OrdersPage() {
   const TableHead = () => (
     <thead className="bg-gray-50 border-b border-gray-200">
       <tr>
-        <th className="text-left px-4 py-3 font-medium text-gray-600">Order #</th>
-        <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
-        <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-        <th className="text-left px-4 py-3 font-medium text-gray-600">Warehouse</th>
+        <th className="text-left px-4 py-3 font-medium text-gray-600">{t('orders.col_order_number')}</th>
+        <th className="text-left px-4 py-3 font-medium text-gray-600">{t('orders.col_customer')}</th>
+        <th className="text-left px-4 py-3 font-medium text-gray-600">{t('common.type')}</th>
+        <th className="text-left px-4 py-3 font-medium text-gray-600">{t('orders.col_warehouse')}</th>
         <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
-        <th className="text-right px-4 py-3 font-medium text-gray-600">Amount</th>
-        <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-        <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+        <th className="text-right px-4 py-3 font-medium text-gray-600">{t('common.amount')}</th>
+        <th className="text-left px-4 py-3 font-medium text-gray-600">{t('orders.col_status')}</th>
+        <th className="text-left px-4 py-3 font-medium text-gray-600">{t('orders.col_date')}</th>
         <th className="px-4 py-3" />
       </tr>
     </thead>
@@ -276,12 +278,12 @@ export default function OrdersPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('orders.page_title')}</h1>
           <p className="text-gray-500 text-sm mt-0.5">{groupedOrders.flat().length} of {active.length} active documents</p>
         </div>
         <Link href="/orders/new"
           className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
-          <Plus className="h-4 w-4" /> New Order
+          <Plus className="h-4 w-4" /> {t('orders.new_order')}
         </Link>
       </div>
 
@@ -299,12 +301,12 @@ export default function OrdersPage() {
             <table className="w-full text-sm">
               <thead className="bg-orange-50 border-b border-orange-100">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-orange-800">PO #</th>
+                  <th className="text-left px-4 py-3 font-medium text-orange-800">{t('orders.col_po_number')}</th>
                   <th className="text-left px-4 py-3 font-medium text-orange-800">Client</th>
-                  <th className="text-left px-4 py-3 font-medium text-orange-800">Date</th>
+                  <th className="text-left px-4 py-3 font-medium text-orange-800">{t('orders.col_date')}</th>
                   <th className="text-right px-4 py-3 font-medium text-orange-800">Units</th>
-                  <th className="text-right px-4 py-3 font-medium text-orange-800">Amount</th>
-                  <th className="text-left px-4 py-3 font-medium text-orange-800">Status</th>
+                  <th className="text-right px-4 py-3 font-medium text-orange-800">{t('common.amount')}</th>
+                  <th className="text-left px-4 py-3 font-medium text-orange-800">{t('orders.col_status')}</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -360,7 +362,7 @@ export default function OrdersPage() {
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <input type="text" placeholder="Search order or customer..."
+          <input type="text" placeholder={t('orders.search_placeholder')}
             value={search} onChange={e => setSearch(e.target.value)}
             className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none" />
         </div>
@@ -377,11 +379,11 @@ export default function OrdersPage() {
       {/* Active orders — grouped */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
         {isLoading ? (
-          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading...</div>
+          <div className="flex items-center justify-center h-48 text-gray-400 text-sm">{t('common.loading')}</div>
         ) : groupedOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <ShoppingCart className="h-8 w-8 mb-2" />
-            <p className="text-sm">No orders found</p>
+            <p className="text-sm">{t('orders.no_orders')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -406,7 +408,7 @@ export default function OrdersPage() {
           <button onClick={() => setShowCancelled(v => !v)}
             className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 mb-3 transition-colors">
             <X className="h-4 w-4 text-red-400" />
-            {showCancelled ? 'Hide' : 'Show'} cancelled orders
+            {showCancelled ? t('orders.hide_cancelled') : t('orders.show_cancelled')}
             <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-xs font-medium">{filteredCancelled.length}</span>
           </button>
           {showCancelled && (
