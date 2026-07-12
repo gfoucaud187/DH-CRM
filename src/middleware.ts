@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
-    pathname === '/portal-login' ||
+    pathname === '/portal_login' ||
     pathname === '/login' ||
     pathname === '/favicon.ico' ||
     pathname === '/favicon.png' ||
@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
 
   // Portal routes — need client role
   if (pathname.startsWith('/portal')) {
-    if (!user) return NextResponse.redirect(new URL('/portal-login', request.url))
+    if (!user) return NextResponse.redirect(new URL('/portal_login', request.url))
     const { data: profile } = await supabase
       .from('user_profiles').select('role').eq('id', user.id).single()
     if (!profile || profile.role !== 'client')

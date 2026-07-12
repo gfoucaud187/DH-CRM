@@ -215,7 +215,7 @@ export default function OrderDetailPage() {
   }
 
   const handleCreateFoc = async () => {
-    const res = await fetch('/api/orders/create-foc', {
+    const res = await fetch('/api/orders/create_foc', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ so_id: id }),

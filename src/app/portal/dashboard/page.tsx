@@ -14,7 +14,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default async function PortalDashboardPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/portal-login')
+  if (!user) redirect('/portal_login')
 
   const { data: profile } = await supabase
     .from('user_profiles').select('customer_id').eq('id', user.id).single()

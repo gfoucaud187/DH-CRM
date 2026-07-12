@@ -601,7 +601,7 @@ export default function EditCustomerPage() {
             </div>
             {portalStatus === 'active' && portalUserId && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-700">
-                ✅ Portal active — distributor can log in at <strong>/portal-login</strong>
+                ✅ Portal active — distributor can log in at <strong>/portal_login</strong>
               </div>
             )}
             {portalStatus === 'active' && !portalUserId && (

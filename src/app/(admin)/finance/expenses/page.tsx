@@ -212,7 +212,7 @@ export default function ExpensesPage() {
   const handlePostToJournal = async (exp: any) => {
     setPosting(exp.id)
     try {
-      const res = await fetch('/api/finance/post-expense', {
+      const res = await fetch('/api/finance/post_expense', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expenseId: exp.id }),
@@ -257,7 +257,7 @@ export default function ExpensesPage() {
       // AI parse
       const fd = new FormData()
       fd.append('image', file)
-      const res = await fetch('/api/finance/parse-receipt', { method: 'POST', body: fd })
+      const res = await fetch('/api/finance/parse_receipt', { method: 'POST', body: fd })
       if (!res.ok) throw new Error('Parsing failed')
       const parsed = await res.json()
 

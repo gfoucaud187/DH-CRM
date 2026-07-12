@@ -100,7 +100,7 @@ export default function PortalProfilePage() {
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/portal-login'); return }
+      if (!user) { router.push('/portal_login'); return }
       const { data: profile } = await supabase.from('user_profiles').select('customer_id').eq('id', user.id).single()
       setCustomerId(profile?.customer_id ?? null)
       const { data: c } = await supabase.from('customers').select('*').eq('id', profile?.customer_id).single()

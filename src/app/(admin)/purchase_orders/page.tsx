@@ -55,7 +55,7 @@ export default function PurchaseOrdersPage() {
           <h1 className="text-2xl font-bold text-gray-900">{t('purchase_orders.page_title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{pos?.length ?? 0} orders</p>
         </div>
-        <Link href="/purchase-orders/new"
+        <Link href="/purchase_orders/new"
           className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
           <Plus className="h-4 w-4" /> {t('purchase_orders.new_po')}
         </Link>
@@ -86,7 +86,7 @@ export default function PurchaseOrdersPage() {
                 return (
                   <tr key={po.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
-                      <Link href={`/purchase-orders/${po.id}`}
+                      <Link href={`/purchase_orders/${po.id}`}
                         className="font-mono font-medium text-gray-900 hover:text-blue-600 transition-colors">
                         {po.po_number}
                       </Link>

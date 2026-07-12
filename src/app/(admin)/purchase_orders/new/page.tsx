@@ -118,7 +118,7 @@ export default function NewPurchaseOrderPage() {
       entityRef: po.po_number,
       metadata: { type: poType, partner: partnerName, status },
     })
-    router.push('/purchase-orders')
+    router.push('/purchase_orders')
   }
 
   // ── Step 1: Choose type ──────────────────────────────────────────────
@@ -126,7 +126,7 @@ export default function NewPurchaseOrderPage() {
     return (
       <div className="max-w-2xl">
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/purchase-orders" className="text-gray-400 hover:text-gray-900"><ArrowLeft className="h-5 w-5" /></Link>
+          <Link href="/purchase_orders" className="text-gray-400 hover:text-gray-900"><ArrowLeft className="h-5 w-5" /></Link>
           <h1 className="text-2xl font-bold text-gray-900">New Purchase Order</h1>
         </div>
         <p className="text-gray-500 mb-6">Select the type of purchase order to create:</p>

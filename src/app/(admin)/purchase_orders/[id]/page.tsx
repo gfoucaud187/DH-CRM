@@ -150,7 +150,7 @@ export default function PurchaseOrderDetailPage() {
     })
     await supabase.from('purchase_orders').delete().eq('id', id as string)
     queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
-    router.push('/purchase-orders')
+    router.push('/purchase_orders')
   }
 
   if (isLoading) return <div className="flex items-center justify-center h-48 text-gray-400">Loading...</div>
@@ -161,7 +161,7 @@ export default function PurchaseOrderDetailPage() {
   return (
     <div className="max-w-4xl">
       <div className="flex items-center gap-4 mb-6">
-        <Link href="/purchase-orders" className="text-gray-400 hover:text-gray-900"><ArrowLeft className="h-5 w-5" /></Link>
+        <Link href="/purchase_orders" className="text-gray-400 hover:text-gray-900"><ArrowLeft className="h-5 w-5" /></Link>
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900 font-mono">{po.po_number}</h1>

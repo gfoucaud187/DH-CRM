@@ -119,7 +119,7 @@ export default function PayrollPage() {
     if (!confirm(`Post ${draftEntries.length} payroll entries to the journal?`)) return
     setPosting(true)
     try {
-      const res = await fetch('/api/finance/post-payroll', {
+      const res = await fetch('/api/finance/post_payroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ year, month }),

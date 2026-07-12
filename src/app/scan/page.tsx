@@ -137,7 +137,7 @@ export default function ScanPage() {
 
       const fd = new FormData()
       fd.append('image', file)
-      const res = await fetch('/api/finance/parse-receipt', { method: 'POST', body: fd })
+      const res = await fetch('/api/finance/parse_receipt', { method: 'POST', body: fd })
       if (!res.ok) throw new Error('Failed')
       const parsed = await res.json()
 
