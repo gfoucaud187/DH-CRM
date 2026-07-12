@@ -451,14 +451,24 @@ export default function PriceListsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('price_lists.col_sku')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">{t('price_lists.col_sku')}</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">{t('price_lists.col_product')}</th>
                     {LISTS.map(l => (
-                      <th key={l} className="text-right px-4 py-3 font-medium text-gray-600">
-                        <span className={`px-2 py-0.5 rounded text-xs ${LIST_COLORS[l]}`}>{l}</span>
+                      <th key={l} className="px-4 py-3 font-medium text-gray-600">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <div className="w-24 flex justify-center">
+                            <span className={`px-2 py-0.5 rounded text-xs ${LIST_COLORS[l]}`}>{l}</span>
+                          </div>
+                          <div className="w-7" />
+                        </div>
                       </th>
                     ))}
-                    <th className="text-right px-4 py-3 font-medium text-gray-600">COGS</th>
+                    <th className="px-4 py-3 font-medium text-gray-600">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="min-w-[80px] text-right">COGS</div>
+                        <div className="w-4" />
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
