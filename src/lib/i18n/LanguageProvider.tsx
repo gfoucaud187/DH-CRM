@@ -77,7 +77,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       setTranslations(cached)
       setIsLoading(false)
       // Stale-while-revalidate: background fetch to detect any change
-      fetch(`/api/cms/translations?lang=${targetLang}`)
+      fetch(`/api/cms/translations?lang=${targetLang}`, { cache: 'no-store' })
         .then(r => r.ok ? r.json() : null)
         .then((map: TranslationMap | null) => {
           if (map && JSON.stringify(map) !== JSON.stringify(cached)) {
@@ -89,7 +89,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       return
     }
     try {
-      const res = await fetch(`/api/cms/translations?lang=${targetLang}`)
+      const res = await fetch(`/api/cms/translations?lang=${targetLang}`, { cache: 'no-store' })
       if (res.ok) {
         const map: TranslationMap = await res.json()
         saveCache(targetLang, map)
