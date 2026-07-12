@@ -64,7 +64,7 @@ export default function LoginPage() {
 
     if (data?.user) {
       const { data: profile } = await supabase
-        .from('profiles')
+        .from('user_profiles')
         .select('role')
         .eq('id', data.user.id)
         .single();
