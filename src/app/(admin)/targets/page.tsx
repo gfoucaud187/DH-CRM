@@ -193,11 +193,11 @@ export default function TargetsPage() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {(customers as any[]).map((c: any) => {
-              const t = getTarget(c.id)
+              const target = getTarget(c.id)
               const rev = getRevenue(c.id)
-              const std = parseFloat(getEdit(c.id, 'standard', t?.standard_target ?? 0)) || 0
-              const push = parseFloat(getEdit(c.id, 'push', t?.push_target ?? 0)) || 0
-              const stretch = parseFloat(getEdit(c.id, 'stretch', t?.stretch_target ?? 0)) || 0
+              const std = parseFloat(getEdit(c.id, 'standard', target?.standard_target ?? 0)) || 0
+              const push = parseFloat(getEdit(c.id, 'push', target?.push_target ?? 0)) || 0
+              const stretch = parseFloat(getEdit(c.id, 'stretch', target?.stretch_target ?? 0)) || 0
               const status = std > 0 ? getStatus(rev, std, push, stretch, monthsElapsed) : null
               const proratedStd = std * (monthsElapsed / 12)
               const progressPct = proratedStd > 0 ? Math.min((rev / proratedStd) * 100, 150) : 0
@@ -213,7 +213,7 @@ export default function TargetsPage() {
                   <td className="px-4 py-3 text-right">
                     <input
                       type="number"
-                      value={getEdit(c.id, 'standard', t?.standard_target ?? 0)}
+                      value={getEdit(c.id, 'standard', target?.standard_target ?? 0)}
                       onChange={e => setEdit(c.id, 'standard', e.target.value)}
                       placeholder="0"
                       className="w-28 h-8 rounded border border-gray-200 px-2 text-right text-sm focus:outline-none focus:border-blue-400"
@@ -223,7 +223,7 @@ export default function TargetsPage() {
                   <td className="px-4 py-3 text-right">
                     <input
                       type="number"
-                      value={getEdit(c.id, 'push', t?.push_target ?? 0)}
+                      value={getEdit(c.id, 'push', target?.push_target ?? 0)}
                       onChange={e => setEdit(c.id, 'push', e.target.value)}
                       placeholder="0"
                       className="w-28 h-8 rounded border border-gray-200 px-2 text-right text-sm focus:outline-none focus:border-purple-400"
@@ -233,7 +233,7 @@ export default function TargetsPage() {
                   <td className="px-4 py-3 text-right">
                     <input
                       type="number"
-                      value={getEdit(c.id, 'stretch', t?.stretch_target ?? 0)}
+                      value={getEdit(c.id, 'stretch', target?.stretch_target ?? 0)}
                       onChange={e => setEdit(c.id, 'stretch', e.target.value)}
                       placeholder="0"
                       className="w-28 h-8 rounded border border-gray-200 px-2 text-right text-sm focus:outline-none focus:border-gray-400"
