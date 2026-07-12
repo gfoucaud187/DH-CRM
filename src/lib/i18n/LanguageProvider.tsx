@@ -3,8 +3,6 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { createClient } from '@/lib/supabase/client'
 import type { Language, TranslationMap } from './types'
 
-const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
-
 interface LanguageContextValue {
   lang: string
   setLang: (lang: string) => Promise<void>
@@ -31,38 +29,6 @@ export function useT() {
   return useContext(LanguageContext).t
 }
 
-function cacheKey(lang: string) { return `cms_cache_${lang}` }
-function cacheTsKey(lang: string) { return `cms_cache_${lang}_ts` }
-
-function loadCache(lang: string): TranslationMap | null {
-  try {
-    const ts = localStorage.getItem(cacheTsKey(lang))
-    if (!ts || Date.now() - Number(ts) > CACHE_TTL_MS) return null
-    const raw = localStorage.getItem(cacheKey(lang))
-    return raw ? JSON.parse(raw) : null
-  } catch { return null }
-}
-
-function saveCache(lang: string, map: TranslationMap) {
-  try {
-    localStorage.setItem(cacheKey(lang), JSON.stringify(map))
-    localStorage.setItem(cacheTsKey(lang), String(Date.now()))
-  } catch {}
-}
-
-function clearCache(lang?: string) {
-  try {
-    if (lang) {
-      localStorage.removeItem(cacheKey(lang))
-      localStorage.removeItem(cacheTsKey(lang))
-    } else {
-      // clear all cms caches
-      const keys = Object.keys(localStorage).filter(k => k.startsWith('cms_cache_'))
-      keys.forEach(k => localStorage.removeItem(k))
-    }
-  } catch {}
-}
-
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const supabase = createClient()
   const [lang, setLangState] = useState('en')
@@ -72,27 +38,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const loadTranslations = useCallback(async (targetLang: string) => {
     setIsLoading(true)
-    const cached = loadCache(targetLang)
-    if (cached) {
-      setTranslations(cached)
-      setIsLoading(false)
-      // Stale-while-revalidate: background fetch to detect any change
-      fetch(`/api/cms/translations?lang=${targetLang}`, { cache: 'no-store' })
-        .then(r => r.ok ? r.json() : null)
-        .then((map: TranslationMap | null) => {
-          if (map && JSON.stringify(map) !== JSON.stringify(cached)) {
-            saveCache(targetLang, map)
-            setTranslations(map)
-          }
-        })
-        .catch(() => {})
-      return
-    }
     try {
       const res = await fetch(`/api/cms/translations?lang=${targetLang}`, { cache: 'no-store' })
       if (res.ok) {
         const map: TranslationMap = await res.json()
-        saveCache(targetLang, map)
         setTranslations(map)
       }
     } catch {}
@@ -143,11 +92,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [loadTranslations])
 
   const invalidateCache = useCallback((targetLang?: string) => {
-    clearCache(targetLang)
-    // Only reload if invalidating the current active language
-    if (!targetLang || targetLang === lang) {
-      loadTranslations(lang)
-    }
+    loadTranslations(targetLang ?? lang)
   }, [lang, loadTranslations])
 
   const t = useCallback((key: string): string => {
