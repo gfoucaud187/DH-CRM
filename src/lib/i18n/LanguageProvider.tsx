@@ -144,7 +144,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const invalidateCache = useCallback((targetLang?: string) => {
     clearCache(targetLang)
-    loadTranslations(targetLang ?? lang)
+    // Only reload if invalidating the current active language
+    if (!targetLang || targetLang === lang) {
+      loadTranslations(lang)
+    }
   }, [lang, loadTranslations])
 
   const t = useCallback((key: string): string => {

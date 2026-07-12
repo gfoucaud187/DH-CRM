@@ -77,7 +77,7 @@ export default function CmsPage() {
       if (res.ok) {
         setSavedIds(s => new Set(s).add(labelId))
         setEditValues(v => { const n = { ...v }; delete n[labelId]; return n })
-        invalidateCache(selectedLang)
+        invalidateCache()  // clear all langs so stale caches pick up the change
         refetch()
         setTimeout(() => setSavedIds(s => { const n = new Set(s); n.delete(labelId); return n }), 2000)
       }
@@ -98,7 +98,7 @@ export default function CmsPage() {
       const data = await res.json()
       if (res.ok) {
         setTranslateResult(`${data.translated} ${t('cms.translated_result')}`)
-        invalidateCache(selectedLang)
+        invalidateCache()  // clear all lang caches — source may have changed
         refetch()
       } else {
         setTranslateResult(`Error: ${data.error}`)
