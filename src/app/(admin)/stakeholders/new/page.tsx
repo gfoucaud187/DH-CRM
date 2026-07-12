@@ -18,6 +18,7 @@ const PARTNER_CATEGORIES = [
   { value: 'cigars',   label: '🍃 Cigars' },
   { value: 'services', label: '⚙️ Services' },
   { value: 'goods',    label: '📦 Goods' },
+  { value: 'books',    label: '📚 Books' },
 ]
 const CONTACT_ROLES = ['Sales', 'Finance', 'Logistics', 'Marketing', 'Management', 'Other']
 const COUNTRY_LIST = COUNTRIES.map(c => ({
@@ -33,7 +34,9 @@ export default function NewPartnerPage() {
   const [category, setCategory]       = useState('')
   const [contacts, setContacts]       = useState<any[]>([])
   const [address, setAddress]         = useState('')
+  const [address2, setAddress2]       = useState('')
   const [city, setCity]               = useState('')
+  const [postalCode, setPostalCode]   = useState('')
   const [country, setCountry]         = useState('')
   const [vatNumber, setVatNumber]     = useState('')
   const [paymentTerms, setPaymentTerms] = useState('Net 30')
@@ -57,7 +60,9 @@ export default function NewPartnerPage() {
       contact_email: contacts[0]?.email || null,
       contact_phone: contacts[0]?.phone || null,
       address: address || null,
+      address2: address2 || null,
       city: city || null,
+      postal_code: postalCode || null,
       country: country || null,
       vat_number: vatNumber || null,
       payment_terms: paymentTerms || null,
@@ -73,14 +78,14 @@ export default function NewPartnerPage() {
         entityRef: name,
         metadata: { type, category: category || null, country: country || null },
       })
-      router.push('/partners')
+      router.push('/stakeholders')
     } else alert('Error: ' + error.message)
   }
 
   return (
     <div className="max-w-2xl">
       <div className="flex items-center gap-4 mb-6">
-        <Link href="/partners" className="text-gray-400 hover:text-gray-900">
+        <Link href="/stakeholders" className="text-gray-400 hover:text-gray-900">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">
@@ -181,8 +186,14 @@ export default function NewPartnerPage() {
           <h2 className="font-semibold text-gray-900 mb-4">Address</h2>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="text-xs font-medium text-gray-500 uppercase">Street</label>
+              <label className="text-xs font-medium text-gray-500 uppercase">Street & Number</label>
               <input value={address} onChange={e => setAddress(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-medium text-gray-500 uppercase">Address Line 2</label>
+              <input value={address2} onChange={e => setAddress2(e.target.value)}
+                placeholder="Apt, floor, building..."
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
             </div>
             <div>
@@ -191,6 +202,11 @@ export default function NewPartnerPage() {
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
             </div>
             <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Postal Code</label>
+              <input value={postalCode} onChange={e => setPostalCode(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+            </div>
+            <div className="col-span-2">
               <label className="text-xs font-medium text-gray-500 uppercase">Country</label>
               <select value={country} onChange={e => setCountry(e.target.value)}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">

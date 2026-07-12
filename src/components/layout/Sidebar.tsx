@@ -20,7 +20,7 @@ const NAV_ITEMS = [
   { tKey: 'nav.products',        fallback: 'Products',          href: '/products',         icon: Package },
   { tKey: 'nav.clients',         fallback: 'Clients',           href: '/clients',          icon: Users },
   { tKey: 'nav.retailers',       fallback: 'Retailers',         href: '/retailers',        icon: Store },
-  { tKey: 'nav.partners',        fallback: 'Partners',          href: '/partners',         icon: Handshake },
+  { tKey: 'nav.partners',        fallback: 'Stakeholders',      href: '/stakeholders',     icon: Handshake },
   { tKey: 'nav.price_lists',     fallback: 'Price Lists',       href: '/price-lists',      icon: DollarSign },
   { tKey: 'nav.orders',          fallback: 'Orders',            href: '/orders',           icon: ShoppingCart, badge: true },
   { tKey: 'nav.purchase_orders', fallback: 'Purchase Orders',   href: '/purchase-orders',  icon: ShoppingBag },

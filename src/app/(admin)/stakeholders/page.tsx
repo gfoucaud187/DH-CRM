@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Edit, Handshake, Download } from 'lucide-react'
+import { Plus, Search, Edit, Handshake, Download, ChevronDown, ChevronUp, Mail, Phone, MapPin } from 'lucide-react'
 import { useT } from '@/lib/i18n/LanguageProvider'
 
 const TYPE_COLORS: Record<string, string> = {
@@ -13,7 +13,7 @@ const TYPE_COLORS: Record<string, string> = {
   broker:   'bg-amber-100 text-amber-700',
 }
 
-export default function PartnersPage() {
+export default function StakeholdersPage() {
   const supabase = createClient()
   const router = useRouter()
   const t = useT()
@@ -21,6 +21,7 @@ export default function PartnersPage() {
   const [typeFilter, setTypeFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
   const [showExport, setShowExport] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const TYPE_LABELS: Record<string, string> = {
     supplier: t('partners.type_supplier'),
@@ -34,7 +35,7 @@ export default function PartnersPage() {
     const csv = [headers, ...rows].map(r => r.map((v: any) => v == null ? '' : `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
-    a.download = 'partners.csv'; a.click()
+    a.download = 'stakeholders.csv'; a.click()
   }
 
   const exportExcel = async () => {
@@ -43,17 +44,14 @@ export default function PartnersPage() {
     const ws = XLSX.utils.json_to_sheet(rows)
     ws['!cols'] = [25, 12, 15, 25, 30, 10].map(w => ({ wch: w }))
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Partners')
-    XLSX.writeFile(wb, 'partners.xlsx')
+    XLSX.utils.book_append_sheet(wb, ws, 'Stakeholders')
+    XLSX.writeFile(wb, 'stakeholders.xlsx')
   }
 
   const { data: partners = [], isLoading } = useQuery({
     queryKey: ['partners'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('partners')
-        .select('*')
-        .order('name')
+      const { data } = await supabase.from('partners').select('*').order('name')
       return data ?? []
     }
   })
@@ -72,8 +70,8 @@ export default function PartnersPage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t('partners.page_title')}</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {(partners as any[]).length} partners</p>
+          <h1 className="text-2xl font-bold text-gray-900">Stakeholders</h1>
+          <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {(partners as any[]).length} stakeholders</p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <div className="relative">
@@ -90,9 +88,9 @@ export default function PartnersPage() {
               </div>
             )}
           </div>
-          <button onClick={() => router.push('/partners/new')}
+          <button onClick={() => router.push('/stakeholders/new')}
             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
-            <Plus className="h-4 w-4" /> {t('partners.add_partner')}
+            <Plus className="h-4 w-4" /> Add Stakeholder
           </button>
         </div>
       </div>
@@ -119,7 +117,7 @@ export default function PartnersPage() {
         </select>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="space-y-2">
         {isLoading ? (
           <div className="flex items-center justify-center h-48 text-gray-400 text-sm">{t('common.loading')}</div>
         ) : filtered.length === 0 ? (
@@ -127,81 +125,84 @@ export default function PartnersPage() {
             <Handshake className="h-8 w-8 mb-2" />
             <p className="text-sm">{t('partners.no_partners')}</p>
           </div>
-        ) : (
-          <>
-            {/* Mobile cards */}
-            <div className="md:hidden divide-y divide-gray-100">
-              {filtered.map((p: any) => (
-                <div key={p.id}
-                  className="px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() => router.push('/partners/' + p.id + '/edit')}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-gray-900">{p.name}</span>
+        ) : filtered.map((p: any) => {
+          const isExpanded = expandedId === p.id
+          const contacts: any[] = p.contacts ?? []
+          return (
+            <div key={p.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div
+                className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => setExpandedId(isExpanded ? null : p.id)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-gray-900">{p.name}</span>
                     <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (TYPE_COLORS[p.type] ?? 'bg-gray-100 text-gray-500')}>
                       {TYPE_LABELS[p.type] ?? p.type}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">{p.contact_name ?? '—'}</p>
-                      <p className="text-xs text-gray-400">{p.country ?? '—'}{p.payment_terms ? ` · ${p.payment_terms}` : ''}</p>
-                    </div>
                     <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
                       {p.status}
                     </span>
                   </div>
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    {p.country && (
+                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {[p.city, p.country].filter(Boolean).join(', ')}
+                      </span>
+                    )}
+                    {p.contact_name && <span className="text-xs text-gray-400">{p.contact_name}</span>}
+                    {p.payment_terms && <span className="text-xs text-gray-400">· {p.payment_terms}</span>}
+                  </div>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={e => { e.stopPropagation(); router.push('/stakeholders/' + p.id + '/edit') }}
+                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  {isExpanded
+                    ? <ChevronUp className="h-4 w-4 text-gray-400" />
+                    : <ChevronDown className="h-4 w-4 text-gray-400" />
+                  }
+                </div>
+              </div>
 
-            {/* Desktop table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_name')}</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_type')}</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_contact')}</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_country')}</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_payment_terms')}</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">{t('partners.col_status')}</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filtered.map((p: any) => (
-                    <tr key={p.id} className="hover:bg-gray-50 transition-colors cursor-pointer"
-                      onClick={() => router.push('/partners/' + p.id + '/edit')}>
-                      <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
-                      <td className="px-4 py-3">
-                        <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (TYPE_COLORS[p.type] ?? 'bg-gray-100 text-gray-500')}>
-                          {TYPE_LABELS[p.type] ?? p.type}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        <div>{p.contact_name ?? '—'}</div>
-                        {p.contact_email && <div className="text-xs text-gray-400">{p.contact_email}</div>}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{p.country ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">{p.payment_terms ?? '—'}</td>
-                      <td className="px-4 py-3">
-                        <span className={'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + (p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button onClick={e => { e.stopPropagation(); router.push('/partners/' + p.id + '/edit') }}
-                          className="text-gray-400 hover:text-gray-900 p-1 rounded hover:bg-gray-100">
-                          <Edit className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {isExpanded && (
+                <div className="border-t border-gray-100 px-5 py-4 space-y-4">
+                  {(p.address || p.postal_code) && (
+                    <div className="flex items-start gap-2 text-sm text-gray-600">
+                      <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                      <span>{[p.address, p.postal_code, p.city, p.country].filter(Boolean).join(', ')}</span>
+                    </div>
+                  )}
+                  {contacts.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase mb-2">Contacts</p>
+                      <div className="space-y-2">
+                        {contacts.map((c: any, i: number) => (
+                          <div key={i} className="flex items-center gap-4 text-sm">
+                            <span className="font-medium text-gray-800 w-36 truncate">{c.name || 'Contact ' + (i + 1)}</span>
+                            {c.role && <span className="text-xs text-gray-400 w-20">{c.role}</span>}
+                            {c.email && <a href={`mailto:${c.email}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-gray-500 hover:text-gray-800"><Mail className="h-3.5 w-3.5" />{c.email}</a>}
+                            {c.phone && <a href={`tel:${c.phone}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-gray-500 hover:text-gray-800"><Phone className="h-3.5 w-3.5" />{c.phone}</a>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {p.notes && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase mb-1">Notes</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{p.notes}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          </>
-        )}
+          )
+        })}
       </div>
     </div>
   )
