@@ -70,8 +70,8 @@ export default function StakeholdersPage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Stakeholders</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {(partners as any[]).length} stakeholders</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('partners.page_title')}</h1>
+          <p className="text-gray-500 text-sm mt-0.5">{filtered.length} / {(partners as any[]).length} {t('partners.page_title').toLowerCase()}</p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <div className="relative">
@@ -90,7 +90,7 @@ export default function StakeholdersPage() {
           </div>
           <button onClick={() => router.push('/stakeholders/new')}
             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
-            <Plus className="h-4 w-4" /> Add Stakeholder
+            <Plus className="h-4 w-4" /> {t('partners.add_partner')}
           </button>
         </div>
       </div>
