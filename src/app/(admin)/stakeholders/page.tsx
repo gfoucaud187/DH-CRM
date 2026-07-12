@@ -111,9 +111,9 @@ export default function StakeholdersPage() {
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none">
-          <option value="All">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="All">{t('partners.filter_all_statuses')}</option>
+          <option value="active">{t('partners.status_active')}</option>
+          <option value="inactive">{t('partners.status_inactive')}</option>
         </select>
       </div>
 
