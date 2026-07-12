@@ -10,25 +10,28 @@ import {
   LayoutDashboard, Package, Users, Handshake, DollarSign,
   ShoppingCart, Warehouse, BarChart3, FolderOpen, Settings,
   ListChecks, LogOut, Target, Store, ChevronLeft, ChevronRight,
-  ShoppingBag, Menu, X
+  ShoppingBag, Menu, X, Globe
 } from 'lucide-react';
 import './sidebar.css';
+import { useT } from '@/lib/i18n/LanguageProvider';
 
 const NAV_ITEMS = [
-  { label: 'Dashboard',    href: '/dashboard',   icon: LayoutDashboard },
-  { label: 'Products',     href: '/products',    icon: Package },
-  { label: 'Clients',      href: '/clients',      icon: Users },
-  { label: 'Retailers',    href: '/retailers',   icon: Store },
-  { label: 'Partners',     href: '/partners',    icon: Handshake },
-  { label: 'Price Lists',  href: '/price-lists', icon: DollarSign },
-  { label: 'Orders',       href: '/orders',      icon: ShoppingCart, badge: true },
-  { label: 'Purchase Orders', href: '/purchase-orders', icon: ShoppingBag },{ label: 'Inventory',    href: '/inventory',   icon: Warehouse },
-  { label: 'Finance',      href: '/finance',     icon: DollarSign },
-  { label: 'Documents',    href: '/documents',   icon: FolderOpen },
-  { label: 'Reports',      href: '/reports',     icon: BarChart3 },
-  { label: 'Targets',      href: '/targets',     icon: Target },
-  { label: 'Tracking Log', href: '/tracking',    icon: ListChecks },
-  { label: 'Settings',     href: '/settings',    icon: Settings },
+  { tKey: 'nav.dashboard',       fallback: 'Dashboard',         href: '/dashboard',        icon: LayoutDashboard },
+  { tKey: 'nav.products',        fallback: 'Products',          href: '/products',         icon: Package },
+  { tKey: 'nav.clients',         fallback: 'Clients',           href: '/clients',          icon: Users },
+  { tKey: 'nav.retailers',       fallback: 'Retailers',         href: '/retailers',        icon: Store },
+  { tKey: 'nav.partners',        fallback: 'Partners',          href: '/partners',         icon: Handshake },
+  { tKey: 'nav.price_lists',     fallback: 'Price Lists',       href: '/price-lists',      icon: DollarSign },
+  { tKey: 'nav.orders',          fallback: 'Orders',            href: '/orders',           icon: ShoppingCart, badge: true },
+  { tKey: 'nav.purchase_orders', fallback: 'Purchase Orders',   href: '/purchase-orders',  icon: ShoppingBag },
+  { tKey: 'nav.inventory',       fallback: 'Inventory',         href: '/inventory',        icon: Warehouse },
+  { tKey: 'nav.finance',         fallback: 'Finance',           href: '/finance',          icon: DollarSign },
+  { tKey: 'nav.documents',       fallback: 'Documents',         href: '/documents',        icon: FolderOpen },
+  { tKey: 'nav.reports',         fallback: 'Reports',           href: '/reports',          icon: BarChart3 },
+  { tKey: 'nav.targets',         fallback: 'Targets',           href: '/targets',          icon: Target },
+  { tKey: 'nav.tracking',        fallback: 'Tracking Log',      href: '/tracking',         icon: ListChecks },
+  { tKey: 'nav.settings',        fallback: 'Settings',          href: '/settings',         icon: Settings },
+  { tKey: 'nav.cms',             fallback: 'Content Management',href: '/cms',              icon: Globe },
 ];
 
 function StarLogo({ size = 30 }: { size?: number }) {
@@ -71,6 +74,7 @@ export default function Sidebar() {
   };
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
+  const t = useT();
 
   const DH_LOGO = 'https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_dark_background.png';
 
@@ -123,7 +127,9 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="sb-nav">
-        {NAV_ITEMS.map(({ label, href, icon: Icon, badge }) => (
+        {NAV_ITEMS.map(({ tKey, fallback, href, icon: Icon, badge }) => {
+          const label = t(tKey) === tKey ? fallback : t(tKey);
+          return (
           <Link
             key={href}
             href={href}
@@ -136,7 +142,8 @@ export default function Sidebar() {
               <span className="sb-badge">{pendingPOCount}</span>
             )}
           </Link>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Logout */}
