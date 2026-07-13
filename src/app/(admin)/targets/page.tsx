@@ -150,10 +150,15 @@ export default function TargetsPage() {
 
   const handleRemove = async (customerId: string) => {
     if (!confirm(t('common.confirm_delete'))) return
-    const existing = getTarget(customerId)
-    if (!existing) return
     setSaving(customerId)
-    await supabase.from('customer_targets').delete().eq('id', existing.id)
+    const existing = getTarget(customerId)
+    if (existing) {
+      await supabase.from('customer_targets').update({ excluded: true }).eq('id', existing.id)
+    } else {
+      await supabase.from('customer_targets').insert({
+        customer_id: customerId, year, standard_target: 0, push_target: 0, stretch_target: 0, excluded: true,
+      })
+    }
     setEdits(prev => { const n = { ...prev }; delete n[customerId]; return n })
     queryClient.invalidateQueries({ queryKey: ['customer-targets', year] })
     setSaving(null)
@@ -163,9 +168,14 @@ export default function TargetsPage() {
     setShowAddClient(false)
     setAddSearch('')
     setSaving(customerId)
-    await supabase.from('customer_targets').insert({
-      customer_id: customerId, year, standard_target: 0, push_target: 0, stretch_target: 0,
-    })
+    const existing = getTarget(customerId)
+    if (existing) {
+      await supabase.from('customer_targets').update({ excluded: false }).eq('id', existing.id)
+    } else {
+      await supabase.from('customer_targets').insert({
+        customer_id: customerId, year, standard_target: 0, push_target: 0, stretch_target: 0, excluded: false,
+      })
+    }
     queryClient.invalidateQueries({ queryKey: ['customer-targets', year] })
     setSaving(null)
   }
@@ -228,19 +238,23 @@ export default function TargetsPage() {
     e.target.value = ''
   }
 
-  // Forecast = customers with an explicit target, plus anyone with revenue this year (auto-added)
-  const targetedIds = new Set(targets.map((tg: any) => tg.customer_id))
+  // Forecast = customers with an explicit (non-excluded) target, plus anyone with
+  // revenue this year (auto-added) — unless explicitly removed via `excluded`
+  const activeTargetRows = targets.filter((tg: any) => !tg.excluded)
+  const excludedIds = new Set(targets.filter((tg: any) => tg.excluded).map((tg: any) => tg.customer_id))
+  const targetedIds = new Set(activeTargetRows.map((tg: any) => tg.customer_id))
   const targetedCustomers = (customers as any[]).filter((c: any) => targetedIds.has(c.id))
-  const forecastCustomers = (customers as any[]).filter((c: any) => targetedIds.has(c.id) || getRevenue(c.id) > 0)
+  const forecastCustomers = (customers as any[])
+    .filter((c: any) => !excludedIds.has(c.id) && (targetedIds.has(c.id) || getRevenue(c.id) > 0))
   const forecastIds = new Set(forecastCustomers.map((c: any) => c.id))
   const addableCustomers = (customers as any[])
     .filter((c: any) => !forecastIds.has(c.id) && c.legal_name.toLowerCase().includes(addSearch.toLowerCase()))
 
   // Summary stats — scoped to customers with an actual target, so revenue from
   // auto-added (target-less) forecast rows doesn't inflate the % of target figures
-  const totalStandard = targets.reduce((s: number, tg: any) => s + (tg.standard_target ?? 0), 0)
-  const totalPush = targets.reduce((s: number, tg: any) => s + (tg.push_target ?? 0), 0)
-  const totalStretch = targets.reduce((s: number, tg: any) => s + (tg.stretch_target ?? 0), 0)
+  const totalStandard = activeTargetRows.reduce((s: number, tg: any) => s + (tg.standard_target ?? 0), 0)
+  const totalPush = activeTargetRows.reduce((s: number, tg: any) => s + (tg.push_target ?? 0), 0)
+  const totalStretch = activeTargetRows.reduce((s: number, tg: any) => s + (tg.stretch_target ?? 0), 0)
   const scopedRevenue = targetedCustomers.reduce((s: number, c: any) => s + getRevenue(c.id), 0)
   const prevScopedRevenue = targetedCustomers.reduce((s: number, c: any) => s + sumRevenue(prevYearRevenues, c.id), 0)
   const growth = prevScopedRevenue ? ((scopedRevenue - prevScopedRevenue) / prevScopedRevenue) * 100 : null
@@ -487,7 +501,7 @@ export default function TargetsPage() {
                           {saving === c.id ? '...' : <><Check className="h-3 w-3" /> {t('common.save')}</>}
                         </button>
                       )}
-                      {!hasEdits && target && (
+                      {!hasEdits && (
                         <button onClick={() => handleRemove(c.id)} disabled={saving === c.id}
                           title={t('common.delete')}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
