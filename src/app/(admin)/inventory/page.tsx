@@ -4,12 +4,20 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Warehouse, Plus, Search, Trash2, Download, Upload, ArrowLeftRight } from 'lucide-react'
+import { Warehouse, Plus, Minus, Search, Trash2, Download, Upload, ArrowLeftRight } from 'lucide-react'
 import { logActivity } from '@/lib/log-activity'
 import SkuMovementsModal from '@/components/inventory/SkuMovementsModal'
 import { useT } from '@/lib/i18n/LanguageProvider'
 
-const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
+// "Aged" stays the DB/data key (warehouse enum value, packs_aged/units_aged columns) —
+// only the on-screen label changes, per the sellable-vs-fiscally-out distinction below.
+const SELLABLE_WAREHOUSES = ['T1', 'Central', 'Aged']
+const FISCAL_WAREHOUSES = ['Sample', 'Private']
+const WAREHOUSES = [...SELLABLE_WAREHOUSES, ...FISCAL_WAREHOUSES]
+
+const WAREHOUSE_LABELS: Record<string, string> = {
+  T1: 'T1', Central: 'Central', Aged: 'Central Ageing', Sample: 'Sample', Private: 'Private',
+}
 
 const WH_COLORS: Record<string, string> = {
   T1:      'bg-blue-100 text-blue-700',
@@ -17,17 +25,36 @@ const WH_COLORS: Record<string, string> = {
   Aged:    'bg-amber-100 text-amber-700',
   Sample:  'bg-green-100 text-green-700',
   Private: 'bg-red-100 text-red-700',
-  Total:   'bg-gray-800 text-white',
 }
 
 const fmtMoney = (n: number) => `USD ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 const fmtUnit = (n: number) => `USD ${n.toFixed(2)}`
+
+function StatCard({ label, colorClass, units, packs, value, emphasis, t }: {
+  label: string; colorClass: string; units: number; packs: number; value: number; emphasis?: boolean; t: (k: string) => string
+}) {
+  return (
+    <div className={`bg-white rounded-xl border p-3 md:p-4 flex-1 min-w-[110px] max-w-[170px] ${emphasis ? 'border-gray-800' : 'border-gray-200'}`}>
+      <div className="flex items-center gap-1.5 mb-2">
+        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${colorClass}`}>{label}</span>
+      </div>
+      <p className="text-lg md:text-2xl font-bold text-gray-900">{units.toLocaleString()}</p>
+      <p className="text-xs text-gray-400 mt-0.5">{t('inventory.label_units')}</p>
+      <p className="text-sm font-semibold text-gray-500 mt-1">{packs.toLocaleString()}</p>
+      <p className="text-xs text-gray-400">{t('inventory.label_packs')}</p>
+      {value > 0 && (
+        <p className="text-xs font-semibold text-blue-600 mt-1.5 pt-1.5 border-t border-gray-100">{fmtMoney(value)}</p>
+      )}
+    </div>
+  )
+}
 
 export default function InventoryPage() {
   const supabase = createClient()
   const t = useT()
   const [search, setSearch] = useState('')
   const [warehouseFilter, setWarehouseFilter] = useState('All')
+  const [showAllStock, setShowAllStock] = useState(false)
   const [showAddStock, setShowAddStock] = useState(false)
   const [addMode, setAddMode] = useState<'manual' | 'excel'>('manual')
   const blankStockRow = { sku: '', product_name: '', brand: '', warehouse: 'T1', quantity_packs: 0, quantity_units: 0 }
@@ -85,8 +112,16 @@ export default function InventoryPage() {
     return matchSearch
   })
 
+  // Sellable stock (T1/Central/Aged) is what's shown by default; the fiscally-out
+  // categories (Sample/Private) only fold into the total once showAllStock is toggled on.
   const getStock = (row: any) => {
-    if (warehouseFilter === 'All') return { packs: row.packs_total, units: row.units_total }
+    if (warehouseFilter === 'All') {
+      if (showAllStock) return { packs: row.packs_total ?? 0, units: row.units_total ?? 0 }
+      return {
+        packs: SELLABLE_WAREHOUSES.reduce((s, w) => s + (row[`packs_${w.toLowerCase()}`] ?? 0), 0),
+        units: SELLABLE_WAREHOUSES.reduce((s, w) => s + (row[`units_${w.toLowerCase()}`] ?? 0), 0),
+      }
+    }
     const wh = warehouseFilter.toLowerCase()
     return { packs: row[`packs_${wh}`] ?? 0, units: row[`units_${wh}`] ?? 0 }
   }
@@ -170,7 +205,8 @@ export default function InventoryPage() {
     for (const row of rows) {
       const sku = row['SKU']
       const product = byId.get(sku)
-      const warehouse = WAREHOUSES.find(w => w.toLowerCase() === String(row[warehouseKey] ?? '').trim().toLowerCase())
+      const warehouseInput = String(row[warehouseKey] ?? '').trim().toLowerCase()
+      const warehouse = WAREHOUSES.find(w => w.toLowerCase() === warehouseInput || (WAREHOUSE_LABELS[w] ?? w).toLowerCase() === warehouseInput)
       const packs = parseInt(row[packsKey]) || 0
       const units = parseInt(row[unitsKey]) || 0
       if (!product || !warehouse || (packs <= 0 && units <= 0)) { skipped++; continue }
@@ -202,6 +238,14 @@ export default function InventoryPage() {
 
   const totalPacks = inventory.reduce((s: number, r: any) => s + (r.packs_total ?? 0), 0)
   const totalUnits = inventory.reduce((s: number, r: any) => s + (r.units_total ?? 0), 0)
+  const grandValue = inventory.reduce((s: number, r: any) => s + (currentCogs[r.sku] ?? 0) * (r.units_total ?? 0), 0)
+
+  const sellablePacks = inventory.reduce((s: number, r: any) =>
+    s + SELLABLE_WAREHOUSES.reduce((ss, w) => ss + (r[`packs_${w.toLowerCase()}`] ?? 0), 0), 0)
+  const sellableUnits = inventory.reduce((s: number, r: any) =>
+    s + SELLABLE_WAREHOUSES.reduce((ss, w) => ss + (r[`units_${w.toLowerCase()}`] ?? 0), 0), 0)
+  const sellableValue = inventory.reduce((s: number, r: any) =>
+    s + (currentCogs[r.sku] ?? 0) * SELLABLE_WAREHOUSES.reduce((ss, w) => ss + (r[`units_${w.toLowerCase()}`] ?? 0), 0), 0)
 
   const handleExportInventory = async () => {
     const XLSX = await import('xlsx')
@@ -217,8 +261,9 @@ export default function InventoryPage() {
       }
       WAREHOUSES.forEach(w => {
         const wh = w.toLowerCase()
-        out[`${w} ${packsLabel}`] = row[`packs_${wh}`] ?? 0
-        out[`${w} ${unitsLabel}`] = row[`units_${wh}`] ?? 0
+        const label = WAREHOUSE_LABELS[w] ?? w
+        out[`${label} ${packsLabel}`] = row[`packs_${wh}`] ?? 0
+        out[`${label} ${unitsLabel}`] = row[`units_${wh}`] ?? 0
       })
       out[`${totalLabel} ${packsLabel}`] = row.packs_total ?? 0
       out[`${totalLabel} ${unitsLabel}`] = row.units_total ?? 0
@@ -277,7 +322,7 @@ export default function InventoryPage() {
           />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-0.5 flex-nowrap">
-          {['All', ...WAREHOUSES].map(w => (
+          {['All', ...SELLABLE_WAREHOUSES, ...(showAllStock ? FISCAL_WAREHOUSES : [])].map(w => (
             <button
               key={w}
               onClick={() => setWarehouseFilter(w)}
@@ -287,36 +332,53 @@ export default function InventoryPage() {
                   : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
             >
-              {w === 'All' ? t('common.all') : w}
+              {w === 'All' ? t('common.all') : (WAREHOUSE_LABELS[w] ?? w)}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 md:gap-3 mb-6">
-        {[...WAREHOUSES, 'Total'].map(wh => {
+      {/* Stats cards — sellable stock (T1/Central/Central Ageing) shown by default;
+          fiscally-out stock (Sample/Private) + Grand Total revealed by the "+" toggle */}
+      <div className="flex flex-wrap gap-2 md:gap-3 mb-6 items-stretch">
+        {SELLABLE_WAREHOUSES.map(wh => {
           const whKey = wh.toLowerCase()
-          const isTotal = wh === 'Total'
-          const packs = isTotal ? totalPacks : inventory.reduce((s: number, r: any) => s + (r[`packs_${whKey}`] ?? 0), 0)
-          const units = isTotal ? totalUnits : inventory.reduce((s: number, r: any) => s + (r[`units_${whKey}`] ?? 0), 0)
-          const value = inventory.reduce((s: number, r: any) =>
-            s + (currentCogs[r.sku] ?? 0) * (isTotal ? (r.units_total ?? 0) : (r[`units_${whKey}`] ?? 0)), 0)
-          return (
-            <div key={wh} className={`bg-white rounded-xl border p-3 md:p-4 ${isTotal ? 'border-gray-800' : 'border-gray-200'}`}>
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${WH_COLORS[wh]}`}>{wh}</span>
-              </div>
-              <p className="text-lg md:text-2xl font-bold text-gray-900">{units.toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{t('inventory.label_units')}</p>
-              <p className="text-sm font-semibold text-gray-500 mt-1">{packs.toLocaleString()}</p>
-              <p className="text-xs text-gray-400">{t('inventory.label_packs')}</p>
-              {value > 0 && (
-                <p className="text-xs font-semibold text-blue-600 mt-1.5 pt-1.5 border-t border-gray-100">{fmtMoney(value)}</p>
-              )}
-            </div>
-          )
+          const packs = inventory.reduce((s: number, r: any) => s + (r[`packs_${whKey}`] ?? 0), 0)
+          const units = inventory.reduce((s: number, r: any) => s + (r[`units_${whKey}`] ?? 0), 0)
+          const value = inventory.reduce((s: number, r: any) => s + (currentCogs[r.sku] ?? 0) * (r[`units_${whKey}`] ?? 0), 0)
+          return <StatCard key={wh} t={t} label={WAREHOUSE_LABELS[wh]} colorClass={WH_COLORS[wh]} units={units} packs={packs} value={value} />
         })}
+
+        <StatCard
+          t={t} label={t('inventory.total_stock')} colorClass="bg-gray-800 text-white" emphasis
+          units={sellableUnits} packs={sellablePacks} value={sellableValue}
+        />
+
+        <button
+          type="button"
+          onClick={() => setShowAllStock(v => {
+            const next = !v
+            if (!next && FISCAL_WAREHOUSES.includes(warehouseFilter)) setWarehouseFilter('All')
+            return next
+          })}
+          aria-label={showAllStock ? 'Hide fiscally-out stock' : 'Show fiscally-out stock'}
+          className="w-9 h-9 self-center rounded-full border border-gray-300 text-gray-400 hover:text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-colors flex-shrink-0"
+        >
+          {showAllStock ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+        </button>
+
+        {showAllStock && FISCAL_WAREHOUSES.map(wh => {
+          const whKey = wh.toLowerCase()
+          const packs = inventory.reduce((s: number, r: any) => s + (r[`packs_${whKey}`] ?? 0), 0)
+          const units = inventory.reduce((s: number, r: any) => s + (r[`units_${whKey}`] ?? 0), 0)
+          const value = inventory.reduce((s: number, r: any) => s + (currentCogs[r.sku] ?? 0) * (r[`units_${whKey}`] ?? 0), 0)
+          return <StatCard key={wh} t={t} label={WAREHOUSE_LABELS[wh]} colorClass={WH_COLORS[wh]} units={units} packs={packs} value={value} />
+        })}
+
+        {showAllStock && (
+          <StatCard t={t} label={t('inventory.grand_total')} colorClass="bg-black text-white" emphasis
+            units={totalUnits} packs={totalPacks} value={grandValue} />
+        )}
       </div>
 
       {/* Table */}
@@ -373,21 +435,37 @@ export default function InventoryPage() {
                     <th className="text-left px-4 py-3 font-medium text-gray-600">{t('inventory.col_product')}</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">{t('inventory.col_brand')}</th>
                     {warehouseFilter === 'All' ? (
-                      WAREHOUSES.map(w => (
-                        <th key={w} className="text-right px-3 py-3 font-medium text-gray-600">
-                          <span className={`px-1.5 py-0.5 rounded text-xs ${WH_COLORS[w]}`}>{w}</span>
+                      <>
+                        {SELLABLE_WAREHOUSES.map(w => (
+                          <th key={w} className="text-right px-3 py-3 font-medium text-gray-600">
+                            <span className={`px-1.5 py-0.5 rounded text-xs ${WH_COLORS[w]}`}>{WAREHOUSE_LABELS[w]}</span>
+                          </th>
+                        ))}
+                        <th className="text-right px-3 py-3 font-medium text-gray-600 bg-gray-50">
+                          <span className="px-1.5 py-0.5 rounded text-xs bg-gray-800 text-white">{t('inventory.total_stock')}</span>
                         </th>
-                      ))
-                    ) : null}
-                    <th className="text-right px-4 py-3 font-medium text-gray-600">
-                      {warehouseFilter === 'All' ? t('inventory.col_total') : warehouseFilter}
-                    </th>
+                        {showAllStock && FISCAL_WAREHOUSES.map(w => (
+                          <th key={w} className="text-right px-3 py-3 font-medium text-gray-600">
+                            <span className={`px-1.5 py-0.5 rounded text-xs ${WH_COLORS[w]}`}>{WAREHOUSE_LABELS[w]}</span>
+                          </th>
+                        ))}
+                        {showAllStock && (
+                          <th className="text-right px-4 py-3 font-medium text-gray-600">
+                            <span className="px-1.5 py-0.5 rounded text-xs bg-black text-white">{t('inventory.grand_total')}</span>
+                          </th>
+                        )}
+                      </>
+                    ) : (
+                      <th className="text-right px-4 py-3 font-medium text-gray-600">{WAREHOUSE_LABELS[warehouseFilter] ?? warehouseFilter}</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filtered.map((row: any) => {
                     const stock = getStock(row)
                     const unitCogs = currentCogs[row.sku] ?? 0
+                    const rowSellablePacks = SELLABLE_WAREHOUSES.reduce((s, w) => s + (row[`packs_${w.toLowerCase()}`] ?? 0), 0)
+                    const rowSellableUnits = SELLABLE_WAREHOUSES.reduce((s, w) => s + (row[`units_${w.toLowerCase()}`] ?? 0), 0)
                     return (
                       <tr
                         key={row.sku}
@@ -398,33 +476,71 @@ export default function InventoryPage() {
                         <td className="px-4 py-3 font-medium text-gray-900">{row.product_name}</td>
                         <td className="px-4 py-3 text-gray-600">{row.brand}</td>
                         {warehouseFilter === 'All' ? (
-                          WAREHOUSES.map(w => {
-                            const wh = w.toLowerCase()
-                            const p = row[`packs_${wh}`] ?? 0
-                            return (
-                              <td key={w} className="px-3 py-3 text-right">
-                                {p < 0 ? (
-                                  <span className="font-medium text-red-500">{p}</span>
-                                ) : p > 0 ? (
-                                  <span className="font-medium text-gray-900">{p}</span>
-                                ) : (
-                                  <span className="text-gray-200">—</span>
+                          <>
+                            {SELLABLE_WAREHOUSES.map(w => {
+                              const wh = w.toLowerCase()
+                              const p = row[`packs_${wh}`] ?? 0
+                              return (
+                                <td key={w} className="px-3 py-3 text-right">
+                                  {p < 0 ? (
+                                    <span className="font-medium text-red-500">{p}</span>
+                                  ) : p > 0 ? (
+                                    <span className="font-medium text-gray-900">{p}</span>
+                                  ) : (
+                                    <span className="text-gray-200">—</span>
+                                  )}
+                                </td>
+                              )
+                            })}
+                            <td className="px-3 py-3 text-right bg-gray-50">
+                              <div className="flex flex-col items-end">
+                                <span className="font-semibold text-gray-900">{rowSellableUnits.toLocaleString()} u</span>
+                                <span className="text-xs text-gray-400">{rowSellablePacks.toLocaleString()} SKU</span>
+                                {unitCogs > 0 && (
+                                  <span className="text-[10px] text-gray-300">{fmtUnit(unitCogs)}/u · {fmtMoney(unitCogs * rowSellableUnits)}</span>
                                 )}
+                              </div>
+                            </td>
+                            {showAllStock && FISCAL_WAREHOUSES.map(w => {
+                              const wh = w.toLowerCase()
+                              const p = row[`packs_${wh}`] ?? 0
+                              return (
+                                <td key={w} className="px-3 py-3 text-right">
+                                  {p < 0 ? (
+                                    <span className="font-medium text-red-500">{p}</span>
+                                  ) : p > 0 ? (
+                                    <span className="font-medium text-gray-900">{p}</span>
+                                  ) : (
+                                    <span className="text-gray-200">—</span>
+                                  )}
+                                </td>
+                              )
+                            })}
+                            {showAllStock && (
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex flex-col items-end">
+                                  <span className="font-semibold text-gray-900">{(row.units_total ?? 0).toLocaleString()} u</span>
+                                  <span className="text-xs text-gray-400">{(row.packs_total ?? 0).toLocaleString()} SKU</span>
+                                  {unitCogs > 0 && (
+                                    <span className="text-[10px] text-gray-300">{fmtUnit(unitCogs)}/u · {fmtMoney(unitCogs * (row.units_total ?? 0))}</span>
+                                  )}
+                                </div>
                               </td>
-                            )
-                          })
-                        ) : null}
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex flex-col items-end">
-                            <span className={`font-semibold ${stock.packs < 0 ? 'text-red-600 font-bold' : stock.packs === 0 ? 'text-red-400' : stock.packs < 5 ? 'text-amber-500' : 'text-gray-900'}`}>
-                              {stock.units} u
-                            </span>
-                            <span className="text-xs text-gray-400">{stock.packs} SKU</span>
-                            {unitCogs > 0 && (
-                              <span className="text-[10px] text-gray-300">{fmtUnit(unitCogs)}/u · {fmtMoney(unitCogs * stock.units)}</span>
                             )}
-                          </div>
-                        </td>
+                          </>
+                        ) : (
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex flex-col items-end">
+                              <span className={`font-semibold ${stock.packs < 0 ? 'text-red-600 font-bold' : stock.packs === 0 ? 'text-red-400' : stock.packs < 5 ? 'text-amber-500' : 'text-gray-900'}`}>
+                                {stock.units} u
+                              </span>
+                              <span className="text-xs text-gray-400">{stock.packs} SKU</span>
+                              {unitCogs > 0 && (
+                                <span className="text-[10px] text-gray-300">{fmtUnit(unitCogs)}/u · {fmtMoney(unitCogs * stock.units)}</span>
+                              )}
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     )
                   })}
@@ -487,7 +603,7 @@ export default function InventoryPage() {
                           value={row.warehouse}
                           onChange={e => updateStockRow(idx, 'warehouse', e.target.value)}
                         >
-                          {WAREHOUSES.map(w => <option key={w} value={w}>{w}</option>)}
+                          {WAREHOUSES.map(w => <option key={w} value={w}>{WAREHOUSE_LABELS[w] ?? w}</option>)}
                         </select>
                       </div>
                       <div className="w-20">

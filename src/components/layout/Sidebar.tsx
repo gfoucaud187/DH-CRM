@@ -136,14 +136,16 @@ export default function Sidebar() {
 
           if ('children' in item && item.children) {
             const groupActive = item.children.some(c => isActive(c.href));
-            const isOpen = openGroups[item.tKey] ?? groupActive;
+            // Collapsed by default on every load — does not auto-expand just because
+            // a child route is active; the parent row still highlights via groupActive.
+            const isOpen = openGroups[item.tKey] ?? false;
             const Icon = item.icon;
             return (
               <div key={item.tKey}>
                 <button
                   onClick={() => setOpenGroups(prev => ({ ...prev, [item.tKey]: !isOpen }))}
                   className={`sb-item ${groupActive ? 'active' : ''}`}
-                  style={{ width: '100%', border: 'none', background: groupActive ? undefined : 'transparent' }}
+                  style={{ width: '100%', border: 'none', background: groupActive ? undefined : 'transparent', textAlign: 'left' }}
                   title={collapsed ? label : undefined}
                 >
                   <Icon size={20} style={{ flexShrink: 0 }} />

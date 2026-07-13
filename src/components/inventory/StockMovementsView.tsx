@@ -7,6 +7,8 @@ import { Download, Package, Search } from 'lucide-react'
 import { useT } from '@/lib/i18n/LanguageProvider'
 
 const WAREHOUSES = ['All', 'T1', 'Central', 'Aged', 'Sample', 'Private']
+// "Aged" stays the DB/data key — only the on-screen label changes
+const WAREHOUSE_LABELS: Record<string, string> = { Aged: 'Central Ageing' }
 
 const getDocLabel = (o: any) => {
   if (o.document_type === 'so_int') return 'SO(INT)'
@@ -265,7 +267,7 @@ export default function StockMovementsView() {
             <button key={w} onClick={() => setWarehouse(w)}
               className={'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ' +
                 (warehouse === w ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50')}>
-              {w}
+              {WAREHOUSE_LABELS[w] ?? w}
             </button>
           ))}
         </div>
