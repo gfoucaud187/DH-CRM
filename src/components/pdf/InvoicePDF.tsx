@@ -14,12 +14,13 @@ import {
 interface InvoicePDFProps {
   order: any
   lines: any[]
+  services?: any[]
   customer?: any
   appSettings?: any
   sourceDoc?: any
 }
 
-export default function InvoicePDF({ order, lines, customer, appSettings, sourceDoc }: InvoicePDFProps) {
+export default function InvoicePDF({ order, lines, services = [], customer, appSettings, sourceDoc }: InvoicePDFProps) {
   const [saving, setSaving] = useState(false)
 
   const isLinked = order.order_number?.includes('LINKED')
@@ -658,6 +659,12 @@ export default function InvoicePDF({ order, lines, customer, appSettings, source
                     <div className="totals-block">
                       <div className="total-line"><span>Total Boxes</span><span>{Number(order.total_packs).toLocaleString('en-US')}</span></div>
                       <div className="total-line"><span>Total Articles</span><span>{Number(order.total_units).toLocaleString('en-US')}</span></div>
+                      {services.map((s: any) => (
+                        <div className="total-line" key={s.id}>
+                          <span>{s.description}</span>
+                          <span>{s.currency} {Number(s.price).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                        </div>
+                      ))}
                       <hr className="total-hr" />
                       {!isInt && (
                         <div className="grand-row">

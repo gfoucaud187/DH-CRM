@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { order, commercial_lines, foc_lines } = body
+    const { order, commercial_lines, foc_lines, services } = body
     const supabase = createClient()
     const hasFoc = foc_lines && foc_lines.length > 0
 
@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Calculate totals
-    const totalAmount = commercial_lines.reduce((s: number, l: any) => s + (l.line_total ?? 0), 0)
+    const servicesTotal = (services ?? []).reduce((s: number, sv: any) => s + (sv.price ?? 0), 0)
+    const totalAmount = commercial_lines.reduce((s: number, l: any) => s + (l.line_total ?? 0), 0) + servicesTotal
     const totalUnits  = commercial_lines.reduce((s: number, l: any) => s + (l.quantity_units ?? 0), 0)
     const totalPacks  = commercial_lines.reduce((s: number, l: any) => s + (l.quantity_packs ?? 0), 0)
     const focUnits    = (foc_lines ?? []).reduce((s: number, l: any) => s + (l.quantity_units ?? 0), 0)
@@ -90,7 +91,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Create FOC companion if needed
+    // 5. Create additional services
+    if (services && services.length > 0) {
+      const { error: servicesError } = await supabase
+        .from('sales_order_services')
+        .insert(services.map((sv: any) => ({
+          order_id:     createdOrder.id,
+          service_type: sv.service_type,
+          description:  sv.description,
+          price:        sv.price,
+          currency:     sv.currency ?? order.currency,
+        })))
+
+      if (servicesError) {
+        console.error('Services error:', servicesError)
+        return NextResponse.json({ error: servicesError.message }, { status: 500 })
+      }
+    }
+
+    // 6. Create FOC companion if needed
     let focOrder = null
     if (hasFoc && focDocNum) {
       const { data: createdFoc } = await supabase

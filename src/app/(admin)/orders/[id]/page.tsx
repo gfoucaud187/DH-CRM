@@ -48,7 +48,7 @@ export default function OrderDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_orders')
-        .select('*, lines:sales_order_lines(*), customer:customers(legal_name, contacts, addresses, vat_number, track_trace_enabled)')
+        .select('*, lines:sales_order_lines(*), services:sales_order_services(*), customer:customers(legal_name, contacts, addresses, vat_number, track_trace_enabled)')
         .eq('id', id)
         .single()
       return data
@@ -573,7 +573,7 @@ export default function OrderDetailPage() {
           {!isInt && !isPO && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-3">Document</h2>
-              <InvoicePDF order={order} lines={enrichedLines.filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')} customer={order.customer} appSettings={appSettings} sourceDoc={sourceDoc} />
+              <InvoicePDF order={order} lines={enrichedLines.filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')} services={order.services ?? []} customer={order.customer} appSettings={appSettings} sourceDoc={sourceDoc} />
             </div>
           )}
 
@@ -631,6 +631,32 @@ export default function OrderDetailPage() {
               )}
             </table>
           </div>
+
+          {(order.services ?? []).length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <h2 className="font-semibold text-gray-900">Additional Services</h2>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-gray-600">Type</th>
+                    <th className="text-left px-3 py-2 font-medium text-gray-600">Description</th>
+                    <th className="text-right px-4 py-2 font-medium text-gray-600">Price</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {(order.services as any[]).map((s: any) => (
+                    <tr key={s.id}>
+                      <td className="px-4 py-3 capitalize text-gray-600">{s.service_type}</td>
+                      <td className="px-3 py-3">{s.description}</td>
+                      <td className="px-4 py-3 text-right font-medium">{s.currency} {Number(s.price).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {focOrder && (focOrder.lines ?? []).length > 0 && (
             <div className="bg-white rounded-xl border border-green-200 overflow-hidden">

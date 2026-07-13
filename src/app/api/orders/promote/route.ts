@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
 
     const { data: so, error: soErr } = await supabase
       .from('sales_orders')
-      .select('*, lines:sales_order_lines(*)')
+      .select('*, lines:sales_order_lines(*), services:sales_order_services(*)')
       .eq('id', order_id)
       .single()
 
@@ -64,6 +64,18 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      if ((so.services ?? []).length > 0) {
+        await supabase.from('sales_order_services').insert(
+          (so.services ?? []).map((s: any) => ({
+            order_id:     newSO.id,
+            service_type: s.service_type,
+            description:  s.description,
+            price:        s.price,
+            currency:     s.currency,
+          }))
+        )
+      }
+
       await supabase.from('sales_orders')
         .update({ linked_order_id: newSO.id })
         .eq('id', so.id)
@@ -111,7 +123,8 @@ export async function POST(request: NextRequest) {
       return l
     })
 
-    const invoiceTotalAmount = isFocSource ? 0 : invoiceLines.reduce((s: number, l: any) => s + Number(l.line_total), 0)
+    const servicesTotal = isFocSource ? 0 : (so.services ?? []).reduce((s: number, sv: any) => s + Number(sv.price), 0)
+    const invoiceTotalAmount = isFocSource ? 0 : invoiceLines.reduce((s: number, l: any) => s + Number(l.line_total), 0) + servicesTotal
 
     const { data: invNum } = await supabase.rpc('fn_generate_doc_number', {
       p_doc_type: 'invoice',
@@ -167,6 +180,19 @@ export async function POST(request: NextRequest) {
         fixmer_reference: l.fixmer_reference ?? null,
       }))
     )
+
+    // Carry additional services over to the main invoice
+    if (!isFocSource && (so.services ?? []).length > 0) {
+      await supabase.from('sales_order_services').insert(
+        (so.services ?? []).map((s: any) => ({
+          order_id:     invoice.id,
+          service_type: s.service_type,
+          description:  s.description,
+          price:        s.price,
+          currency:     s.currency,
+        }))
+      )
+    }
 
     // ─── T&T: invoice LINKED pour la différence de prix ──────────────────────
     if (isTT && !isFocSource) {

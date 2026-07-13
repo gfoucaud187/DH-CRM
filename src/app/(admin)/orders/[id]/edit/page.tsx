@@ -10,6 +10,19 @@ import { logActivity } from '@/lib/log-activity'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 
+const SERVICE_TYPES = [
+  { value: 'consulting',     label: 'Consulting Services' },
+  { value: 'transportation', label: 'Transportation' },
+  { value: 'marketing',      label: 'Marketing Services' },
+  { value: 'other',          label: 'Other' },
+]
+
+interface OrderService {
+  service_type: string
+  description: string
+  price: string
+}
+
 interface OrderLine {
   sku: string
   product_name: string
@@ -38,6 +51,7 @@ export default function EditOrderPage() {
   const [notes, setNotes] = useState('')
   const [shipmentDate, setShipmentDate] = useState('')
   const [lines, setLines] = useState<OrderLine[]>([])
+  const [services, setServices] = useState<OrderService[]>([])
   const [saving, setSaving] = useState(false)
   const [productSearch, setProductSearch] = useState('')
 
@@ -46,7 +60,7 @@ export default function EditOrderPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_orders')
-        .select('*, lines:sales_order_lines(*)')
+        .select('*, lines:sales_order_lines(*), services:sales_order_services(*)')
         .eq('id', id)
         .single()
       return data
@@ -113,6 +127,11 @@ export default function EditOrderPage() {
           diff_price_per_unit: l.diff_price_per_unit ?? null,
         }))
       )
+      setServices(
+        (order.services ?? []).map((s: any) => ({
+          service_type: s.service_type, description: s.description, price: String(s.price),
+        }))
+      )
     }
   }, [order])
 
@@ -174,6 +193,20 @@ export default function EditOrderPage() {
 
   const removeLine = (idx: number) => setLines(l => l.filter((_, i) => i !== idx))
 
+  const addService = () => setServices(s => [...s, { service_type: 'consulting', description: 'Consulting Services', price: '' }])
+  const removeService = (idx: number) => setServices(s => s.filter((_, i) => i !== idx))
+  const updateService = (idx: number, field: keyof OrderService, value: string) => {
+    setServices(s => s.map((sv, i) => {
+      if (i !== idx) return sv
+      if (field === 'service_type') {
+        const label = SERVICE_TYPES.find(t => t.value === value)?.label ?? ''
+        return { ...sv, service_type: value, description: value === 'other' ? '' : label }
+      }
+      return { ...sv, [field]: value }
+    }))
+  }
+  const servicesTotal = services.reduce((s, sv) => s + (parseFloat(sv.price) || 0), 0)
+
   const handleSave = async () => {
     if (isInt && warehouse === warehouseDestination) {
       alert('FROM and TO warehouses must be different')
@@ -183,7 +216,7 @@ export default function EditOrderPage() {
     try {
       const totalUnits = lines.reduce((s, l) => s + l.quantity_units, 0)
       const totalPacks = lines.reduce((s, l) => s + l.quantity_packs, 0)
-      const totalAmount = isInt ? 0 : lines.reduce((s, l) => s + l.line_total, 0)
+      const totalAmount = isInt ? 0 : lines.reduce((s, l) => s + l.line_total, 0) + servicesTotal
 
       await supabase.from('sales_orders').update({
         warehouse,
@@ -204,6 +237,16 @@ export default function EditOrderPage() {
             quantity_units: l.quantity_units, price_per_unit: l.price_per_unit,
             line_total: l.line_total, fixmer_reference: l.fixmer_reference ?? null,
             diff_price_per_unit: l.diff_price_per_unit ?? null,
+          }))
+        )
+      }
+
+      await supabase.from('sales_order_services').delete().eq('order_id', id as string)
+      if (!isInt && services.length > 0) {
+        await supabase.from('sales_order_services').insert(
+          services.filter(s => s.description && parseFloat(s.price) > 0).map(s => ({
+            order_id: id, service_type: s.service_type, description: s.description,
+            price: parseFloat(s.price), currency: order.currency,
           }))
         )
       }
@@ -232,6 +275,15 @@ export default function EditOrderPage() {
                 quantity_units: l.quantity_units, price_per_unit: l.price_per_unit,
                 line_total: l.line_total, fixmer_reference: l.fixmer_reference ?? null,
             diff_price_per_unit: l.diff_price_per_unit ?? null,
+              }))
+            )
+          }
+          await supabase.from('sales_order_services').delete().eq('order_id', promotedInvoice.id)
+          if (services.length > 0) {
+            await supabase.from('sales_order_services').insert(
+              services.filter(s => s.description && parseFloat(s.price) > 0).map(s => ({
+                order_id: promotedInvoice.id, service_type: s.service_type, description: s.description,
+                price: parseFloat(s.price), currency: order.currency,
               }))
             )
           }
@@ -360,17 +412,20 @@ export default function EditOrderPage() {
             </div>
           </div>
 
-          {lines.length > 0 && (
+          {(lines.length > 0 || services.length > 0) && (
             <div className="bg-gray-900 rounded-xl p-4 text-white">
               <h3 className="font-semibold mb-2">Summary</h3>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-gray-400">Packs</span><span>{totalPacks}</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Units</span><span>{totalUnits}</span></div>
+                {servicesTotal > 0 && (
+                  <div className="flex justify-between"><span className="text-gray-400">Services</span><span>{order.currency} {servicesTotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+                )}
                 <div className="border-t border-gray-700 pt-2 flex justify-between font-semibold">
                   <span>Total</span>
                   {isInt
                     ? <span className="text-teal-400">{warehouse} → {warehouseDestination}</span>
-                    : <span>{order.is_foc || order.is_sample ? 'FOC' : order.currency + ' ' + Number(total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                    : <span>{order.is_foc || order.is_sample ? 'FOC' : order.currency + ' ' + Number(total + servicesTotal).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
                   }
                 </div>
               </div>
@@ -379,6 +434,41 @@ export default function EditOrderPage() {
         </div>
 
         <div className="col-span-2 space-y-4">
+          {!isInt && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-medium text-gray-900">Additional Services</h3>
+                <button onClick={addService}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                  <Plus className="h-4 w-4" /> Add Service
+                </button>
+              </div>
+              {services.length === 0 ? (
+                <p className="text-sm text-gray-400">No additional services</p>
+              ) : (
+                <div className="space-y-2">
+                  {services.map((s, i) => (
+                    <div key={i} className="flex flex-wrap items-center gap-2">
+                      <select value={s.service_type} onChange={e => updateService(i, 'service_type', e.target.value)}
+                        className="h-9 rounded-md border border-gray-200 px-2 text-sm w-44">
+                        {SERVICE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
+                      <input value={s.description} onChange={e => updateService(i, 'description', e.target.value)}
+                        placeholder="Description"
+                        className="flex-1 min-w-40 h-9 rounded-md border border-gray-200 px-2 text-sm focus:outline-none" />
+                      <input type="number" step="0.01" min="0" value={s.price} onChange={e => updateService(i, 'price', e.target.value)}
+                        placeholder="Price"
+                        className="w-28 h-9 rounded-md border border-gray-200 px-2 text-right text-sm focus:outline-none" />
+                      <button onClick={() => removeService(i)} className="p-2 text-gray-300 hover:text-red-500">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="font-medium text-gray-900 mb-3">
               {isInt ? 'Products to transfer' : 'Add Product'}

@@ -9,6 +9,19 @@ import { logActivity } from '@/lib/log-activity'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 
+const SERVICE_TYPES = [
+  { value: 'consulting',     label: 'Consulting Services' },
+  { value: 'transportation', label: 'Transportation' },
+  { value: 'marketing',      label: 'Marketing Services' },
+  { value: 'other',          label: 'Other' },
+]
+
+interface OrderService {
+  service_type: string
+  description: string
+  price: string
+}
+
 type OrderMode = 'so' | 'proforma' | 'foc' | 'sample' | 'int'
 
 const MODE_CONFIG = {
@@ -55,6 +68,7 @@ export default function NewOrderPage() {
   const [notes, setNotes] = useState('')
   const [shipmentDate, setShipmentDate] = useState('')
   const [lines, setLines] = useState<OrderLine[]>([])
+  const [services, setServices] = useState<OrderService[]>([])
   const [saving, setSaving] = useState(false)
   const [productSearch, setProductSearch] = useState('')
 
@@ -176,6 +190,20 @@ export default function NewOrderPage() {
 
   const removeLine = (idx: number) => setLines(l => l.filter((_, i) => i !== idx))
 
+  const addService = () => setServices(s => [...s, { service_type: 'consulting', description: 'Consulting Services', price: '' }])
+  const removeService = (idx: number) => setServices(s => s.filter((_, i) => i !== idx))
+  const updateService = (idx: number, field: keyof OrderService, value: string) => {
+    setServices(s => s.map((sv, i) => {
+      if (i !== idx) return sv
+      if (field === 'service_type') {
+        const label = SERVICE_TYPES.find(t => t.value === value)?.label ?? ''
+        return { ...sv, service_type: value, description: value === 'other' ? '' : label }
+      }
+      return { ...sv, [field]: value }
+    }))
+  }
+  const servicesTotal = services.reduce((s, sv) => s + (parseFloat(sv.price) || 0), 0)
+
   const total = lines.reduce((s, l) => s + l.line_total, 0)
   const totalPacks = lines.reduce((s, l) => s + l.quantity_packs, 0)
   const totalUnits = lines.reduce((s, l) => s + l.quantity_units, 0)
@@ -213,6 +241,9 @@ export default function NewOrderPage() {
             line_type: 'commercial',
           })),
           foc_lines: [],
+          services: services
+            .filter(s => s.description && parseFloat(s.price) > 0)
+            .map(s => ({ service_type: s.service_type, description: s.description, price: parseFloat(s.price), currency: isInt ? 'USD' : currency })),
         }),
       })
       const data = await res.json()
@@ -376,12 +407,49 @@ export default function NewOrderPage() {
             </div>
           </div>
 
-          {lines.length > 0 && (
+          {/* Additional Services */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold text-gray-900">Additional Services</h2>
+              <button onClick={addService}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                <Plus className="h-4 w-4" /> Add Service
+              </button>
+            </div>
+            {services.length === 0 ? (
+              <p className="text-sm text-gray-400">No additional services</p>
+            ) : (
+              <div className="space-y-2">
+                {services.map((s, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-2">
+                    <select value={s.service_type} onChange={e => updateService(i, 'service_type', e.target.value)}
+                      className="h-9 rounded-md border border-gray-200 px-2 text-sm w-44">
+                      {SERVICE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                    <input value={s.description} onChange={e => updateService(i, 'description', e.target.value)}
+                      placeholder="Description"
+                      className="flex-1 min-w-40 h-9 rounded-md border border-gray-200 px-2 text-sm focus:outline-none" />
+                    <input type="number" step="0.01" min="0" value={s.price} onChange={e => updateService(i, 'price', e.target.value)}
+                      placeholder="Price"
+                      className="w-28 h-9 rounded-md border border-gray-200 px-2 text-right text-sm focus:outline-none" />
+                    <button onClick={() => removeService(i)} className="p-2 text-gray-300 hover:text-red-500">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {(lines.length > 0 || services.length > 0) && (
             <div className="bg-gray-900 rounded-xl p-4 text-white">
               <h3 className="font-semibold mb-3">Summary</h3>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-gray-400">Packs</span><span>{totalPacks}</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Units</span><span>{totalUnits}</span></div>
+                {servicesTotal > 0 && (
+                  <div className="flex justify-between"><span className="text-gray-400">Services</span><span>{currency} {servicesTotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+                )}
                 {isInt && (
                   <div className="border-t border-gray-700 pt-2 mt-2 flex justify-between font-semibold">
                     <span>Transfer</span>
@@ -391,7 +459,7 @@ export default function NewOrderPage() {
                 {!isInt && (
                   <div className="border-t border-gray-700 pt-2 mt-2 flex justify-between font-semibold text-lg">
                     <span>Total</span>
-                    <span>{priceIsZero ? 'FOC' : currency + ' ' + Number(total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                    <span>{priceIsZero && servicesTotal === 0 ? 'FOC' : currency + ' ' + Number(total + servicesTotal).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
                   </div>
                 )}
               </div>
