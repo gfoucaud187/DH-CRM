@@ -17,6 +17,14 @@ const WH_COLORS: Record<string, string> = {
   Aged:    'bg-amber-100 text-amber-700',
   Sample:  'bg-green-100 text-green-700',
   Private: 'bg-red-100 text-red-700',
+  Total:   'bg-gray-800 text-white',
+}
+
+const fmtMoney = (n: number) => {
+  if (!n) return '$0'
+  if (n >= 1000000) return `$${(n/1000000).toFixed(1)}M`
+  if (n >= 1000) return `$${(n/1000).toFixed(1)}K`
+  return `$${n.toFixed(2)}`
 }
 
 export default function InventoryPage() {
@@ -55,6 +63,23 @@ export default function InventoryPage() {
       return data ?? []
     }
   })
+
+  const { data: allCogs = [] } = useQuery({
+    queryKey: ['product-cogs-all'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('product_cogs')
+        .select('sku, cogs, currency')
+        .order('created_at', { ascending: false })
+      return data ?? []
+    }
+  })
+
+  // Most recent COGS entry per SKU
+  const currentCogs: Record<string, number> = {}
+  for (const entry of allCogs as any[]) {
+    if (currentCogs[entry.sku] === undefined) currentCogs[entry.sku] = Number(entry.cogs) || 0
+  }
 
   const filtered = inventory.filter((r: any) => {
     const matchSearch = !search ||
@@ -188,9 +213,6 @@ export default function InventoryPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('inventory.page_title')}</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            {totalPacks.toLocaleString()} packs · {totalUnits.toLocaleString()} units total
-          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -239,20 +261,26 @@ export default function InventoryPage() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 md:gap-3 mb-6">
-        {WAREHOUSES.map(wh => {
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 md:gap-3 mb-6">
+        {[...WAREHOUSES, 'Total'].map(wh => {
           const whKey = wh.toLowerCase()
-          const packs = inventory.reduce((s: number, r: any) => s + (r[`packs_${whKey}`] ?? 0), 0)
-          const units = inventory.reduce((s: number, r: any) => s + (r[`units_${whKey}`] ?? 0), 0)
+          const isTotal = wh === 'Total'
+          const packs = isTotal ? totalPacks : inventory.reduce((s: number, r: any) => s + (r[`packs_${whKey}`] ?? 0), 0)
+          const units = isTotal ? totalUnits : inventory.reduce((s: number, r: any) => s + (r[`units_${whKey}`] ?? 0), 0)
+          const value = inventory.reduce((s: number, r: any) =>
+            s + (currentCogs[r.sku] ?? 0) * (isTotal ? (r.units_total ?? 0) : (r[`units_${whKey}`] ?? 0)), 0)
           return (
-            <div key={wh} className="bg-white rounded-xl border border-gray-200 p-3 md:p-4">
+            <div key={wh} className={`bg-white rounded-xl border p-3 md:p-4 ${isTotal ? 'border-gray-800' : 'border-gray-200'}`}>
               <div className="flex items-center gap-1.5 mb-2">
                 <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${WH_COLORS[wh]}`}>{wh}</span>
               </div>
               <p className="text-lg md:text-2xl font-bold text-gray-900">{units.toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-0.5">units</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t('inventory.label_units')}</p>
               <p className="text-sm font-semibold text-gray-500 mt-1">{packs.toLocaleString()}</p>
-              <p className="text-xs text-gray-400">packs</p>
+              <p className="text-xs text-gray-400">{t('inventory.label_packs')}</p>
+              {value > 0 && (
+                <p className="text-xs font-semibold text-blue-600 mt-1.5 pt-1.5 border-t border-gray-100">{fmtMoney(value)}</p>
+              )}
             </div>
           )
         })}
@@ -273,6 +301,7 @@ export default function InventoryPage() {
             <div className="md:hidden divide-y divide-gray-100">
               {filtered.map((row: any) => {
                 const stock = getStock(row)
+                const unitCogs = currentCogs[row.sku] ?? 0
                 return (
                   <div
                     key={row.sku}
@@ -290,7 +319,12 @@ export default function InventoryPage() {
                         <p className="text-sm font-medium text-gray-900">{row.product_name}</p>
                         <p className="text-xs text-gray-500">{row.brand}</p>
                       </div>
-                      <span className="text-xs text-gray-400">{stock.packs} pk</span>
+                      <div className="text-right">
+                        <span className="text-xs text-gray-400 block">{stock.packs} SKU</span>
+                        {unitCogs > 0 && (
+                          <span className="text-[10px] text-gray-300">{fmtMoney(unitCogs)}/u · {fmtMoney(unitCogs * stock.units)}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
@@ -320,6 +354,7 @@ export default function InventoryPage() {
                 <tbody className="divide-y divide-gray-100">
                   {filtered.map((row: any) => {
                     const stock = getStock(row)
+                    const unitCogs = currentCogs[row.sku] ?? 0
                     return (
                       <tr
                         key={row.sku}
@@ -351,7 +386,10 @@ export default function InventoryPage() {
                             <span className={`font-semibold ${stock.packs < 0 ? 'text-red-600 font-bold' : stock.packs === 0 ? 'text-red-400' : stock.packs < 5 ? 'text-amber-500' : 'text-gray-900'}`}>
                               {stock.units} u
                             </span>
-                            <span className="text-xs text-gray-400">{stock.packs} pk</span>
+                            <span className="text-xs text-gray-400">{stock.packs} SKU</span>
+                            {unitCogs > 0 && (
+                              <span className="text-[10px] text-gray-300">{fmtMoney(unitCogs)}/u · {fmtMoney(unitCogs * stock.units)}</span>
+                            )}
                           </div>
                         </td>
                       </tr>
