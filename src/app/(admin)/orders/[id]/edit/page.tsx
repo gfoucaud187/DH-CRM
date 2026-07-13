@@ -21,6 +21,7 @@ interface OrderLine {
   line_total: number
   line_type: string
   fixmer_reference?: string | null
+  diff_price_per_unit?: number | null
 }
 
 export default function EditOrderPage() {
@@ -78,7 +79,7 @@ export default function EditOrderPage() {
     queryKey: ['order-customer', order?.customer_id],
     queryFn: async () => {
       const { data } = await supabase.from('customers')
-        .select('manual_pricing_enabled').eq('id', order.customer_id).single()
+        .select('manual_pricing_enabled, reference_price_list').eq('id', order.customer_id).single()
       return data
     },
     enabled: !!order?.customer_id,
@@ -109,6 +110,7 @@ export default function EditOrderPage() {
           quantity_packs: l.quantity_packs, quantity_units: l.quantity_units,
           price_per_unit: l.price_per_unit, line_total: l.line_total,
           line_type: l.line_type, fixmer_reference: l.fixmer_reference ?? null,
+          diff_price_per_unit: l.diff_price_per_unit ?? null,
         }))
       )
     }
@@ -137,6 +139,18 @@ export default function EditOrderPage() {
     return entry?.price_per_unit ?? 0
   }
 
+  // Frozen at line-creation time — see orders/new/page.tsx for the rationale
+  const getFrozenGap = (sku: string): number | null => {
+    if (order.is_foc || order.is_sample || isInt) return null
+    if (!customer?.manual_pricing_enabled || !customer.reference_price_list) return null
+    const negotiated = (negotiatedPrices as any[]).find((n: any) => n.sku === sku)
+    if (!negotiated) return null
+    const referenceEntry = (priceEntries as any[]).find((e: any) => e.sku === sku && e.price_list === customer.reference_price_list)
+    if (!referenceEntry) return null
+    const gap = Number(referenceEntry.price_per_unit) - Number(negotiated.price_per_unit)
+    return gap > 0.0001 ? gap : null
+  }
+
   const addLine = (product: any) => {
     if (lines.some(l => l.sku === product.sku)) return
     setLines(l => [...l, {
@@ -146,6 +160,7 @@ export default function EditOrderPage() {
       price_per_unit: getPrice(product.sku), line_total: 0,
       line_type: order.is_foc ? 'foc' : 'commercial',
       fixmer_reference: product.fixmer_reference ?? null,
+      diff_price_per_unit: getFrozenGap(product.sku),
     }])
   }
 
@@ -188,6 +203,7 @@ export default function EditOrderPage() {
             units_per_pack: l.units_per_pack, quantity_packs: l.quantity_packs,
             quantity_units: l.quantity_units, price_per_unit: l.price_per_unit,
             line_total: l.line_total, fixmer_reference: l.fixmer_reference ?? null,
+            diff_price_per_unit: l.diff_price_per_unit ?? null,
           }))
         )
       }
@@ -215,6 +231,7 @@ export default function EditOrderPage() {
                 units_per_pack: l.units_per_pack, quantity_packs: l.quantity_packs,
                 quantity_units: l.quantity_units, price_per_unit: l.price_per_unit,
                 line_total: l.line_total, fixmer_reference: l.fixmer_reference ?? null,
+            diff_price_per_unit: l.diff_price_per_unit ?? null,
               }))
             )
           }

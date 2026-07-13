@@ -37,6 +37,7 @@ interface OrderLine {
   price_per_unit: number
   line_total: number
   fixmer_reference?: string | null
+  diff_price_per_unit?: number | null
 }
 
 export default function NewOrderPage() {
@@ -68,7 +69,7 @@ export default function NewOrderPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('customers')
-        .select('id, legal_name, assigned_price_list, currency, incoterms, payment_terms, eu_compliance_type, is_european, track_trace_enabled, manual_pricing_enabled')
+        .select('id, legal_name, assigned_price_list, currency, incoterms, payment_terms, eu_compliance_type, is_european, track_trace_enabled, manual_pricing_enabled, reference_price_list')
         .eq('status', 'active').order('legal_name')
       return data ?? []
     }
@@ -134,6 +135,21 @@ export default function NewOrderPage() {
     return entry?.price_per_unit ?? 0
   }
 
+  // Frozen at line-creation time: the gap vs the customer's reference price list,
+  // used later at promotion to bill the Service & Marketing invoice without
+  // re-querying (and thus without drifting if the reference list changes later).
+  const getFrozenGap = (sku: string): number | null => {
+    if (priceIsZero) return null
+    const customer = (customers as any[]).find((c: any) => c.id === customerId)
+    if (!customer?.manual_pricing_enabled || !customer.reference_price_list) return null
+    const negotiated = (negotiatedPrices as any[]).find((n: any) => n.customer_id === customerId && n.sku === sku)
+    if (!negotiated) return null
+    const referenceEntry = (priceEntries as any[]).find((e: any) => e.sku === sku && e.price_list === customer.reference_price_list)
+    if (!referenceEntry) return null
+    const gap = Number(referenceEntry.price_per_unit) - Number(negotiated.price_per_unit)
+    return gap > 0.0001 ? gap : null
+  }
+
   const addLine = (product: any) => {
     if (lines.some(l => l.sku === product.sku)) return
     setLines(l => [...l, {
@@ -146,6 +162,7 @@ export default function NewOrderPage() {
       price_per_unit: getPrice(product.sku),
       line_total: 0,
       fixmer_reference: product.fixmer_reference ?? null,
+      diff_price_per_unit: getFrozenGap(product.sku),
     }])
   }
 

@@ -519,7 +519,8 @@ export default function EditCustomerPage() {
           <h2 className="font-semibold text-gray-900 mb-1">Negotiated Pricing</h2>
           <p className="text-xs text-gray-400 mb-4">
             When enabled, new orders for this client use these negotiated prices instead of the assigned price list.
-            At invoicing, the gap versus the reference list is automatically billed as a separate Service &amp; Marketing invoice.
+            The gap versus the reference list is frozen when each order line is created, then automatically billed as a
+            separate Service &amp; Marketing invoice at promotion — later changes to the reference list won&apos;t affect orders already placed.
           </p>
 
           <label className="flex items-center gap-3 cursor-pointer mb-4">

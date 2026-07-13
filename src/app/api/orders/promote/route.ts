@@ -247,27 +247,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Manual pricing: invoice "Service & Marketing" pour combler l'écart vs la liste de référence ──
-    if (customer?.manual_pricing_enabled && !isFocSource && customer.reference_price_list) {
-      const skus = (so.lines ?? []).map((l: any) => l.sku)
-      const { data: referencePrices } = await supabase
-        .from('price_list_entries')
-        .select('sku, price_per_unit')
-        .eq('price_list', customer.reference_price_list)
-        .in('sku', skus)
-
-      const referencePriceMap: Record<string, number> = {}
-      for (const p of referencePrices ?? []) {
-        referencePriceMap[p.sku] = Number(p.price_per_unit)
-      }
-
+    // Le gap (diff_price_per_unit) est figé à la création de la ligne de commande, pas recalculé ici —
+    // ça évite toute dérive si la liste de référence change entre la commande et la promotion.
+    if (customer?.manual_pricing_enabled && !isFocSource) {
       const serviceLines = (so.lines ?? [])
-        .filter((l: any) => l.line_type === 'commercial')
+        .filter((l: any) => l.line_type === 'commercial' && l.diff_price_per_unit != null && Number(l.diff_price_per_unit) > 0.0001)
         .map((l: any) => {
-          const referencePrice = referencePriceMap[l.sku]
-          if (referencePrice == null) return null
-          const negotiatedPrice = Number(l.price_per_unit)
-          const gap = referencePrice - negotiatedPrice
-          if (gap < 0.0001) return null
+          const gap = Number(l.diff_price_per_unit)
           return {
             sku:              l.sku,
             product_name:     l.product_name,
@@ -280,7 +266,6 @@ export async function POST(request: NextRequest) {
             fixmer_reference: l.fixmer_reference ?? null,
           }
         })
-        .filter(Boolean)
 
       if (serviceLines.length > 0) {
         const totalGap = serviceLines.reduce((s: number, l: any) => s + l.line_total, 0)
