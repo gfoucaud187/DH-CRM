@@ -23,6 +23,10 @@ function fmt(n: number) {
   return `USD ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 }
 
+function fmtUnit(n: number) {
+  return `USD ${n.toFixed(2)}`
+}
+
 function flagFor(code?: string | null) {
   return COUNTRIES.find(c => c.code === code)?.flag ?? ''
 }
@@ -475,7 +479,7 @@ export default function ReportsPage() {
                         <td className="px-3 md:px-4 py-3 text-center text-gray-600">{data.clients.length}</td>
                         <td className="px-3 md:px-4 py-3 text-right font-semibold text-gray-900">{fmt(data.revenue)}</td>
                         <td className="px-3 md:px-4 py-3 text-right text-gray-600 hidden sm:table-cell">{data.units.toLocaleString()}</td>
-                        <td className="px-3 md:px-4 py-3 text-right text-gray-600 hidden sm:table-cell">{data.units ? fmt(data.revenue/data.units) : '—'}</td>
+                        <td className="px-3 md:px-4 py-3 text-right text-gray-600 hidden sm:table-cell">{data.units ? fmtUnit(data.revenue/data.units) : '—'}</td>
                         <td className="px-3 md:px-4 py-3 text-right hidden md:table-cell"><Delta curr={data.revenue} prev={data.prevRevenue} /></td>
                         <td className="px-3 md:px-4 py-3 hidden sm:table-cell">
                           <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -533,7 +537,7 @@ export default function ReportsPage() {
                   </div>
                   <span className="text-xs text-gray-400 w-12 md:w-16 text-right">{data.units.toLocaleString()}u</span>
                   <span className="text-xs text-gray-400 w-16 md:w-20 text-right" title={t('reports.col_avg_unit')}>
-                    {data.units ? fmt(data.revenue/data.units) : '—'}/u
+                    {data.units ? fmtUnit(data.revenue/data.units) : '—'}/u
                   </span>
                 </div>
               ))}
@@ -549,7 +553,7 @@ export default function ReportsPage() {
                   </div>
                   <span className="text-xs font-semibold text-gray-900 w-10 md:w-12 text-right">{data.units.toLocaleString()}</span>
                   <span className="text-xs text-gray-400 w-14 md:w-16 text-right" title={t('reports.col_avg_unit')}>
-                    {data.units ? fmt(data.revenue/data.units) : '—'}/u
+                    {data.units ? fmtUnit(data.revenue/data.units) : '—'}/u
                   </span>
                 </div>
               ))}

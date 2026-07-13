@@ -21,6 +21,7 @@ const WH_COLORS: Record<string, string> = {
 }
 
 const fmtMoney = (n: number) => `USD ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+const fmtUnit = (n: number) => `USD ${n.toFixed(2)}`
 
 export default function InventoryPage() {
   const supabase = createClient()
@@ -353,7 +354,7 @@ export default function InventoryPage() {
                       <div className="text-right">
                         <span className="text-xs text-gray-400 block">{stock.packs} SKU</span>
                         {unitCogs > 0 && (
-                          <span className="text-[10px] text-gray-300">{fmtMoney(unitCogs)}/u · {fmtMoney(unitCogs * stock.units)}</span>
+                          <span className="text-[10px] text-gray-300">{fmtUnit(unitCogs)}/u · {fmtMoney(unitCogs * stock.units)}</span>
                         )}
                       </div>
                     </div>
@@ -419,7 +420,7 @@ export default function InventoryPage() {
                             </span>
                             <span className="text-xs text-gray-400">{stock.packs} SKU</span>
                             {unitCogs > 0 && (
-                              <span className="text-[10px] text-gray-300">{fmtMoney(unitCogs)}/u · {fmtMoney(unitCogs * stock.units)}</span>
+                              <span className="text-[10px] text-gray-300">{fmtUnit(unitCogs)}/u · {fmtMoney(unitCogs * stock.units)}</span>
                             )}
                           </div>
                         </td>
