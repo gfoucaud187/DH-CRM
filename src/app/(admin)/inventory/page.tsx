@@ -207,6 +207,35 @@ export default function InventoryPage() {
   const totalPacks = inventory.reduce((s: number, r: any) => s + (r.packs_total ?? 0), 0)
   const totalUnits = inventory.reduce((s: number, r: any) => s + (r.units_total ?? 0), 0)
 
+  const handleExportInventory = async () => {
+    const XLSX = await import('xlsx')
+    const packsLabel = t('inventory.label_packs')
+    const unitsLabel = t('inventory.label_units')
+    const totalLabel = t('inventory.col_total')
+    const rows = filtered.map((row: any) => {
+      const unitCogs = currentCogs[row.sku] ?? 0
+      const out: Record<string, string | number> = {
+        'SKU': row.sku,
+        [t('inventory.col_product')]: row.product_name,
+        [t('inventory.col_brand')]: row.brand,
+      }
+      WAREHOUSES.forEach(w => {
+        const wh = w.toLowerCase()
+        out[`${w} ${packsLabel}`] = row[`packs_${wh}`] ?? 0
+        out[`${w} ${unitsLabel}`] = row[`units_${wh}`] ?? 0
+      })
+      out[`${totalLabel} ${packsLabel}`] = row.packs_total ?? 0
+      out[`${totalLabel} ${unitsLabel}`] = row.units_total ?? 0
+      out['COGS/u'] = unitCogs
+      out['COGS total'] = unitCogs * (row.units_total ?? 0)
+      return out
+    })
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Inventory')
+    XLSX.writeFile(wb, 'inventory_export.xlsx')
+  }
+
   return (
     <div>
       {/* Header */}
@@ -215,6 +244,13 @@ export default function InventoryPage() {
           <h1 className="text-2xl font-bold text-gray-900">{t('inventory.page_title')}</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleExportInventory}
+            className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            {t('inventory.export')}
+          </button>
           <button
             onClick={() => document.getElementById('stock-movements-section')?.scrollIntoView({ behavior: 'smooth' })}
             className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
