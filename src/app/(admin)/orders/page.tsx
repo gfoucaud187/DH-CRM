@@ -142,7 +142,7 @@ export default function OrdersPage() {
         // root is not in filter — just show the current doc alone
         if (!visited.has(o.id)) {
           visited.add(o.id)
-          groups.push([o])
+          groups.push([{ doc: o, depth: 0 }])
         }
         return
       }
