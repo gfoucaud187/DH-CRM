@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import { Warehouse, Plus, Search, Trash2, Download, Upload } from 'lucide-react'
+import { Warehouse, Plus, Search, Trash2, Download, Upload, ArrowLeftRight } from 'lucide-react'
 import { logActivity } from '@/lib/log-activity'
 import SkuMovementsModal from '@/components/inventory/SkuMovementsModal'
-import StockMovementsView from '@/components/inventory/StockMovementsView'
 import { useT } from '@/lib/i18n/LanguageProvider'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
@@ -247,12 +247,13 @@ export default function InventoryPage() {
             <Download className="h-4 w-4" />
             {t('inventory.export')}
           </button>
-          <button
-            onClick={() => document.getElementById('stock-movements-section')?.scrollIntoView({ behavior: 'smooth' })}
+          <Link
+            href="/stock_movements"
             className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
+            <ArrowLeftRight className="h-4 w-4" />
             {t('inventory.stock_movements')}
-          </button>
+          </Link>
           <button
             onClick={() => setShowAddStock(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
@@ -432,11 +433,6 @@ export default function InventoryPage() {
             </div>
           </>
         )}
-      </div>
-
-      {/* Stock Movements Pivot */}
-      <div id="stock-movements-section">
-        <StockMovementsView />
       </div>
 
       {/* SKU Movements Modal */}

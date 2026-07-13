@@ -3,7 +3,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useState, useMemo } from 'react'
-import { Download, Package } from 'lucide-react'
+import { Download, Package, Search } from 'lucide-react'
+import { useT } from '@/lib/i18n/LanguageProvider'
 
 const WAREHOUSES = ['All', 'T1', 'Central', 'Aged', 'Sample', 'Private']
 
@@ -26,6 +27,7 @@ const getDocColor = (o: any) => {
 
 export default function StockMovementsView() {
   const supabase = createClient()
+  const t = useT()
   const startOfYear = new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]
   const today = new Date().toISOString().split('T')[0]
 
@@ -33,6 +35,7 @@ export default function StockMovementsView() {
   const [dateTo, setDateTo]     = useState(today)
   const [warehouse, setWarehouse] = useState('All')
   const [unit, setUnit]           = useState<'units' | 'packs'>('units')
+  const [search, setSearch]       = useState('')
 
   // Fetch stock movements in date range — joined with order data via view
   const { data: movements = [], isLoading } = useQuery({
@@ -150,6 +153,14 @@ export default function StockMovementsView() {
 
   const grandTotal = skus.reduce((s, sku) => s + rowTotal(sku), 0)
 
+  // Row-level search — filters which SKUs are shown, doesn't affect column/footer totals
+  const filteredSkus = skus.filter(sku => {
+    if (!search) return true
+    const p = productMap[sku]
+    const q = search.toLowerCase()
+    return sku.toLowerCase().includes(q) || p?.full_name?.toLowerCase().includes(q) || p?.brand?.toLowerCase().includes(q)
+  })
+
   // Export to Excel
   const handleExport = async () => {
     const XLSX = await import('xlsx')
@@ -216,13 +227,25 @@ export default function StockMovementsView() {
   }
 
   return (
-    <div className="mt-8">
+    <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900">Stock Movements</h2>
         <button onClick={handleExport} disabled={movements.length === 0}
           className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-40 transition-colors">
           <Download className="h-4 w-4" /> Export Excel
         </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+        <input
+          type="text"
+          placeholder={t('inventory.search_placeholder')}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-9 pr-3 py-2 w-full border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+        />
       </div>
 
       {/* Filters */}
@@ -264,10 +287,10 @@ export default function StockMovementsView() {
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center h-48 text-gray-400 text-sm">Loading...</div>
-        ) : skus.length === 0 ? (
+        ) : filteredSkus.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <Package className="h-8 w-8 mb-2" />
-            <p className="text-sm">No movements in this period</p>
+            <p className="text-sm">{skus.length === 0 ? 'No movements in this period' : `No results for "${search}"`}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -326,7 +349,7 @@ export default function StockMovementsView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {skus.map((sku, idx) => {
+                {filteredSkus.map((sku, idx) => {
                   const p = productMap[sku]
                   const total = rowTotal(sku)
                   return (

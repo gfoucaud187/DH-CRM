@@ -9,8 +9,8 @@ import { createClient } from '@/lib/supabase/client';
 import {
   LayoutDashboard, Package, Users, Handshake, DollarSign,
   ShoppingCart, Warehouse, BarChart3, FolderOpen, Settings,
-  ListChecks, LogOut, Target, Store, ChevronLeft, ChevronRight,
-  ShoppingBag, Menu, X, Globe
+  ListChecks, LogOut, Target, Store, ChevronLeft, ChevronRight, ChevronDown,
+  ShoppingBag, Menu, X, Globe, Boxes, ArrowLeftRight
 } from 'lucide-react';
 import './sidebar.css';
 import { useT } from '@/lib/i18n/LanguageProvider';
@@ -24,7 +24,10 @@ const NAV_ITEMS = [
   { tKey: 'nav.price_lists',     fallback: 'Price Lists',       href: '/price_lists',      icon: DollarSign },
   { tKey: 'nav.orders',          fallback: 'Orders',            href: '/orders',           icon: ShoppingCart, badge: true },
   { tKey: 'nav.purchase_orders', fallback: 'Purchase Orders',   href: '/purchase_orders',  icon: ShoppingBag },
-  { tKey: 'nav.inventory',       fallback: 'Inventory',         href: '/inventory',        icon: Warehouse },
+  { tKey: 'nav.stock',           fallback: 'Stock',             icon: Warehouse, children: [
+      { tKey: 'nav.inventory',        fallback: 'Inventory',        href: '/inventory',        icon: Boxes },
+      { tKey: 'nav.stock_movements',  fallback: 'Stock Movements',  href: '/stock_movements',  icon: ArrowLeftRight },
+  ]},
   { tKey: 'nav.finance',         fallback: 'Finance',           href: '/finance',          icon: DollarSign },
   { tKey: 'nav.documents',       fallback: 'Documents',         href: '/documents',        icon: FolderOpen },
   { tKey: 'nav.reports',         fallback: 'Reports',           href: '/reports',          icon: BarChart3 },
@@ -53,6 +56,7 @@ export default function Sidebar() {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const supabase = createClient();
 
   const { data: pendingPOCount = 0 } = useQuery({
@@ -127,8 +131,49 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="sb-nav">
-        {NAV_ITEMS.map(({ tKey, fallback, href, icon: Icon, badge }) => {
-          const label = t(tKey) === tKey ? fallback : t(tKey);
+        {NAV_ITEMS.map((item) => {
+          const label = t(item.tKey) === item.tKey ? item.fallback : t(item.tKey);
+
+          if ('children' in item && item.children) {
+            const groupActive = item.children.some(c => isActive(c.href));
+            const isOpen = openGroups[item.tKey] ?? groupActive;
+            const Icon = item.icon;
+            return (
+              <div key={item.tKey}>
+                <button
+                  onClick={() => setOpenGroups(prev => ({ ...prev, [item.tKey]: !isOpen }))}
+                  className={`sb-item ${groupActive ? 'active' : ''}`}
+                  style={{ width: '100%', border: 'none', background: groupActive ? undefined : 'transparent' }}
+                  title={collapsed ? label : undefined}
+                >
+                  <Icon size={20} style={{ flexShrink: 0 }} />
+                  <span className="sb-item-label">{label}</span>
+                  <ChevronDown size={14} style={{ flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }} />
+                </button>
+                {isOpen && (
+                  <div className="sb-subnav">
+                    {item.children.map(child => {
+                      const childLabel = t(child.tKey) === child.tKey ? child.fallback : t(child.tKey);
+                      const ChildIcon = child.icon;
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={`sb-item sb-subitem ${isActive(child.href) ? 'active' : ''}`}
+                          title={collapsed ? childLabel : undefined}
+                        >
+                          <ChildIcon size={16} style={{ flexShrink: 0 }} />
+                          <span className="sb-item-label">{childLabel}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          const { href, icon: Icon, badge } = item as typeof item & { href: string; badge?: boolean };
           return (
           <Link
             key={href}
