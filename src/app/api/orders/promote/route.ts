@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     // Vérifie si le client est T&T directement sur le customer
     const { data: customer } = await supabase
       .from('customers')
-      .select('track_trace_enabled, eu_compliance_type')
+      .select('track_trace_enabled, eu_compliance_type, manual_pricing_enabled, reference_price_list')
       .eq('id', so.customer_id)
       .single()
 
@@ -230,6 +230,97 @@ export async function POST(request: NextRequest) {
           await supabase.from('sales_order_lines').insert(
             diffLines.map((l: any) => ({
               order_id:         linkedInvoice.id,
+              line_type:        'commercial',
+              sku:              l.sku,
+              product_name:     l.product_name,
+              brand:            l.brand,
+              units_per_pack:   l.units_per_pack,
+              quantity_packs:   l.quantity_packs,
+              quantity_units:   l.quantity_units,
+              price_per_unit:   l.price_per_unit,
+              line_total:       l.line_total,
+              fixmer_reference: l.fixmer_reference ?? null,
+            }))
+          )
+        }
+      }
+    }
+
+    // ─── Manual pricing: invoice "Service & Marketing" pour combler l'écart vs la liste de référence ──
+    if (customer?.manual_pricing_enabled && !isFocSource && customer.reference_price_list) {
+      const skus = (so.lines ?? []).map((l: any) => l.sku)
+      const { data: referencePrices } = await supabase
+        .from('price_list_entries')
+        .select('sku, price_per_unit')
+        .eq('price_list', customer.reference_price_list)
+        .in('sku', skus)
+
+      const referencePriceMap: Record<string, number> = {}
+      for (const p of referencePrices ?? []) {
+        referencePriceMap[p.sku] = Number(p.price_per_unit)
+      }
+
+      const serviceLines = (so.lines ?? [])
+        .filter((l: any) => l.line_type === 'commercial')
+        .map((l: any) => {
+          const referencePrice = referencePriceMap[l.sku]
+          if (referencePrice == null) return null
+          const negotiatedPrice = Number(l.price_per_unit)
+          const gap = referencePrice - negotiatedPrice
+          if (gap < 0.0001) return null
+          return {
+            sku:              l.sku,
+            product_name:     l.product_name,
+            brand:            l.brand,
+            units_per_pack:   l.units_per_pack,
+            quantity_packs:   l.quantity_packs,
+            quantity_units:   l.quantity_units,
+            price_per_unit:   gap,
+            line_total:       gap * l.quantity_units,
+            fixmer_reference: l.fixmer_reference ?? null,
+          }
+        })
+        .filter(Boolean)
+
+      if (serviceLines.length > 0) {
+        const totalGap = serviceLines.reduce((s: number, l: any) => s + l.line_total, 0)
+
+        const { data: svcInvNum } = await supabase.rpc('fn_generate_doc_number', {
+          p_doc_type: 'invoice',
+          p_is_foc: false,
+        })
+
+        const { data: serviceInvoice, error: svcErr } = await supabase
+          .from('sales_orders')
+          .insert({
+            order_number:        `${svcInvNum} SVC`,
+            document_type:       'invoice',
+            is_foc:              false,
+            is_service_invoice:  true,
+            promoted_from:       so.id,
+            linked_order_id:     invoice.id,
+            customer_id:         so.customer_id,
+            customer_name:       so.customer_name,
+            price_list:          so.price_list,
+            currency:            so.currency,
+            status:              'draft',
+            warehouse:           so.warehouse,
+            total_amount:        totalGap,
+            total_units:         so.total_units,
+            total_packs:         so.total_packs,
+            incoterms:           so.incoterms,
+            payment_terms:       so.payment_terms,
+            notes:               `Service & Marketing — ${so.order_number}`,
+            order_date:          so.order_date,
+            shipment_date:       so.shipment_date,
+          })
+          .select()
+          .single()
+
+        if (!svcErr && serviceInvoice) {
+          await supabase.from('sales_order_lines').insert(
+            serviceLines.map((l: any) => ({
+              order_id:         serviceInvoice.id,
               line_type:        'commercial',
               sku:              l.sku,
               product_name:     l.product_name,

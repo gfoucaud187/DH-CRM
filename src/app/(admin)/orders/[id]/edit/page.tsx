@@ -74,6 +74,26 @@ export default function EditOrderPage() {
     }
   })
 
+  const { data: customer } = useQuery({
+    queryKey: ['order-customer', order?.customer_id],
+    queryFn: async () => {
+      const { data } = await supabase.from('customers')
+        .select('manual_pricing_enabled').eq('id', order.customer_id).single()
+      return data
+    },
+    enabled: !!order?.customer_id,
+  })
+
+  const { data: negotiatedPrices = [] } = useQuery({
+    queryKey: ['negotiated-prices-order', order?.customer_id],
+    queryFn: async () => {
+      const { data } = await supabase.from('customer_negotiated_prices')
+        .select('sku, price_per_unit').eq('customer_id', order.customer_id)
+      return data ?? []
+    },
+    enabled: !!order?.customer_id,
+  })
+
   useEffect(() => {
     if (order) {
       setWarehouse(order.warehouse ?? 'T1')
@@ -107,6 +127,10 @@ export default function EditOrderPage() {
 
   const getPrice = (sku: string) => {
     if (order.is_foc || order.is_sample || isInt) return 0
+    if (customer?.manual_pricing_enabled) {
+      const negotiated = (negotiatedPrices as any[]).find((n: any) => n.sku === sku)
+      if (negotiated) return Number(negotiated.price_per_unit)
+    }
     const entry = (priceEntries as any[]).find(
       (e: any) => e.sku === sku && e.price_list === order.price_list
     )

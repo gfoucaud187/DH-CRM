@@ -68,8 +68,16 @@ export default function NewOrderPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('customers')
-        .select('id, legal_name, assigned_price_list, currency, incoterms, payment_terms, eu_compliance_type, is_european, track_trace_enabled')
+        .select('id, legal_name, assigned_price_list, currency, incoterms, payment_terms, eu_compliance_type, is_european, track_trace_enabled, manual_pricing_enabled')
         .eq('status', 'active').order('legal_name')
+      return data ?? []
+    }
+  })
+
+  const { data: negotiatedPrices = [] } = useQuery({
+    queryKey: ['negotiated-prices-all'],
+    queryFn: async () => {
+      const { data } = await supabase.from('customer_negotiated_prices').select('customer_id, sku, price_per_unit')
       return data ?? []
     }
   })
@@ -115,6 +123,11 @@ export default function NewOrderPage() {
 
   const getPrice = (sku: string) => {
     if (priceIsZero) return 0
+    const customer = (customers as any[]).find((c: any) => c.id === customerId)
+    if (customer?.manual_pricing_enabled) {
+      const negotiated = (negotiatedPrices as any[]).find((n: any) => n.customer_id === customerId && n.sku === sku)
+      if (negotiated) return Number(negotiated.price_per_unit)
+    }
     const entry = (priceEntries as any[]).find(
       (e: any) => e.sku === sku && e.price_list === getCustomerPriceList()
     )

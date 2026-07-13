@@ -25,6 +25,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const getDocLabel = (o: any) => {
   if (o.document_type === 'po') return 'PO'
+  if (o.is_service_invoice) return 'INV(SVC)'
   if (o.is_foc && o.document_type === 'invoice') return 'INV(DO)'
   if (o.is_foc) return 'SO(DO)'
   if (o.document_type === 'so') return 'SO'
@@ -37,6 +38,7 @@ const getDocLabel = (o: any) => {
 
 const getDocColor = (o: any) => {
   if (o.document_type === 'po') return 'bg-orange-100 text-orange-700'
+  if (o.is_service_invoice) return 'bg-indigo-100 text-indigo-700'
   if (o.is_foc) return 'bg-green-100 text-green-700'
   if (o.document_type === 'invoice') return 'bg-purple-100 text-purple-700'
   if (o.document_type === 'so') return 'bg-blue-100 text-blue-700'

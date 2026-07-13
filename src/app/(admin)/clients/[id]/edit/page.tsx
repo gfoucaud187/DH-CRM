@@ -10,6 +10,7 @@ import { PhoneField, parseDialAndNumber } from '@/components/ui/PhoneField'
 import Link from 'next/link'
 
 const PRICE_LISTS = ['G', 'G1', 'A1', 'SPECIAL']
+const REFERENCE_PRICE_LISTS = ['G', 'G1', 'A1']
 const CURRENCIES = ['USD', 'EUR', 'GBP']
 const INCOTERMS = ['EXW', 'FOB', 'CIF', 'DAP', 'DDP']
 
@@ -95,6 +96,12 @@ export default function EditCustomerPage() {
   const [portalEmail, setPortalEmail] = useState('')
   const [portalPassword, setPortalPassword] = useState('')
 
+  // Negotiated pricing
+  const [manualPricingEnabled, setManualPricingEnabled] = useState(false)
+  const [referencePriceList, setReferencePriceList] = useState('G')
+  const [negotiatedPrices, setNegotiatedPrices] = useState<Record<string, string>>({})
+  const [pricingSearch, setPricingSearch] = useState('')
+
   const { data: customer, isLoading } = useQuery({
     queryKey: ['customer-edit', id],
     queryFn: async () => {
@@ -102,6 +109,41 @@ export default function EditCustomerPage() {
       return data
     }
   })
+
+  const { data: pricingProducts = [] } = useQuery({
+    queryKey: ['products-simple-pricing'],
+    queryFn: async () => {
+      const { data } = await supabase.from('products')
+        .select('sku, full_name, brand')
+        .eq('product_role', 'original').eq('status', 'active').order('brand')
+      return data ?? []
+    }
+  })
+
+  const { data: referencePriceEntries = [] } = useQuery({
+    queryKey: ['price-list-entries-reference'],
+    queryFn: async () => {
+      const { data } = await supabase.from('price_list_entries').select('sku, price_list, price_per_unit')
+      return data ?? []
+    }
+  })
+
+  const { data: negotiatedRows = [] } = useQuery({
+    queryKey: ['customer-negotiated-prices', id],
+    queryFn: async () => {
+      const { data } = await supabase.from('customer_negotiated_prices').select('*').eq('customer_id', id)
+      return data ?? []
+    }
+  })
+
+  useEffect(() => {
+    const map: Record<string, string> = {}
+    ;(negotiatedRows as any[]).forEach(r => { map[r.sku] = String(r.price_per_unit) })
+    setNegotiatedPrices(map)
+  }, [negotiatedRows])
+
+  const getReferencePrice = (sku: string) =>
+    (referencePriceEntries as any[]).find(p => p.sku === sku && p.price_list === referencePriceList)?.price_per_unit
 
   useEffect(() => {
     if (country) setIsEuropean(EU_COUNTRY_CODES.has(country))
@@ -156,6 +198,8 @@ export default function EditCustomerPage() {
     setPortalUserId(customer.portal_user_id ?? '')
     setPortalEmail(customer.portal_email ?? '')
     setPortalPassword(customer.portal_password ?? '')
+    setManualPricingEnabled(customer.manual_pricing_enabled ?? false)
+    setReferencePriceList(customer.reference_price_list ?? 'G')
   }, [customer])
 
   const stockInfo = getDefaultStock(isEuropean, euComplianceType)
@@ -233,6 +277,8 @@ export default function EditCustomerPage() {
       portal_user_id: portalUserId || null,
       portal_email: portalEmail || null,
       portal_password: portalPassword || null,
+      manual_pricing_enabled: manualPricingEnabled,
+      reference_price_list: manualPricingEnabled ? referencePriceList : null,
     }).eq('id', id as string)
 
     // Link user to customer in user_profiles when activating
@@ -242,6 +288,21 @@ export default function EditCustomerPage() {
         role: 'client',
         customer_id: id,
       })
+    }
+
+    if (!error) {
+      const toUpsert = Object.entries(negotiatedPrices)
+        .filter(([, v]) => v !== '' && !isNaN(parseFloat(v)))
+        .map(([sku, v]) => ({ customer_id: id as string, sku, price_per_unit: parseFloat(v), currency }))
+      const existingSkus: string[] = Array.from(new Set((negotiatedRows as any[]).map(r => r.sku)))
+      const toDeleteSkus = existingSkus.filter(sku => !negotiatedPrices[sku] || negotiatedPrices[sku] === '')
+
+      if (toUpsert.length) {
+        await supabase.from('customer_negotiated_prices').upsert(toUpsert, { onConflict: 'customer_id,sku' })
+      }
+      if (toDeleteSkus.length) {
+        await supabase.from('customer_negotiated_prices').delete().eq('customer_id', id as string).in('sku', toDeleteSkus)
+      }
     }
 
     setSaving(false)
@@ -451,6 +512,85 @@ export default function EditCustomerPage() {
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
             </div>
           </div>
+        </div>
+
+        {/* Negotiated Pricing */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="font-semibold text-gray-900 mb-1">Negotiated Pricing</h2>
+          <p className="text-xs text-gray-400 mb-4">
+            When enabled, new orders for this client use these negotiated prices instead of the assigned price list.
+            At invoicing, the gap versus the reference list is automatically billed as a separate Service &amp; Marketing invoice.
+          </p>
+
+          <label className="flex items-center gap-3 cursor-pointer mb-4">
+            <input type="checkbox" checked={manualPricingEnabled} onChange={e => setManualPricingEnabled(e.target.checked)} className="rounded w-4 h-4" />
+            <span className="text-sm font-medium text-gray-700">Manual pricing enabled</span>
+          </label>
+
+          {manualPricingEnabled && (
+            <>
+              <div className="mb-4 max-w-xs">
+                <label className="text-xs font-medium text-gray-500 uppercase">Reference Price List</label>
+                <select value={referencePriceList} onChange={e => setReferencePriceList(e.target.value)}
+                  className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                  {REFERENCE_PRICE_LISTS.map(p => <option key={p}>{p}</option>)}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Used to compute the gap invoiced separately as Service &amp; Marketing.</p>
+              </div>
+
+              <input
+                type="text"
+                placeholder="Search SKU, product, brand..."
+                value={pricingSearch}
+                onChange={e => setPricingSearch(e.target.value)}
+                className="w-full max-w-sm h-9 rounded-md border border-gray-200 px-3 text-sm mb-3 focus:outline-none"
+              />
+
+              <div className="overflow-x-auto border border-gray-100 rounded-lg max-h-96 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium text-gray-600">SKU</th>
+                      <th className="text-left px-3 py-2 font-medium text-gray-600">Product</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-600">Reference ({referencePriceList})</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-600">Negotiated</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-600">Gap</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {(pricingProducts as any[])
+                      .filter((p: any) => {
+                        if (!pricingSearch) return true
+                        const q = pricingSearch.toLowerCase()
+                        return p.sku?.toLowerCase().includes(q) || p.full_name?.toLowerCase().includes(q) || p.brand?.toLowerCase().includes(q)
+                      })
+                      .map((p: any) => {
+                        const refPrice = getReferencePrice(p.sku)
+                        const negValue = negotiatedPrices[p.sku] ?? ''
+                        const gap = negValue !== '' && refPrice != null ? Number(refPrice) - parseFloat(negValue) : null
+                        return (
+                          <tr key={p.sku}>
+                            <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.sku}</td>
+                            <td className="px-3 py-2 text-gray-700">{p.full_name} <span className="text-gray-400">· {p.brand}</span></td>
+                            <td className="px-3 py-2 text-right text-gray-500">{refPrice != null ? Number(refPrice).toFixed(2) : '—'}</td>
+                            <td className="px-3 py-2 text-right">
+                              <input
+                                type="number" step="0.01" min="0" value={negValue}
+                                onChange={e => setNegotiatedPrices(m => ({ ...m, [p.sku]: e.target.value }))}
+                                className="w-24 h-8 rounded border border-gray-200 px-2 text-right text-sm focus:outline-none"
+                              />
+                            </td>
+                            <td className={`px-3 py-2 text-right text-xs font-medium ${gap != null && gap > 0.0001 ? 'text-blue-600' : 'text-gray-300'}`}>
+                              {gap != null && gap > 0.0001 ? gap.toFixed(2) : '—'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Compliance & Stock Rules */}
