@@ -245,10 +245,18 @@ export default function TargetsPage() {
 
   const prorata = monthsElapsed / 12
   const clientsTotal = (customers as any[]).length
+  // Turnover is always company-wide (every active client), never scoped down to just
+  // whoever happens to have a target — only the target *sum* itself is tier-scoped.
   const revenueYtdAll = (customers as any[]).reduce((s: number, c: any) => s + getRevenue(c.id), 0)
 
-  // Per-tier stats: each tier is scoped independently to the customers who actually
-  // have that tier's target > 0, so a client missing a Push target doesn't dilute it
+  const allWithHistory = (customers as any[]).filter((c: any) => sumRevenue(prevYearRevenues, c.id) > 0)
+  const thisYearHistAll = allWithHistory.reduce((s: number, c: any) => s + getRevenue(c.id), 0)
+  const lastYearHistAll = allWithHistory.reduce((s: number, c: any) => s + sumRevenue(prevYearRevenues, c.id), 0)
+  const pctVsLastYearAll = lastYearHistAll ? ((thisYearHistAll - lastYearHistAll) / lastYearHistAll) * 100 : null
+  const yoyCoveredAll = allWithHistory.length
+
+  // Per-tier: only the target sum (and the "uncovered revenue" breakdown) is scoped
+  // to customers who actually have that tier's target > 0
   const computeTier = (field: 'standard_target' | 'push_target' | 'stretch_target') => {
     const rows = activeTargetRows.filter((tg: any) => (tg[field] ?? 0) > 0)
     const rowCustomerIds = new Set(rows.map((tg: any) => tg.customer_id))
@@ -256,29 +264,21 @@ export default function TargetsPage() {
 
     const targetSum = rows.reduce((s: number, tg: any) => s + (tg[field] ?? 0), 0)
     const proratedTarget = targetSum * prorata
-    const revenueTargeted = tierCustomers.reduce((s: number, c: any) => s + getRevenue(c.id), 0)
+    const revenueFromTargeted = tierCustomers.reduce((s: number, c: any) => s + getRevenue(c.id), 0)
 
-    const pctFullYear = targetSum ? (revenueTargeted / targetSum) * 100 : null
-    const pctProrated = proratedTarget ? (revenueTargeted / proratedTarget) * 100 : null
+    const pctFullYear = targetSum ? (revenueYtdAll / targetSum) * 100 : null
+    const pctProrated = proratedTarget ? (revenueYtdAll / proratedTarget) * 100 : null
 
-    // YoY vs the same prorated period last year — skip clients with no N-1 data at all
-    const withHistory = tierCustomers.filter((c: any) => sumRevenue(prevYearRevenues, c.id) > 0)
-    const thisYearHist = withHistory.reduce((s: number, c: any) => s + getRevenue(c.id), 0)
-    const lastYearHist = withHistory.reduce((s: number, c: any) => s + sumRevenue(prevYearRevenues, c.id), 0)
-    const pctVsLastYear = lastYearHist ? ((thisYearHist - lastYearHist) / lastYearHist) * 100 : null
-
-    return {
-      targetSum, proratedTarget, revenueTargeted, pctFullYear, pctProrated, pctVsLastYear,
-      clientsWithTarget: tierCustomers.length,
-      yoyCovered: withHistory.length, yoyTotal: tierCustomers.length,
-    }
+    return { targetSum, proratedTarget, revenueFromTargeted, pctFullYear, pctProrated, clientsWithTarget: tierCustomers.length }
   }
 
   const standardTier = computeTier('standard_target')
   const pushTier = computeTier('push_target')
   const stretchTier = computeTier('stretch_target')
 
-  const gaugeAxisMax = Math.max(standardTier.proratedTarget, pushTier.proratedTarget, stretchTier.proratedTarget, revenueYtdAll, 1)
+  // Axis scale comes from the targets alone (not revenue) so the tick marks stay
+  // legibly spread out — the marker is simply clamped at 100% when revenue exceeds Stretch
+  const gaugeAxisMax = Math.max(standardTier.proratedTarget, pushTier.proratedTarget, stretchTier.proratedTarget, 1)
   const gaugeStdPct = (standardTier.proratedTarget / gaugeAxisMax) * 100
   const gaugePushPct = (pushTier.proratedTarget / gaugeAxisMax) * 100
   const gaugeStretchPct = (stretchTier.proratedTarget / gaugeAxisMax) * 100
@@ -358,26 +358,26 @@ export default function TargetsPage() {
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">{label}</p>
             <p className="text-3xl font-bold text-gray-900">{tier.pctProrated !== null ? Math.round(tier.pctProrated) : '—'}%</p>
-            <p className="text-xs text-gray-400 mt-0.5">{fmt(tier.revenueTargeted)} / {fmt(tier.proratedTarget)} {t('targets.prorated').toLowerCase()}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{fmt(revenueYtdAll)} / {fmt(tier.proratedTarget)} {t('targets.prorated').toLowerCase()}</p>
 
             <div className="flex items-center justify-between text-[11px] text-gray-400 mt-3 pt-2 border-t border-gray-100">
               <span>{tier.pctFullYear !== null ? Math.round(tier.pctFullYear) : '—'}% {t('targets.full_year').toLowerCase()}</span>
-              {tier.pctVsLastYear !== null ? (
+              {pctVsLastYearAll !== null ? (
                 <span
-                  title={`${tier.yoyCovered}/${tier.yoyTotal} ${t('targets.clients_with_target')}`}
-                  className={`flex items-center gap-0.5 font-medium ${tier.pctVsLastYear > 0 ? 'text-green-600' : tier.pctVsLastYear < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                  {tier.pctVsLastYear > 0 ? <TrendingUp className="h-3 w-3" /> : tier.pctVsLastYear < 0 ? <TrendingDown className="h-3 w-3" /> : null}
-                  {tier.pctVsLastYear > 0 ? '+' : ''}{Math.round(tier.pctVsLastYear)}% {t('targets.vs_last_year')}
+                  title={`${yoyCoveredAll}/${clientsTotal}`}
+                  className={`flex items-center gap-0.5 font-medium ${pctVsLastYearAll > 0 ? 'text-green-600' : pctVsLastYearAll < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                  {pctVsLastYearAll > 0 ? <TrendingUp className="h-3 w-3" /> : pctVsLastYearAll < 0 ? <TrendingDown className="h-3 w-3" /> : null}
+                  {pctVsLastYearAll > 0 ? '+' : ''}{Math.round(pctVsLastYearAll)}% {t('targets.vs_last_year')}
                 </span>
               ) : <span className="text-gray-300">—</span>}
             </div>
 
             <p className="text-[11px] text-gray-400 mt-1.5">
-              {fmt(tier.revenueTargeted)} / {fmt(tier.targetSum)} · {tier.clientsWithTarget}/{clientsTotal} {t('targets.clients_with_target')}
+              {fmt(revenueYtdAll)} / {fmt(tier.targetSum)} · {tier.clientsWithTarget}/{clientsTotal} {t('targets.clients_with_target')}
             </p>
             {tier.clientsWithTarget < clientsTotal && (
               <p className="text-[11px] text-gray-300 mt-0.5">
-                {fmt(revenueYtdAll - tier.revenueTargeted)} {t('targets.uncovered_revenue')} ({clientsTotal - tier.clientsWithTarget})
+                {fmt(revenueYtdAll - tier.revenueFromTargeted)} {t('targets.uncovered_revenue')} ({clientsTotal - tier.clientsWithTarget})
               </p>
             )}
           </div>
@@ -441,7 +441,7 @@ export default function TargetsPage() {
               const rowProratedStretch = stretch * prorata
               const zone = std > 0 ? computeZone(rev, rowProratedStd, rowProratedPush, rowProratedStretch) : null
               const zonePct = rowProratedStd > 0 ? Math.round((rev / rowProratedStd) * 100) : null
-              const rowAxisMax = Math.max(rowProratedStretch, rev, 1)
+              const rowAxisMax = Math.max(rowProratedStd, rowProratedPush, rowProratedStretch, 1)
               const rowStdPct = (rowProratedStd / rowAxisMax) * 100
               const rowPushPct = (rowProratedPush / rowAxisMax) * 100
               const rowStretchPct = (rowProratedStretch / rowAxisMax) * 100
