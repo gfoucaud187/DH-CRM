@@ -228,24 +228,28 @@ export default function TargetsPage() {
     e.target.value = ''
   }
 
+  // Forecast = customers with an explicit target, plus anyone with revenue this year (auto-added)
   const targetedIds = new Set(targets.map((tg: any) => tg.customer_id))
-  const forecastCustomers = (customers as any[]).filter((c: any) => targetedIds.has(c.id))
+  const targetedCustomers = (customers as any[]).filter((c: any) => targetedIds.has(c.id))
+  const forecastCustomers = (customers as any[]).filter((c: any) => targetedIds.has(c.id) || getRevenue(c.id) > 0)
+  const forecastIds = new Set(forecastCustomers.map((c: any) => c.id))
   const addableCustomers = (customers as any[])
-    .filter((c: any) => !targetedIds.has(c.id) && c.legal_name.toLowerCase().includes(addSearch.toLowerCase()))
+    .filter((c: any) => !forecastIds.has(c.id) && c.legal_name.toLowerCase().includes(addSearch.toLowerCase()))
 
-  // Summary stats
+  // Summary stats — scoped to customers with an actual target, so revenue from
+  // auto-added (target-less) forecast rows doesn't inflate the % of target figures
   const totalStandard = targets.reduce((s: number, tg: any) => s + (tg.standard_target ?? 0), 0)
   const totalPush = targets.reduce((s: number, tg: any) => s + (tg.push_target ?? 0), 0)
   const totalStretch = targets.reduce((s: number, tg: any) => s + (tg.stretch_target ?? 0), 0)
-  const scopedRevenue = forecastCustomers.reduce((s: number, c: any) => s + getRevenue(c.id), 0)
-  const prevScopedRevenue = forecastCustomers.reduce((s: number, c: any) => s + sumRevenue(prevYearRevenues, c.id), 0)
+  const scopedRevenue = targetedCustomers.reduce((s: number, c: any) => s + getRevenue(c.id), 0)
+  const prevScopedRevenue = targetedCustomers.reduce((s: number, c: any) => s + sumRevenue(prevYearRevenues, c.id), 0)
   const growth = prevScopedRevenue ? ((scopedRevenue - prevScopedRevenue) / prevScopedRevenue) * 100 : null
 
   const prorata = monthsElapsed / 12
   const proratedStandard = totalStandard * prorata
 
-  const customersWithTarget = forecastCustomers.length
-  const onTrack = forecastCustomers.filter((c: any) => {
+  const customersWithTarget = targetedCustomers.length
+  const onTrack = targetedCustomers.filter((c: any) => {
     const tg = getTarget(c.id)
     if (!tg) return false
     const rev = getRevenue(c.id)
@@ -483,7 +487,7 @@ export default function TargetsPage() {
                           {saving === c.id ? '...' : <><Check className="h-3 w-3" /> {t('common.save')}</>}
                         </button>
                       )}
-                      {!hasEdits && (
+                      {!hasEdits && target && (
                         <button onClick={() => handleRemove(c.id)} disabled={saving === c.id}
                           title={t('common.delete')}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
