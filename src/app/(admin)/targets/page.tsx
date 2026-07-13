@@ -9,28 +9,22 @@ import { useT } from '@/lib/i18n/LanguageProvider'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
-const getStatus = (actual: number, standard: number, push: number, stretch: number, monthsElapsed: number) => {
-  if (standard === 0) return null
-  const prorata = monthsElapsed / 12
-  const stdPro = standard * prorata
-  const pushPro = push * prorata
-  const stretchPro = stretch * prorata
+type Zone = 'late' | 'good' | 'excellent' | 'amazing'
 
-  if (actual === 0) return { key: 'urgent', color: 'bg-red-100 text-red-700', dot: 'bg-red-500', pct: 0 }
-  if (actual < stdPro) {
-    const pct = Math.round((actual / stdPro) * 100)
-    return { key: 'late', color: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500', pct }
-  }
-  if (actual < pushPro) {
-    const pct = Math.round((actual / stdPro) * 100)
-    return { key: 'good', color: 'bg-green-100 text-green-700', dot: 'bg-green-500', pct }
-  }
-  if (actual < stretchPro) {
-    const pct = Math.round((actual / stdPro) * 100)
-    return { key: 'excellent', color: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500', pct }
-  }
-  const pct = Math.round((actual / stdPro) * 100)
-  return { key: 'amazing', color: 'bg-gray-900 text-white', dot: 'bg-gray-900', pct }
+// Same thresholds drive the row badges and the header's overall-position gauge
+const computeZone = (actual: number, stdPro: number, pushPro: number, stretchPro: number): Zone | null => {
+  if (stdPro <= 0 && pushPro <= 0 && stretchPro <= 0) return null
+  if (actual < stdPro) return 'late'
+  if (actual < pushPro) return 'good'
+  if (actual < stretchPro) return 'excellent'
+  return 'amazing'
+}
+
+const ZONE_HEX: Record<Zone, string>   = { late: '#EF4444', good: '#F97316', excellent: '#22C55E', amazing: '#A855F7' }
+const ZONE_DOT: Record<Zone, string>   = { late: 'bg-red-500', good: 'bg-orange-500', excellent: 'bg-green-500', amazing: 'bg-purple-500' }
+const ZONE_BADGE: Record<Zone, string> = {
+  late: 'bg-red-100 text-red-700', good: 'bg-orange-100 text-orange-700',
+  excellent: 'bg-green-100 text-green-700', amazing: 'bg-purple-100 text-purple-700',
 }
 
 const fmt = (n: number) => {
@@ -243,39 +237,53 @@ export default function TargetsPage() {
   const activeTargetRows = targets.filter((tg: any) => !tg.excluded)
   const excludedIds = new Set(targets.filter((tg: any) => tg.excluded).map((tg: any) => tg.customer_id))
   const targetedIds = new Set(activeTargetRows.map((tg: any) => tg.customer_id))
-  const targetedCustomers = (customers as any[]).filter((c: any) => targetedIds.has(c.id))
   const forecastCustomers = (customers as any[])
     .filter((c: any) => !excludedIds.has(c.id) && (targetedIds.has(c.id) || getRevenue(c.id) > 0))
   const forecastIds = new Set(forecastCustomers.map((c: any) => c.id))
   const addableCustomers = (customers as any[])
     .filter((c: any) => !forecastIds.has(c.id) && c.legal_name.toLowerCase().includes(addSearch.toLowerCase()))
 
-  // Summary stats — scoped to customers with an actual target, so revenue from
-  // auto-added (target-less) forecast rows doesn't inflate the % of target figures
-  const totalStandard = activeTargetRows.reduce((s: number, tg: any) => s + (tg.standard_target ?? 0), 0)
-  const totalPush = activeTargetRows.reduce((s: number, tg: any) => s + (tg.push_target ?? 0), 0)
-  const totalStretch = activeTargetRows.reduce((s: number, tg: any) => s + (tg.stretch_target ?? 0), 0)
-  const scopedRevenue = targetedCustomers.reduce((s: number, c: any) => s + getRevenue(c.id), 0)
-  const prevScopedRevenue = targetedCustomers.reduce((s: number, c: any) => s + sumRevenue(prevYearRevenues, c.id), 0)
-  const growth = prevScopedRevenue ? ((scopedRevenue - prevScopedRevenue) / prevScopedRevenue) * 100 : null
-
   const prorata = monthsElapsed / 12
-  const proratedStandard = totalStandard * prorata
+  const clientsTotal = (customers as any[]).length
+  const revenueYtdAll = (customers as any[]).reduce((s: number, c: any) => s + getRevenue(c.id), 0)
 
-  const customersWithTarget = targetedCustomers.length
-  const onTrack = targetedCustomers.filter((c: any) => {
-    const tg = getTarget(c.id)
-    if (!tg) return false
-    const rev = getRevenue(c.id)
-    const status = getStatus(rev, tg.standard_target, tg.push_target, tg.stretch_target, monthsElapsed)
-    return status && ['good', 'excellent', 'amazing'].includes(status.key)
-  }).length
+  // Per-tier stats: each tier is scoped independently to the customers who actually
+  // have that tier's target > 0, so a client missing a Push target doesn't dilute it
+  const computeTier = (field: 'standard_target' | 'push_target' | 'stretch_target') => {
+    const rows = activeTargetRows.filter((tg: any) => (tg[field] ?? 0) > 0)
+    const rowCustomerIds = new Set(rows.map((tg: any) => tg.customer_id))
+    const tierCustomers = (customers as any[]).filter((c: any) => rowCustomerIds.has(c.id))
 
-  const tierStats = [
-    { label: t('targets.stat_pct_standard'), total: totalStandard, prorated: totalStandard * prorata },
-    { label: t('targets.stat_pct_push'),     total: totalPush,     prorated: totalPush * prorata },
-    { label: t('targets.stat_pct_stretch'),  total: totalStretch,  prorated: totalStretch * prorata },
-  ]
+    const targetSum = rows.reduce((s: number, tg: any) => s + (tg[field] ?? 0), 0)
+    const proratedTarget = targetSum * prorata
+    const revenueTargeted = tierCustomers.reduce((s: number, c: any) => s + getRevenue(c.id), 0)
+
+    const pctFullYear = targetSum ? (revenueTargeted / targetSum) * 100 : null
+    const pctProrated = proratedTarget ? (revenueTargeted / proratedTarget) * 100 : null
+
+    // YoY vs the same prorated period last year — skip clients with no N-1 data at all
+    const withHistory = tierCustomers.filter((c: any) => sumRevenue(prevYearRevenues, c.id) > 0)
+    const thisYearHist = withHistory.reduce((s: number, c: any) => s + getRevenue(c.id), 0)
+    const lastYearHist = withHistory.reduce((s: number, c: any) => s + sumRevenue(prevYearRevenues, c.id), 0)
+    const pctVsLastYear = lastYearHist ? ((thisYearHist - lastYearHist) / lastYearHist) * 100 : null
+
+    return {
+      targetSum, proratedTarget, revenueTargeted, pctFullYear, pctProrated, pctVsLastYear,
+      clientsWithTarget: tierCustomers.length,
+      yoyCovered: withHistory.length, yoyTotal: tierCustomers.length,
+    }
+  }
+
+  const standardTier = computeTier('standard_target')
+  const pushTier = computeTier('push_target')
+  const stretchTier = computeTier('stretch_target')
+
+  const gaugeAxisMax = Math.max(standardTier.proratedTarget, pushTier.proratedTarget, stretchTier.proratedTarget, revenueYtdAll, 1)
+  const gaugeStdPct = (standardTier.proratedTarget / gaugeAxisMax) * 100
+  const gaugePushPct = (pushTier.proratedTarget / gaugeAxisMax) * 100
+  const gaugeStretchPct = (stretchTier.proratedTarget / gaugeAxisMax) * 100
+  const gaugeMarkerPct = Math.min((revenueYtdAll / gaugeAxisMax) * 100, 100)
+  const gaugeZone = computeZone(revenueYtdAll, standardTier.proratedTarget, pushTier.proratedTarget, stretchTier.proratedTarget)
 
   return (
     <div>
@@ -340,47 +348,63 @@ export default function TargetsPage() {
         </div>
       </div>
 
-      {/* Turnover vs Target + On track */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
-        <div className="sm:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs text-gray-500 mb-1">{t('targets.stat_turnover_vs_target')}</p>
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <p className="text-2xl md:text-3xl font-bold text-gray-900">{fmt(scopedRevenue)}</p>
-            <span className="text-sm text-gray-400">/ {fmt(totalStandard)}</span>
-            {growth !== null && (
-              <span className={`text-xs font-medium flex items-center gap-0.5 ${growth > 0 ? 'text-green-600' : growth < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                {growth > 0 ? <TrendingUp className="h-3 w-3" /> : growth < 0 ? <TrendingDown className="h-3 w-3" /> : null}
-                {growth > 0 ? '+' : ''}{growth.toFixed(0)}% {t('targets.vs_last_year')}
-              </span>
+      {/* % of Standard / Push / Stretch */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+        {[
+          { label: t('targets.col_standard'), tier: standardTier },
+          { label: t('targets.col_push'),     tier: pushTier },
+          { label: t('targets.col_stretch'),  tier: stretchTier },
+        ].map(({ label, tier }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-xs text-gray-500 mb-1">{label}</p>
+            <p className="text-3xl font-bold text-gray-900">{tier.pctProrated !== null ? Math.round(tier.pctProrated) : '—'}%</p>
+            <p className="text-xs text-gray-400 mt-0.5">{fmt(tier.revenueTargeted)} / {fmt(tier.proratedTarget)} {t('targets.prorated').toLowerCase()}</p>
+
+            <div className="flex items-center justify-between text-[11px] text-gray-400 mt-3 pt-2 border-t border-gray-100">
+              <span>{tier.pctFullYear !== null ? Math.round(tier.pctFullYear) : '—'}% {t('targets.full_year').toLowerCase()}</span>
+              {tier.pctVsLastYear !== null ? (
+                <span
+                  title={`${tier.yoyCovered}/${tier.yoyTotal} ${t('targets.clients_with_target')}`}
+                  className={`flex items-center gap-0.5 font-medium ${tier.pctVsLastYear > 0 ? 'text-green-600' : tier.pctVsLastYear < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                  {tier.pctVsLastYear > 0 ? <TrendingUp className="h-3 w-3" /> : tier.pctVsLastYear < 0 ? <TrendingDown className="h-3 w-3" /> : null}
+                  {tier.pctVsLastYear > 0 ? '+' : ''}{Math.round(tier.pctVsLastYear)}% {t('targets.vs_last_year')}
+                </span>
+              ) : <span className="text-gray-300">—</span>}
+            </div>
+
+            <p className="text-[11px] text-gray-400 mt-1.5">
+              {fmt(tier.revenueTargeted)} / {fmt(tier.targetSum)} · {tier.clientsWithTarget}/{clientsTotal} {t('targets.clients_with_target')}
+            </p>
+            {tier.clientsWithTarget < clientsTotal && (
+              <p className="text-[11px] text-gray-300 mt-0.5">
+                {fmt(revenueYtdAll - tier.revenueTargeted)} {t('targets.uncovered_revenue')} ({clientsTotal - tier.clientsWithTarget})
+              </p>
             )}
           </div>
-          <p className="text-xs text-gray-400 mt-1">
-            {totalStandard ? Math.round((scopedRevenue / totalStandard) * 100) : 0}% {t('targets.full_year').toLowerCase()}
-            {' · '}
-            {proratedStandard ? Math.round((scopedRevenue / proratedStandard) * 100) : 0}% {t('targets.prorated').toLowerCase()}
-          </p>
-        </div>
-        <div className="sm:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs text-gray-500 mb-1">{t('targets.stat_on_track')}</p>
-          <p className="text-2xl md:text-3xl font-bold text-gray-900">{onTrack} / {customersWithTarget}</p>
-          <p className="text-xs text-gray-400 mt-1">{t('targets.on_track_sub')}</p>
-        </div>
+        ))}
       </div>
 
-      {/* % of Standard / Push / Stretch */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        {tierStats.map(({ label, total, prorated }) => {
-          const pctFull = total ? Math.round((scopedRevenue / total) * 100) : 0
-          const pctPro = prorated ? Math.round((scopedRevenue / prorated) * 100) : 0
-          return (
-            <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
-              <p className="text-xs text-gray-500 mb-1">{label}</p>
-              <p className="text-2xl font-bold text-gray-900">{pctPro}%</p>
-              <p className="text-xs text-gray-400 mt-1">{fmt(scopedRevenue)} / {fmt(prorated)} ({t('targets.prorated').toLowerCase()})</p>
-              <p className="text-xs text-gray-300 mt-0.5">{pctFull}% · {fmt(scopedRevenue)} / {fmt(total)} ({t('targets.full_year').toLowerCase()})</p>
-            </div>
-          )
-        })}
+      {/* Overall position gauge */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+        <p className="text-xs text-gray-500 mb-4">{t('targets.overall_position')}</p>
+        <div className="relative h-2 bg-gray-100 rounded-full mb-2">
+          <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 bg-gray-300" style={{ left: `${gaugeStdPct}%` }} />
+          <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 bg-gray-300" style={{ left: `${gaugePushPct}%` }} />
+          <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 bg-gray-300" style={{ left: `${gaugeStretchPct}%` }} />
+          {gaugeZone && (
+            <div className="absolute top-1/2 -translate-y-1/2 w-1.5 h-4 rounded-full" style={{ left: `calc(${gaugeMarkerPct}% - 3px)`, background: ZONE_HEX[gaugeZone] }} />
+          )}
+        </div>
+        <div className="relative h-4 text-[11px] text-gray-400 mb-3">
+          <span className="absolute -translate-x-1/2" style={{ left: `${gaugeStdPct}%` }}>{t('targets.col_standard')}</span>
+          <span className="absolute -translate-x-1/2" style={{ left: `${gaugePushPct}%` }}>{t('targets.col_push')}</span>
+          <span className="absolute -translate-x-1/2" style={{ left: `${gaugeStretchPct}%` }}>{t('targets.col_stretch')}</span>
+        </div>
+        {gaugeZone && (
+          <p className="text-sm font-semibold" style={{ color: ZONE_HEX[gaugeZone] }}>
+            {t('targets.status_' + gaugeZone)} — {t('targets.overall_desc_' + gaugeZone)}
+          </p>
+        )}
       </div>
 
       {/* Targets table */}
@@ -412,9 +436,16 @@ export default function TargetsPage() {
               const std = parseFloat(getEdit(c.id, 'standard', target?.standard_target ?? 0)) || 0
               const push = parseFloat(getEdit(c.id, 'push', target?.push_target ?? 0)) || 0
               const stretch = parseFloat(getEdit(c.id, 'stretch', target?.stretch_target ?? 0)) || 0
-              const status = std > 0 ? getStatus(rev, std, push, stretch, monthsElapsed) : null
-              const rowProratedStd = std * (monthsElapsed / 12)
-              const progressPct = rowProratedStd > 0 ? Math.min((rev / rowProratedStd) * 100, 150) : 0
+              const rowProratedStd = std * prorata
+              const rowProratedPush = push * prorata
+              const rowProratedStretch = stretch * prorata
+              const zone = std > 0 ? computeZone(rev, rowProratedStd, rowProratedPush, rowProratedStretch) : null
+              const zonePct = rowProratedStd > 0 ? Math.round((rev / rowProratedStd) * 100) : null
+              const rowAxisMax = Math.max(rowProratedStretch, rev, 1)
+              const rowStdPct = (rowProratedStd / rowAxisMax) * 100
+              const rowPushPct = (rowProratedPush / rowAxisMax) * 100
+              const rowStretchPct = (rowProratedStretch / rowAxisMax) * 100
+              const rowMarkerPct = Math.min((rev / rowAxisMax) * 100, 100)
               const hasEdits = !!edits[c.id]
 
               return (
@@ -457,40 +488,37 @@ export default function TargetsPage() {
                   <td className="px-4 py-3 text-right font-semibold text-gray-900">
                     {rev > 0 ? fmt(rev) : <span className="text-gray-300">—</span>}
                   </td>
-                  {/* Progress bar */}
+                  {/* Progress bar — proportional axis Standard→Push→Stretch, marker = revenue YTD */}
                   <td className="px-4 py-3">
                     {std > 0 ? (
                       <div className="w-full">
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
-                          {/* Standard marker */}
-                          <div className="absolute top-0 bottom-0 w-0.5 bg-green-400 z-10" style={{ left: `${Math.min(100/150*100, 100)}%` }} />
-                          {/* Push marker */}
-                          {push > 0 && <div className="absolute top-0 bottom-0 w-0.5 bg-purple-400 z-10" style={{ left: `${Math.min((rowProratedStd > 0 ? (push*(monthsElapsed/12)/rowProratedStd) : 0)*100/150*100, 100)}%` }} />}
-                          {/* Progress */}
-                          <div className={`h-full rounded-full transition-all ${
-                            !status ? 'bg-gray-200' :
-                            status.key === 'urgent' ? 'bg-red-500' :
-                            status.key === 'late' ? 'bg-orange-400' :
-                            status.key === 'good' ? 'bg-green-500' :
-                            status.key === 'excellent' ? 'bg-purple-500' :
-                            'bg-gray-900'
-                          }`} style={{ width: `${progressPct / 1.5}%` }} />
+                        <div className="relative h-2 bg-gray-100 rounded-full">
+                          <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3.5 bg-gray-300" style={{ left: `${rowStdPct}%` }} />
+                          {push > 0 && <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3.5 bg-gray-300" style={{ left: `${rowPushPct}%` }} />}
+                          {stretch > 0 && <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3.5 bg-gray-300" style={{ left: `${rowStretchPct}%` }} />}
+                          {zone && (
+                            <div className="absolute top-1/2 -translate-y-1/2 w-1.5 h-3.5 rounded-full" style={{ left: `calc(${rowMarkerPct}% - 3px)`, background: ZONE_HEX[zone] }} />
+                          )}
                         </div>
-                        <p className="text-xs text-gray-400 mt-0.5 text-center">{fmt(rev)} / {fmt(rowProratedStd)}</p>
+                        <p className="text-xs text-gray-400 mt-1 text-center">{fmt(rev)} / {fmt(rowProratedStd)}</p>
                       </div>
                     ) : <span className="text-gray-300 text-xs">{t('targets.no_target')}</span>}
                   </td>
                   {/* Status */}
                   <td className="px-4 py-3 text-center">
-                    {status ? (
+                    {zone ? (
                       <div className="flex items-center justify-center gap-1.5">
-                        <div className={`w-2 h-2 rounded-full ${status.dot}`} />
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
-                          {t('targets.status_' + status.key)}
+                        <div className={`w-2 h-2 rounded-full ${ZONE_DOT[zone]}`} />
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ZONE_BADGE[zone]}`}>
+                          {t('targets.status_' + zone)}
                         </span>
-                        <span className="text-xs text-gray-400">{status.pct}%</span>
+                        {zonePct !== null && <span className="text-xs text-gray-400">{zonePct}%</span>}
                       </div>
-                    ) : <span className="text-xs text-gray-300">—</span>}
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500">
+                        {t('targets.status_untracked')}
+                      </span>
+                    )}
                   </td>
                   {/* Save / Remove */}
                   <td className="px-4 py-3 text-center">
