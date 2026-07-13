@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { COUNTRIES } from '@/lib/countries'
 import { Check, TrendingUp, TrendingDown, Download, Upload, Plus, Trash2, Search } from 'lucide-react'
 import { useT } from '@/lib/i18n/LanguageProvider'
 
@@ -36,6 +37,8 @@ const fmt = (n: number) => {
 
 const thClass = "px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-gray-500"
 
+const countryName = (code?: string | null) => COUNTRIES.find(c => c.code === code)?.name ?? code ?? '—'
+
 export default function TargetsPage() {
   const supabase = createClient()
   const queryClient = useQueryClient()
@@ -54,7 +57,7 @@ export default function TargetsPage() {
     queryKey: ['targets-customers'],
     queryFn: async () => {
       const { data } = await supabase.from('customers')
-        .select('id, legal_name, currency, region, country')
+        .select('id, legal_name, currency, country')
         .eq('status', 'active').order('legal_name')
       return data ?? []
     }
@@ -452,7 +455,7 @@ export default function TargetsPage() {
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-5 py-3">
                     <p className="font-medium text-gray-900">{c.legal_name}</p>
-                    <p className="text-xs text-gray-400">{c.region ?? c.country ?? '—'}</p>
+                    <p className="text-xs text-gray-400">{countryName(c.country)}</p>
                   </td>
                   {/* Standard */}
                   <td className="px-4 py-3 text-right">

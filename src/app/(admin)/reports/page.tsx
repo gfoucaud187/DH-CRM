@@ -104,7 +104,7 @@ export default function ReportsPage() {
   const [tab, setTab] = useState('overview')
   const [period, setPeriod] = useState('ytd')
   const [activityFilter, setActivityFilter] = useState<'all'|'active'|'at_risk'|'dormant'|'lost'>('all')
-  const [expandedRegion, setExpandedRegion] = useState<string | null>(null)
+  const [expandedCountry, setExpandedCountry] = useState<string | null>(null)
   const [geoTypeFilter, setGeoTypeFilter] = useState<'all'|'distributor'|'private'>('all')
 
   const t = useT()
@@ -198,19 +198,18 @@ export default function ReportsPage() {
   const maxCountryRevenue = Math.max(...countryList.map(([,v]) => v.revenue), 1)
 
   const geoCustomers = customers.filter((c: any) => geoTypeFilter === 'all' || (c.client_type ?? 'distributor') === geoTypeFilter)
-  const geoRegionMap: Record<string, { clients: any[], revenue: number, units: number, prevRevenue: number }> = {}
+  const geoCountryMap: Record<string, { clients: any[], revenue: number, units: number, prevRevenue: number }> = {}
   geoCustomers.forEach((c: any) => {
-    const region = c.region ?? c.country ?? 'Unknown'
-    if (!geoRegionMap[region]) geoRegionMap[region] = { clients: [], revenue: 0, units: 0, prevRevenue: 0 }
-    geoRegionMap[region].clients.push(c)
-    geoRegionMap[region].revenue += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-    geoRegionMap[region].prevRevenue += prevInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-    geoRegionMap[region].units += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
+    const country = c.country ?? 'Unknown'
+    if (!geoCountryMap[country]) geoCountryMap[country] = { clients: [], revenue: 0, units: 0, prevRevenue: 0 }
+    geoCountryMap[country].clients.push(c)
+    geoCountryMap[country].revenue += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    geoCountryMap[country].prevRevenue += prevInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+    geoCountryMap[country].units += periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
   })
-  const geoRegionList = Object.entries(geoRegionMap).sort(([,a],[,b]) => b.revenue - a.revenue)
-  const maxGeoRegionRevenue = Math.max(...geoRegionList.map(([,v]) => v.revenue), 1)
-  const geoRevenue = geoRegionList.reduce((s, [,v]) => s + v.revenue, 0)
-  const geoCountryCount = new Set(geoCustomers.map((c: any) => c.country).filter(Boolean)).size
+  const geoCountryList = Object.entries(geoCountryMap).sort(([,a],[,b]) => b.revenue - a.revenue)
+  const maxGeoCountryRevenue = Math.max(...geoCountryList.map(([,v]) => v.revenue), 1)
+  const geoRevenue = geoCountryList.reduce((s, [,v]) => s + v.revenue, 0)
 
   const brandMap: Record<string, { units: number, revenue: number }> = {}
   const productMap: Record<string, { units: number, revenue: number, brand: string }> = {}
@@ -291,11 +290,9 @@ export default function ReportsPage() {
   ], 'overview.csv')
 
   const exportGeography = () => downloadCsv([
-    [t('reports.col_region'), t('reports.col_clients'), t('reports.col_country'), t('reports.col_revenue'), t('reports.col_units'), t('reports.col_avg_unit')],
-    ...geoRegionList.map(([region, d]: any) => [
-      region, d.clients.length,
-      new Set(d.clients.map((c: any) => c.country).filter(Boolean)).size,
-      d.revenue, d.units, d.units ? (d.revenue / d.units).toFixed(2) : '',
+    [t('reports.col_country'), t('reports.col_clients'), t('reports.col_revenue'), t('reports.col_units'), t('reports.col_avg_unit')],
+    ...geoCountryList.map(([country, d]: any) => [
+      country, d.clients.length, d.revenue, d.units, d.units ? (d.revenue / d.units).toFixed(2) : '',
     ]),
   ], 'geography.csv')
 
@@ -441,10 +438,10 @@ export default function ReportsPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: t('reports.stat_regions'),        value: geoRegionList.length },
+              { label: t('reports.stat_countries'),        value: geoCountryList.length },
               { label: t('reports.kpi_active_clients'),   value: geoCustomers.length },
               { label: t('reports.kpi_revenue'),          value: fmt(geoRevenue) },
-              { label: t('reports.avg_per_country'),      value: fmt(geoRevenue / Math.max(geoCountryCount, 1)) },
+              { label: t('reports.avg_per_country'),      value: fmt(geoRevenue / Math.max(geoCountryList.length, 1)) },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white rounded-xl border border-gray-200 p-3 md:p-4">
                 <p className="text-xs text-gray-500 mb-1">{label}</p>
@@ -457,9 +454,8 @@ export default function ReportsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-4 md:px-5 py-3 font-medium text-gray-600">{t('reports.col_region')}</th>
+                    <th className="text-left px-4 md:px-5 py-3 font-medium text-gray-600">{t('reports.col_country')}</th>
                     <th className="text-center px-3 md:px-4 py-3 font-medium text-gray-600">{t('reports.col_clients')}</th>
-                    <th className="text-center px-3 md:px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">{t('reports.col_country')}</th>
                     <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600">{t('reports.col_revenue')}</th>
                     <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">{t('reports.col_units')}</th>
                     <th className="text-right px-3 md:px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">{t('reports.col_avg_unit')}</th>
@@ -468,31 +464,28 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {geoRegionList.map(([region, data]) => (
+                  {geoCountryList.map(([country, data]) => (
                     <>
-                      <tr key={region} onClick={() => setExpandedRegion(expandedRegion === region ? null : region)}
+                      <tr key={country} onClick={() => setExpandedCountry(expandedCountry === country ? null : country)}
                         className="cursor-pointer hover:bg-gray-50 border-b border-gray-100">
                         <td className="px-4 md:px-5 py-3 font-semibold text-gray-900">
                           <div className="flex items-center gap-2">
-                            <span className={`transition-transform ${expandedRegion === region ? 'rotate-90' : ''}`}>›</span>
-                            {region}
+                            <span className={`transition-transform ${expandedCountry === country ? 'rotate-90' : ''}`}>›</span>
+                            {flagFor(country)} {country}
                           </div>
                         </td>
                         <td className="px-3 md:px-4 py-3 text-center text-gray-600">{data.clients.length}</td>
-                        <td className="px-3 md:px-4 py-3 text-center text-gray-600 hidden sm:table-cell">
-                          {new Set(data.clients.map((c: any) => c.country).filter(Boolean)).size}
-                        </td>
                         <td className="px-3 md:px-4 py-3 text-right font-semibold text-gray-900">{fmt(data.revenue)}</td>
                         <td className="px-3 md:px-4 py-3 text-right text-gray-600 hidden sm:table-cell">{data.units.toLocaleString()}</td>
                         <td className="px-3 md:px-4 py-3 text-right text-gray-600 hidden sm:table-cell">{data.units ? fmt(data.revenue/data.units) : '—'}</td>
                         <td className="px-3 md:px-4 py-3 text-right hidden md:table-cell"><Delta curr={data.revenue} prev={data.prevRevenue} /></td>
                         <td className="px-3 md:px-4 py-3 hidden sm:table-cell">
                           <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxGeoRegionRevenue)*100}%`, background: '#185FA5' }} />
+                            <div className="h-full rounded-full" style={{ width: `${(data.revenue/maxGeoCountryRevenue)*100}%`, background: '#185FA5' }} />
                           </div>
                         </td>
                       </tr>
-                      {expandedRegion === region && data.clients.map((c: any) => {
+                      {expandedCountry === country && data.clients.map((c: any) => {
                         const cRev = periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
                         const cPrev = prevInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
                         const cUnits = periodInvoices.filter((o: any) => o.customer_id === c.id).reduce((s: number, o: any) => s + (o.total_units ?? 0), 0)
@@ -505,7 +498,6 @@ export default function ReportsPage() {
                                 {c.eu_compliance_type ?? 'EXP'}
                               </span>
                             </td>
-                            <td className="px-3 md:px-4 py-2.5 text-center text-xs text-gray-600 hidden sm:table-cell">{flagFor(c.country)} {c.country ?? '—'}</td>
                             <td className="px-3 md:px-4 py-2.5 text-right text-sm font-medium text-gray-900">{cRev > 0 ? fmt(cRev) : '—'}</td>
                             <td className="px-3 md:px-4 py-2.5 text-right text-sm text-gray-600 hidden sm:table-cell">{cUnits > 0 ? cUnits.toLocaleString() : '—'}</td>
                             <td className="px-3 md:px-4 py-2.5 text-right text-sm text-gray-600 hidden sm:table-cell">{cUnits ? fmt(cRev/cUnits) : '—'}</td>
@@ -587,7 +579,7 @@ export default function ReportsPage() {
                   <Delta curr={c.revenue} prev={c.prevRevenue} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">{flagFor(c.country)} {c.region ?? c.country ?? '—'}</span>
+                  <span className="text-xs text-gray-500">{flagFor(c.country)} {c.country ?? '—'}</span>
                   <span className="font-semibold text-gray-900">{fmt(c.revenue)}</span>
                 </div>
               </div>
@@ -601,7 +593,7 @@ export default function ReportsPage() {
                 <tr>
                   <th className="text-left px-5 py-3 font-medium text-gray-600">#</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">{t('reports.col_region')}</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">{t('reports.col_country')}</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">{t('reports.col_revenue')}</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">{t('reports.col_units')}</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">{t('reports.col_orders')}</th>
@@ -614,7 +606,7 @@ export default function ReportsPage() {
                   <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push('/reports/client/' + c.id)}>
                     <td className="px-5 py-3 text-gray-400 text-xs">{i+1}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{c.legal_name}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{flagFor(c.country)} {c.region ?? c.country ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{flagFor(c.country)} {c.country ?? '—'}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
