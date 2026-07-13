@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { useMemo, useRef } from 'react'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-function fmt(n: number) { return n >= 1000 ? `$${(n/1000).toFixed(1)}K` : `$${n.toFixed(0)}` }
+function fmt(n: number) { return `USD ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}` }
 
 export default function ClientReportPage() {
   const { id } = useParams()

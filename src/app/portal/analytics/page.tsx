@@ -42,7 +42,7 @@ function inRange(date: Date, from: Date | null, to: Date | null) {
   return true
 }
 
-function fmt(n: number) { return n >= 1000 ? `$${(n/1000).toFixed(1)}K` : `$${n.toFixed(0)}` }
+function fmt(n: number) { return `USD ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}` }
 function pct(curr: number, prev: number) {
   if (!prev) return null
   return ((curr - prev) / prev * 100)

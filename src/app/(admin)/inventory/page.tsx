@@ -20,12 +20,7 @@ const WH_COLORS: Record<string, string> = {
   Total:   'bg-gray-800 text-white',
 }
 
-const fmtMoney = (n: number) => {
-  if (!n) return '$0'
-  if (n >= 1000000) return `$${(n/1000000).toFixed(1)}M`
-  if (n >= 1000) return `$${(n/1000).toFixed(1)}K`
-  return `$${n.toFixed(2)}`
-}
+const fmtMoney = (n: number) => `USD ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 
 export default function InventoryPage() {
   const supabase = createClient()

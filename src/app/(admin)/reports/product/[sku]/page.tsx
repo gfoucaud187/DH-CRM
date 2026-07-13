@@ -12,7 +12,7 @@ const WH = ['T1','Central','Aged','Sample','Private']
 const WH_COLORS: Record<string,string> = {
   T1:'#185FA5', Central:'#0F6E56', Aged:'#854F0B', Sample:'#534AB7', Private:'#993556'
 }
-function fmt(n: number) { return n >= 1000 ? `$${(n/1000).toFixed(1)}K` : `$${n.toFixed(0)}` }
+function fmt(n: number) { return `USD ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}` }
 
 export default function ProductReportPage() {
   const { sku: skuParam } = useParams()

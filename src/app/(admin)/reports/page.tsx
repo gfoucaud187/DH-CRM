@@ -20,9 +20,7 @@ const PERIODS = [
 ]
 
 function fmt(n: number) {
-  if (n >= 1000000) return `$${(n/1000000).toFixed(1)}M`
-  if (n >= 1000) return `$${(n/1000).toFixed(1)}K`
-  return `$${n.toFixed(0)}`
+  return `USD ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 }
 
 function flagFor(code?: string | null) {

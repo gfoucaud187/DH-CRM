@@ -43,11 +43,7 @@ const getDocColor = (o: any) => {
   return 'bg-gray-100 text-gray-600'
 }
 
-const fmt = (n: number) => {
-  if (n >= 1000000) return `$${(n/1000000).toFixed(1)}M`
-  if (n >= 1000) return `$${(n/1000).toFixed(1)}K`
-  return `$${n.toFixed(0)}`
-}
+const fmt = (n: number) => `USD ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 
 export default function DashboardPage() {
   const supabase = createClient()

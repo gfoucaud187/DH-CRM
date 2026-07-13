@@ -28,12 +28,7 @@ const ZONE_BADGE: Record<Zone, string> = {
   excellent: 'bg-green-100 text-green-700', amazing: 'bg-purple-100 text-purple-700',
 }
 
-const fmt = (n: number) => {
-  if (!n) return '$0'
-  if (n >= 1000000) return `$${(n/1000000).toFixed(1)}M`
-  if (n >= 1000) return `$${(n/1000).toFixed(0)}K`
-  return `$${n.toFixed(0)}`
-}
+const fmt = (n: number) => `USD ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 
 const thClass = "px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-gray-500"
 
