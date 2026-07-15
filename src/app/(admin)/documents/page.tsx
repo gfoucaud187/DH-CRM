@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useT } from '@/lib/i18n/LanguageProvider'
 import { getSignedUrl } from '@/lib/documents'
 import { Folder, FileText, Download, ChevronRight, ChevronDown, Search, Calendar, Upload, X } from 'lucide-react'
+import ExportBundleModal from '@/components/documents/ExportBundleModal'
 
 interface DocumentFile {
   id: string
@@ -214,9 +215,12 @@ export default function DocumentsPage() {
   return (
     <div style={{ maxWidth: '1100px' }}>
       {/* Header */}
-      <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', marginBottom: '6px' }}>{t('documents.page_title')}</h1>
-        <p style={{ fontSize: '14px', color: '#6B7280' }}>All generated PDFs — versioned on each save</p>
+      <div style={{ marginBottom: '28px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+        <div>
+          <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', marginBottom: '6px' }}>{t('documents.page_title')}</h1>
+          <p style={{ fontSize: '14px', color: '#6B7280' }}>All generated PDFs — versioned on each save</p>
+        </div>
+        <ExportBundleModal />
       </div>
 
       {/* Stats */}
