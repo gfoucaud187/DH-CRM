@@ -25,6 +25,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const getDocLabel = (o: any) => {
+  if (o.document_type === 'client_return') return 'RETURN'
   if (o.document_type === 'po') return 'PO'
   if (o.is_service_invoice) return 'INV(SVC)'
   if (o.is_foc && o.document_type === 'invoice') return 'INV(DO)'
@@ -38,6 +39,7 @@ const getDocLabel = (o: any) => {
 }
 
 const getDocColor = (o: any) => {
+  if (o.document_type === 'client_return') return 'bg-pink-100 text-pink-700'
   if (o.document_type === 'po') return 'bg-orange-100 text-orange-700'
   if (o.is_service_invoice) return 'bg-indigo-100 text-indigo-700'
   if (o.is_foc) return 'bg-green-100 text-green-700'
@@ -161,6 +163,10 @@ export default function OrdersPage() {
         // Invoice promoted from this doc (depth+1)
         filtered
           .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'invoice' && !d.is_foc)
+          .forEach((d: any) => addToChain(d, depth + 1))
+        // Client Return registered against this doc (depth+1)
+        filtered
+          .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'client_return')
           .forEach((d: any) => addToChain(d, depth + 1))
         // SO(DO) children via linked_order_id (depth+1)
         filtered

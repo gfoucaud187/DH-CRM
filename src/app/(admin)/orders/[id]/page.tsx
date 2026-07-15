@@ -7,6 +7,7 @@ import { ArrowLeft, Package, Truck, CheckCircle, XCircle, FileText, Edit, Send, 
 import { warehouseLabel } from '@/lib/warehouse'
 import Link from 'next/link'
 import InvoicePDF from '@/components/pdf/InvoicePDF'
+import ClientReturnPDF from '@/components/pdf/ClientReturnPDF'
 import { logActivity } from '@/lib/log-activity'
 
 const SO_STATUSES = [
@@ -135,6 +136,21 @@ export default function OrderDetailPage() {
         .in('promoted_from', focIds)
         .eq('document_type', 'invoice')
       return invs ?? []
+    },
+    enabled: !!id
+  })
+
+  // Fetch client returns registered against this SO/Invoice
+  const { data: clientReturns = [] } = useQuery({
+    queryKey: ['order-client-returns', id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('sales_orders')
+        .select('id, order_number, total_amount, currency, created_at')
+        .eq('promoted_from', id)
+        .eq('document_type', 'client_return')
+        .order('created_at', { ascending: true })
+      return data ?? []
     },
     enabled: !!id
   })
@@ -289,6 +305,7 @@ export default function OrderDetailPage() {
   const alreadyHasFoc = false // Multiple SO(DO) always allowed
 
   const getDocLabel = () => {
+    if (order.document_type === 'client_return') return 'RETURN'
     if (isInt) return 'SO(INT)'
     if (order.is_foc && isInvoice) return 'INV(DO)'
     if (order.is_foc) return 'SO(DO)'
@@ -397,7 +414,7 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {(sourceDoc || linkedDoc || allFocOrders.length > 0) && (
+          {(sourceDoc || linkedDoc || allFocOrders.length > 0 || clientReturns.length > 0) && (
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-2">
               <h2 className="font-semibold text-blue-800 text-sm">Linked Documents</h2>
               {sourceDoc && (
@@ -412,6 +429,12 @@ export default function OrderDetailPage() {
                   <span className="text-blue-400">→</span> {linkedDoc.order_number}
                 </button>
               )}
+              {(clientReturns as any[]).map((ret: any) => (
+                <button key={ret.id} onClick={() => router.push('/orders/' + ret.id)}
+                  className="w-full text-left text-sm text-pink-700 hover:underline flex items-center gap-1">
+                  <span className="text-pink-400">↩</span> {ret.order_number} ({ret.currency} {Number(ret.total_amount).toFixed(2)})
+                </button>
+              ))}
               {(allFocOrders as any[]).map((foc: any) => {
                 const focInvoice = (docInvoices as any[]).find((inv: any) => inv.promoted_from === foc.id)
                 return (
@@ -485,6 +508,17 @@ export default function OrderDetailPage() {
             </div>
           )}
 
+          {(isSO || isInvoice) && !order.is_foc && !order.is_sample && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h2 className="font-semibold text-gray-900 mb-1">Register Return</h2>
+              <p className="text-xs text-gray-500 mb-3">Credits stock and creates a Client Return linked to {order.order_number}.</p>
+              <Link href={'/orders/' + id + '/return/new'}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+                <Package className="h-4 w-4" /> Register Return
+              </Link>
+            </div>
+          )}
+
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
             <h2 className="font-semibold text-gray-900">Order Info</h2>
             {isInt ? (
@@ -523,7 +557,7 @@ export default function OrderDetailPage() {
             )}
           </div>
 
-          {!isPO && (
+          {!isPO && order.document_type !== 'client_return' && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-3">Change Status</h2>
               <div className="space-y-1">
@@ -572,10 +606,17 @@ export default function OrderDetailPage() {
             ))}
           </div>
 
-          {!isInt && !isPO && (
+          {!isInt && !isPO && order.document_type !== 'client_return' && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-3">Document</h2>
               <InvoicePDF order={order} lines={enrichedLines.filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')} services={order.services ?? []} customer={order.customer} appSettings={appSettings} sourceDoc={sourceDoc} />
+            </div>
+          )}
+
+          {order.document_type === 'client_return' && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h2 className="font-semibold text-gray-900 mb-3">Document</h2>
+              <ClientReturnPDF order={order} lines={commercialLines} sourceDoc={sourceDoc} />
             </div>
           )}
 

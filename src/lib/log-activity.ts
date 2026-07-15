@@ -8,6 +8,7 @@ export type LogAction =
   | 'update_order'
   | 'cancel_order'
   | 'delete_order'
+  | 'create_client_return'
   | 'create_customer'
   | 'update_customer'
   | 'approve_po'
