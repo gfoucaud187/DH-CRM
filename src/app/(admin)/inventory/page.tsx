@@ -80,7 +80,7 @@ export default function InventoryPage() {
       const { data } = await supabase
         .from('products')
         .select('sku, full_name, brand, units_per_pack')
-        .eq('product_role', 'original')
+        .in('product_role', ['original', 'aged'])
         .eq('status', 'active')
         .order('brand')
       return data ?? []

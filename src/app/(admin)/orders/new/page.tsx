@@ -105,7 +105,7 @@ export default function NewOrderPage() {
       const { data } = await supabase
         .from('products')
         .select('sku, full_name, brand, units_per_pack, fixmer_reference')
-        .eq('product_role', 'original').eq('status', 'active')
+        .in('product_role', ['original', 'aged']).eq('status', 'active')
         .order('brand').limit(500)
       return data ?? []
     }
