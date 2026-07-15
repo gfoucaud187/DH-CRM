@@ -111,16 +111,15 @@ export default function ReorderAnalysisPage() {
     const lt = parseFloat(leadTimeMonths) || 0
     const opy = parseFloat(ordersPerYear) || 1
     const coverage = 12 / opy
-    const startOffset = Math.round(lt)
-    const monthsCount = Math.max(1, Math.round(coverage))
+    // Stock ordered now must last through the lead time AND the following review period —
+    // i.e. cover demand for (lead_time + coverage) months starting from today, not just `coverage`.
+    const monthsCount = Math.max(1, Math.round(lt + coverage))
     const today = new Date()
-    // The specific future calendar months this order must cover, starting `lt` months from now
-    const coveredMonths = Array.from({ length: monthsCount }, (_, i) => {
-      const offset = startOffset + i
+    const coveredMonths = Array.from({ length: monthsCount }, (_, offset) => {
       const d = new Date(today.getFullYear(), today.getMonth() + offset, 1)
       return { offset, monthIdx: d.getMonth(), monthName: MONTH_NAMES[d.getMonth()], growthFactor: Math.pow(1 + growth, offset / 12) }
     })
-    return { growth, lt, opy, coverage, startOffset, monthsCount, coveredMonths }
+    return { growth, lt, opy, coverage, monthsCount, coveredMonths }
   }, [annualGrowth, ordersPerYear, leadTimeMonths])
 
   const rows = useMemo(() => {
@@ -315,8 +314,8 @@ export default function ReorderAnalysisPage() {
           </p>
           <ul className="text-xs space-y-1 mt-2 list-disc list-inside text-blue-800">
             <li><strong>baseline_avg_monthly</strong>: each month's actual sales over the last {windowMonths} month{windowMonths > 1 ? 's' : ''} is first deseasonalized (divided by that calendar month's seasonality index) before averaging, so the baseline reflects underlying demand rather than the season it sold in</li>
-            <li><strong>coverage</strong> = 12 ÷ orders per year = {factors.coverage.toFixed(2)} months → rounded to {factors.monthsCount} calendar month{factors.monthsCount > 1 ? 's' : ''} this order must cover</li>
-            <li><strong>lead time</strong> = {factors.lt.toFixed(2)} months → rounded to {factors.startOffset} month{factors.startOffset === 1 ? '' : 's'} from now before the covered period starts</li>
+            <li><strong>coverage</strong> = 12 ÷ orders per year = {factors.coverage.toFixed(2)} months (how long this order must last until the next one)</li>
+            <li><strong>lead time + coverage</strong> = {factors.lt.toFixed(2)} + {factors.coverage.toFixed(2)} = {(factors.lt + factors.coverage).toFixed(2)} months of demand this order must cover, starting from today → rounded to {factors.monthsCount} calendar month{factors.monthsCount > 1 ? 's' : ''}</li>
             <li><strong>covered months</strong>: {factors.coveredMonths.map(m => `${m.monthName} (×${SEASONALITY[m.monthIdx].toFixed(1)} seasonality, ×${m.growthFactor.toFixed(3)} growth)`).join(', ')}</li>
             <li>if current stock is negative, it's treated as 0 rather than added to the required quantity — a negative balance isn't stock available to net against demand</li>
             <li>Click the <Info className="h-3 w-3 inline" /> icon on any product row to see its own numbers plugged into this formula</li>
