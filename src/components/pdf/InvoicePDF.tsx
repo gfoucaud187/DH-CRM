@@ -370,8 +370,8 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
     .kpi-seg-accent { flex: 1.2; padding: 4px 16px; background: ${accent}; height: 72px; display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; }
     .kpi-label { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; }
     .kpi-label-accent { font-size: 9px; font-weight: 600; color: ${onAccent}; letter-spacing: 0.18em; text-transform: uppercase; }
-    .kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums; }
-    .kpi-value-accent { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; line-height: 1; color: #fff; font-variant-numeric: lining-nums; }
+    .kpi-value { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; line-height: 1.15; white-space: nowrap; }
+    .kpi-value-accent { font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; line-height: 1.15; color: #fff; white-space: nowrap; }
     .party-eyebrow { font-size: 9px; font-weight: 600; color: #A39A8A; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 6px; }
     .party-name { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; margin-bottom: 3px; line-height: 1.2; }
     .party-contact { font-size: 11px; color: #3A352E; line-height: 1.6; }
@@ -396,8 +396,8 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
     .total-line span:last-child { font-family: 'IBM Plex Mono', monospace; }
     .total-hr { border: none; border-top: 1px solid #E6E0D5; margin: 8px 0; }
     .grand-row { display: flex; justify-content: space-between; align-items: baseline; }
-    .grand-label { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; }
-    .grand-value { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 700; color: ${accent}; font-variant-numeric: lining-nums; }
+    .grand-label { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+    .grand-value { font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 700; color: ${accent}; white-space: nowrap; }
     .footer { border-top: 1px solid #E6E0D5; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
     .footer-notes { font-size: 10px; color: #6E665A; max-width: 500px; }
     .footer-right { font-size: 9px; color: #B3AA99; letter-spacing: 0.12em; text-transform: uppercase; text-align: right; }
@@ -697,7 +697,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                       { label: 'Total Articles', value: String(order.total_units ?? 0), accent: false },
                       { label: 'Net Tobacco kg', value: netTobaccoKg,                   accent: false },
                       { label: isInvoice ? 'Amount Due' : isInt ? 'Transfer' : 'Total Value',
-                        value: isInt ? 'INT' : (isFoc || isSample) ? 'FOC' : `USD ${totalValue}`, accent: true },
+                        value: isInt ? 'INT' : (isFoc || isSample) ? `0 ${order.currency} (FOC)` : `USD ${totalValue}`, accent: true },
                     ].map((k, i) => (
                       <div key={i} className={k.accent ? 'kpi-seg-accent' : 'kpi-seg'}>
                         <div className={k.accent ? 'kpi-label-accent' : 'kpi-label'}>{k.label}</div>
@@ -751,7 +751,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                       <hr className="total-hr" />
                       {!isInt && (
                         <div className="grand-row">
-                          <span className="grand-label">{isInvoice ? 'Amount Due' : isDO ? 'Delivery Order' : 'Total'}</span>
+                          <span className="grand-label">{isInvoice ? 'Amount Due' : isDO ? 'Total Value' : 'Total'}</span>
                           <span className="grand-value">{isFocDoc ? `${order.currency} 0.00 (FOC)` : `${order.currency} ${totalValue}`}</span>
                         </div>
                       )}
