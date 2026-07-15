@@ -3,8 +3,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { useState, useMemo } from 'react'
-import { ArrowLeft, Sparkles, Save, AlertTriangle } from 'lucide-react'
+import { useState, useMemo, Fragment } from 'react'
+import { ArrowLeft, Sparkles, Save, AlertTriangle, Info } from 'lucide-react'
 import Link from 'next/link'
 import { logActivity } from '@/lib/log-activity'
 
@@ -29,6 +29,8 @@ export default function ReorderAnalysisPage() {
   const [showPoModal, setShowPoModal] = useState(false)
   const [selectedPartnerId, setSelectedPartnerId] = useState('')
   const [creating, setCreating] = useState(false)
+  const [expandedSku, setExpandedSku] = useState<string | null>(null)
+  const [showFormulaInfo, setShowFormulaInfo] = useState(false)
 
   const { data: earliestSoDate } = useQuery({
     queryKey: ['reorder-earliest-so'],
@@ -97,6 +99,16 @@ export default function ReorderAnalysisPage() {
     }
   })
 
+  const factors = useMemo(() => {
+    const growth = (parseFloat(annualGrowth) || 0) / 100
+    const lt = parseFloat(leadTimeMonths) || 0
+    const opy = parseFloat(ordersPerYear) || 1
+    const coverage = 12 / opy
+    const midpoint = lt + coverage / 2
+    const growthFactor = Math.pow(1 + growth, midpoint / 12)
+    return { growth, lt, opy, coverage, midpoint, growthFactor }
+  }, [annualGrowth, ordersPerYear, leadTimeMonths])
+
   const rows = useMemo(() => {
     const salesBySku: Record<string, number> = {}
     ;(salesLines as any[]).forEach(l => { salesBySku[l.sku] = (salesBySku[l.sku] ?? 0) + (l.quantity_packs ?? 0) })
@@ -104,29 +116,25 @@ export default function ReorderAnalysisPage() {
     const stockBySku: Record<string, number> = {}
     ;(inventory as any[]).forEach(r => { stockBySku[r.sku] = (stockBySku[r.sku] ?? 0) + (r.quantity_packs ?? 0) })
 
-    const growth = (parseFloat(annualGrowth) || 0) / 100
-    const lt = parseFloat(leadTimeMonths) || 0
-    const opy = parseFloat(ordersPerYear) || 1
-    const coverage = 12 / opy
-    const midpoint = lt + coverage / 2
+    const { lt, coverage, growthFactor } = factors
 
     return (products as any[])
       .map(p => {
         const totalSold = salesBySku[p.sku] ?? 0
         const avgMonthly = totalSold / windowMonths
         const currentStock = stockBySku[p.sku] ?? 0
-        const growthFactor = Math.pow(1 + growth, midpoint / 12)
         const adjustedMonthly = avgMonthly * growthFactor
-        const rawQty = adjustedMonthly * (lt + coverage) - currentStock
+        const targetDemand = adjustedMonthly * (lt + coverage)
+        const rawQty = targetDemand - currentStock
         const recommendedQty = Math.max(0, Math.ceil(rawQty))
         return {
           sku: p.sku, full_name: p.full_name, brand: p.brand, units_per_pack: p.units_per_pack ?? 1,
-          totalSold, avgMonthly, currentStock, recommendedQty,
+          totalSold, avgMonthly, currentStock, adjustedMonthly, targetDemand, rawQty, recommendedQty,
         }
       })
       .filter(r => r.totalSold > 0 || r.currentStock > 0 || r.recommendedQty > 0)
       .sort((a, b) => b.recommendedQty - a.recommendedQty)
-  }, [products, salesLines, inventory, annualGrowth, ordersPerYear, leadTimeMonths, windowMonths])
+  }, [products, salesLines, inventory, factors, windowMonths])
 
   const getQty = (sku: string, defaultQty: number) => {
     const ov = overrides[sku]
@@ -209,7 +217,13 @@ export default function ReorderAnalysisPage() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">Reorder Analysis</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">Reorder Analysis</h1>
+            <button onClick={() => setShowFormulaInfo(s => !s)} title="How is this calculated?"
+              className="text-gray-300 hover:text-gray-600">
+              <Info className="h-4 w-4" />
+            </button>
+          </div>
           <p className="text-gray-500 text-sm mt-0.5">
             Based on {windowMonths} month{windowMonths > 1 ? 's' : ''} of sales history · original stock only (T1 + Central)
           </p>
@@ -246,6 +260,22 @@ export default function ReorderAnalysisPage() {
         </div>
       </div>
 
+      {showFormulaInfo && (
+        <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 mb-4 text-sm text-blue-900 space-y-2">
+          <p className="font-semibold">Formula</p>
+          <p className="font-mono text-xs bg-white/60 rounded px-2 py-1.5 inline-block">
+            recommended_qty = avg_monthly_sales × growth_factor × (lead_time + coverage) − current_stock
+          </p>
+          <ul className="text-xs space-y-1 mt-2 list-disc list-inside text-blue-800">
+            <li><strong>avg_monthly_sales</strong>: total boxes sold over the last {windowMonths} month{windowMonths > 1 ? 's' : ''} ÷ {windowMonths}</li>
+            <li><strong>coverage</strong> = 12 ÷ orders per year = {factors.coverage.toFixed(2)} months (how long this order must last until the next one)</li>
+            <li><strong>lead_time + coverage</strong> = {factors.lt.toFixed(2)} + {factors.coverage.toFixed(2)} = {(factors.lt + factors.coverage).toFixed(2)} months of demand this order must cover</li>
+            <li><strong>growth_factor</strong> = (1 + {annualGrowth}%) ^ (midpoint ÷ 12), midpoint = lead_time + coverage/2 = {factors.midpoint.toFixed(2)} months → factor = {factors.growthFactor.toFixed(3)}×</li>
+            <li>Click the <Info className="h-3 w-3 inline" /> icon on any product row to see its own numbers plugged into this formula</li>
+          </ul>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
@@ -255,14 +285,17 @@ export default function ReorderAnalysisPage() {
               <th className="text-right px-3 py-3 font-medium text-gray-600">Current Stock</th>
               <th className="text-right px-3 py-3 font-medium text-gray-600">Recommended Qty</th>
               <th className="px-3 py-3" />
+              <th className="px-3 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {rows.map(r => {
               const isExcluded = excluded.has(r.sku)
               const insight = insights[r.sku]
+              const isExpanded = expandedSku === r.sku
               return (
-                <tr key={r.sku} className={isExcluded ? 'opacity-40' : ''}>
+                <Fragment key={r.sku}>
+                <tr className={isExcluded ? 'opacity-40' : ''}>
                   <td className="px-4 py-3">
                     <p className="font-medium">{r.full_name}</p>
                     <p className="text-xs text-gray-400 font-mono">{r.sku}</p>
@@ -281,16 +314,35 @@ export default function ReorderAnalysisPage() {
                       className="w-24 h-8 rounded border border-gray-200 px-2 text-right text-sm disabled:bg-gray-50" />
                   </td>
                   <td className="px-3 py-3">
+                    <button onClick={() => setExpandedSku(isExpanded ? null : r.sku)} title="See calculation"
+                      className={isExpanded ? 'text-gray-700' : 'text-gray-300 hover:text-gray-600'}>
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </td>
+                  <td className="px-3 py-3">
                     <button onClick={() => toggleExcluded(r.sku)}
                       className="text-xs text-gray-400 hover:text-red-500 underline">
                       {isExcluded ? 'Include' : 'Exclude'}
                     </button>
                   </td>
                 </tr>
+                {isExpanded && (
+                  <tr className="bg-gray-50">
+                    <td colSpan={6} className="px-4 py-3">
+                      <div className="text-xs text-gray-600 font-mono space-y-1">
+                        <div>avg_monthly_sales = {r.totalSold} boxes ÷ {windowMonths} months = {r.avgMonthly.toFixed(2)}</div>
+                        <div>growth_factor = {factors.growthFactor.toFixed(3)}× → adjusted_monthly = {r.avgMonthly.toFixed(2)} × {factors.growthFactor.toFixed(3)} = {r.adjustedMonthly.toFixed(2)}</div>
+                        <div>target_demand = {r.adjustedMonthly.toFixed(2)} × ({factors.lt.toFixed(2)} + {factors.coverage.toFixed(2)}) = {r.targetDemand.toFixed(2)} boxes</div>
+                        <div>recommended_qty = {r.targetDemand.toFixed(2)} − current_stock ({r.currentStock}) = {r.rawQty.toFixed(2)} → rounded up to {r.recommendedQty}</div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               )
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">No sales history or stock found for active original products</td></tr>
+              <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">No sales history or stock found for active original products</td></tr>
             )}
           </tbody>
         </table>
