@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
             price_per_unit:   l.price_per_unit,
             line_total:       l.line_total,
             fixmer_reference: l.fixmer_reference ?? null,
+            warehouse:        l.warehouse ?? null,
           }))
         )
       }
@@ -178,6 +179,7 @@ export async function POST(request: NextRequest) {
         price_per_unit:   l.price_per_unit,
         line_total:       l.line_total,
         fixmer_reference: l.fixmer_reference ?? null,
+        warehouse:        l.warehouse ?? null,
       }))
     )
 

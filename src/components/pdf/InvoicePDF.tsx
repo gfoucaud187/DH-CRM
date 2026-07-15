@@ -235,6 +235,8 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
   const isTT      = (order.is_tt_order || customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') && isInvoice
   const isInt     = order.document_type === 'so_int'
   const isDO      = order.is_foc && !isInvoice && !isInt
+  const hasMixedWarehouses = !isInt && new Set(lines.map((l: any) => l.warehouse ?? order.warehouse)).size > 1
+  const warehouseDisplay = hasMixedWarehouses ? 'Mixed' : warehouseLabel(order.warehouse)
 
   const accent   = isInvoice ? '#6A1E2A' : '#1C4B3C'
   const tint     = isInvoice ? '#F7EDED' : '#EEF3F0'
@@ -443,7 +445,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                     { label: 'Incoterms', value: order.incoterms },
                     { label: 'Payment',   value: order.payment_terms },
                     { label: 'Currency',  value: order.currency },
-                    { label: 'Warehouse', value: warehouseLabel(order.warehouse) },
+                    { label: 'Warehouse', value: warehouseDisplay },
                   ].filter(m => m.value).map((m, i) => (
                     <div key={i}>
                       <div className="meta-label">{m.label}</div>
@@ -617,7 +619,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                         { label: 'Incoterms', value: order.incoterms },
                         { label: 'Payment',   value: order.payment_terms },
                         { label: 'Currency',  value: order.currency },
-                        { label: 'Warehouse', value: warehouseLabel(order.warehouse) },
+                        { label: 'Warehouse', value: warehouseDisplay },
                       ].filter(m => m.value).map((m, i) => (
                         <div key={i}>
                           <div className="meta-label">{m.label}</div>

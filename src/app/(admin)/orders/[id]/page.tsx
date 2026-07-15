@@ -284,6 +284,7 @@ export default function OrderDetailPage() {
 
   const currentStatus = statuses.find((s: any) => s.value === order.status) ?? statuses[0]
   const commercialLines = (order.lines ?? []).filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')
+  const hasMixedWarehouses = !isInt && new Set(commercialLines.map((l: any) => l.warehouse ?? order.warehouse)).size > 1
   const alreadyHasInvoice = isSO && !!linkedDoc
   const alreadyHasFoc = false // Multiple SO(DO) always allowed
 
@@ -592,6 +593,9 @@ export default function OrderDetailPage() {
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium text-gray-600">Product</th>
+                  {hasMixedWarehouses && (
+                    <th className="text-left px-3 py-2 font-medium text-gray-600">Warehouse</th>
+                  )}
                   <th className="text-center px-3 py-2 font-medium text-gray-600">Packs</th>
                   <th className="text-center px-3 py-2 font-medium text-gray-600">Units</th>
                   {!order.is_foc && !order.is_sample && !isInt && (
@@ -609,6 +613,9 @@ export default function OrderDetailPage() {
                       <p className="font-medium">{line.product_name}</p>
                       <p className="text-xs text-gray-400 font-mono">{line.sku}</p>
                     </td>
+                    {hasMixedWarehouses && (
+                      <td className="px-3 py-3 text-gray-600">{warehouseLabel(line.warehouse ?? order.warehouse)}</td>
+                    )}
                     <td className="px-3 py-3 text-center">{line.quantity_packs}</td>
                     <td className="px-3 py-3 text-center">{line.quantity_units}</td>
                     {!order.is_foc && !order.is_sample && !isInt && (
@@ -623,7 +630,7 @@ export default function OrderDetailPage() {
               {!order.is_foc && !order.is_sample && !isInt && (
                 <tfoot className="bg-gray-50 border-t border-gray-200">
                   <tr>
-                    <td colSpan={4} className="px-4 py-3 text-right font-semibold">Total</td>
+                    <td colSpan={hasMixedWarehouses ? 5 : 4} className="px-4 py-3 text-right font-semibold">Total</td>
                     <td className="px-4 py-3 text-right font-bold">
                       {order.currency} {Number(order.total_amount).toFixed(2)}
                     </td>

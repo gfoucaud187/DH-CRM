@@ -36,6 +36,7 @@ interface OrderLine {
   line_type: string
   fixmer_reference?: string | null
   diff_price_per_unit?: number | null
+  warehouse: string
 }
 
 export default function EditOrderPage() {
@@ -126,6 +127,7 @@ export default function EditOrderPage() {
           price_per_unit: l.price_per_unit, line_total: l.line_total,
           line_type: l.line_type, fixmer_reference: l.fixmer_reference ?? null,
           diff_price_per_unit: l.diff_price_per_unit ?? null,
+          warehouse: l.warehouse ?? order.warehouse,
         }))
       )
       setServices(
@@ -181,6 +183,7 @@ export default function EditOrderPage() {
       line_type: order.is_foc ? 'foc' : 'commercial',
       fixmer_reference: product.fixmer_reference ?? null,
       diff_price_per_unit: getFrozenGap(product.sku),
+      warehouse: order.is_sample ? 'Sample' : warehouse,
     }])
   }
 
@@ -190,6 +193,10 @@ export default function EditOrderPage() {
       const units = packs * l.units_per_pack
       return { ...l, quantity_packs: packs, quantity_units: units, line_total: units * l.price_per_unit }
     }))
+  }
+
+  const updateLineWarehouse = (idx: number, wh: string) => {
+    setLines(prev => prev.map((l, i) => i === idx ? { ...l, warehouse: wh } : l))
   }
 
   const removeLine = (idx: number) => setLines(l => l.filter((_, i) => i !== idx))
@@ -238,6 +245,7 @@ export default function EditOrderPage() {
             quantity_units: l.quantity_units, price_per_unit: l.price_per_unit,
             line_total: l.line_total, fixmer_reference: l.fixmer_reference ?? null,
             diff_price_per_unit: l.diff_price_per_unit ?? null,
+            warehouse: l.warehouse ?? null,
           }))
         )
       }
@@ -276,6 +284,7 @@ export default function EditOrderPage() {
                 quantity_units: l.quantity_units, price_per_unit: l.price_per_unit,
                 line_total: l.line_total, fixmer_reference: l.fixmer_reference ?? null,
             diff_price_per_unit: l.diff_price_per_unit ?? null,
+                warehouse: l.warehouse ?? null,
               }))
             )
           }
@@ -500,6 +509,9 @@ export default function EditOrderPage() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="text-left px-4 py-2 font-medium text-gray-600">Product</th>
+                    {!isInt && !order.is_sample && (
+                      <th className="text-left px-3 py-2 font-medium text-gray-600">Warehouse</th>
+                    )}
                     <th className="text-center px-3 py-2 font-medium text-gray-600">Packs</th>
                     <th className="text-center px-3 py-2 font-medium text-gray-600">Units</th>
                     {!order.is_foc && !order.is_sample && !isInt && (
@@ -518,6 +530,14 @@ export default function EditOrderPage() {
                         <p className="font-medium">{line.product_name}</p>
                         <p className="text-xs text-gray-400 font-mono">{line.sku}</p>
                       </td>
+                      {!isInt && !order.is_sample && (
+                        <td className="px-3 py-3">
+                          <select value={line.warehouse} onChange={e => updateLineWarehouse(idx, e.target.value)}
+                            className="h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none">
+                            {WAREHOUSES.map(w => <option key={w} value={w}>{warehouseLabel(w)}</option>)}
+                          </select>
+                        </td>
+                      )}
                       <td className="px-3 py-3 text-center">
                         <input type="number" min={0} value={line.quantity_packs || ''}
                           onChange={e => updateLine(idx, parseInt(e.target.value) || 0)}

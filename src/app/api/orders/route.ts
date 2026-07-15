@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
           fixmer_reference  : l.fixmer_reference,
           line_total:     l.line_total,
           diff_price_per_unit: l.diff_price_per_unit ?? null,
+          warehouse:      l.warehouse ?? order.warehouse,
         })))
 
       if (linesError) {

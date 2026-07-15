@@ -52,6 +52,7 @@ interface OrderLine {
   line_total: number
   fixmer_reference?: string | null
   diff_price_per_unit?: number | null
+  warehouse: string
 }
 
 export default function NewOrderPage() {
@@ -178,6 +179,7 @@ export default function NewOrderPage() {
       line_total: 0,
       fixmer_reference: product.fixmer_reference ?? null,
       diff_price_per_unit: getFrozenGap(product.sku),
+      warehouse: isSample ? 'Sample' : warehouse,
     }])
   }
 
@@ -187,6 +189,10 @@ export default function NewOrderPage() {
       const units = packs * l.units_per_pack
       return { ...l, quantity_packs: packs, quantity_units: units, line_total: units * l.price_per_unit }
     }))
+  }
+
+  const updateLineWarehouse = (idx: number, wh: string) => {
+    setLines(prev => prev.map((l, i) => i === idx ? { ...l, warehouse: wh } : l))
   }
 
   const removeLine = (idx: number) => setLines(l => l.filter((_, i) => i !== idx))
@@ -347,6 +353,9 @@ export default function NewOrderPage() {
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none disabled:bg-gray-50 disabled:text-gray-400">
                 {availableWarehouses.map(w => <option key={w} value={w}>{warehouseLabel(w)}</option>)}
               </select>
+              {!isInt && !isSample && (
+                <p className="text-xs text-gray-400 mt-1">Default for new lines — override per line below if needed</p>
+              )}
             </div>
 
             {isInt && (
@@ -504,6 +513,9 @@ export default function NewOrderPage() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
+                    {!isInt && !isSample && (
+                      <th className="text-left px-3 py-3 font-medium text-gray-600">Warehouse</th>
+                    )}
                     <th className="text-center px-3 py-3 font-medium text-gray-600">Packs</th>
                     <th className="text-center px-3 py-3 font-medium text-gray-600">Units</th>
                     {!priceIsZero && (
@@ -522,6 +534,14 @@ export default function NewOrderPage() {
                         <p className="font-medium">{line.product_name}</p>
                         <p className="text-xs text-gray-400 font-mono">{line.sku}</p>
                       </td>
+                      {!isInt && !isSample && (
+                        <td className="px-3 py-3">
+                          <select value={line.warehouse} onChange={e => updateLineWarehouse(idx, e.target.value)}
+                            className="h-8 rounded border border-gray-200 px-2 text-sm focus:outline-none">
+                            {WAREHOUSES.map(w => <option key={w} value={w}>{warehouseLabel(w)}</option>)}
+                          </select>
+                        </td>
+                      )}
                       <td className="px-3 py-3 text-center">
                         <input type="number" min={0} value={line.quantity_packs || ''}
                           onChange={e => updateLine(idx, parseInt(e.target.value) || 0)}
