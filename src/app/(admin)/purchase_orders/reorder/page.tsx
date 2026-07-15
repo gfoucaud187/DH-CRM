@@ -184,7 +184,7 @@ export default function ReorderAnalysisPage() {
         }
       })
       .filter(r => r.totalSold > 0 || r.currentStock > 0 || r.recommendedQty > 0)
-      .sort((a, b) => b.recommendedQty - a.recommendedQty)
+      .sort((a, b) => b.onOrder - a.onOrder)
   }, [products, salesLines, inventory, openPoLines, factors, windowMonths])
 
   const getQty = (sku: string, defaultQty: number) => {

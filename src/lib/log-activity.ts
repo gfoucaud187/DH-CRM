@@ -10,6 +10,7 @@ export type LogAction =
   | 'delete_order'
   | 'create_client_return'
   | 'create_stocktake'
+  | 'update_stocktake'
   | 'create_customer'
   | 'update_customer'
   | 'approve_po'

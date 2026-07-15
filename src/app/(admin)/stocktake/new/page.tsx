@@ -170,7 +170,7 @@ export default function NewStocktakePage() {
       // per-line warehouse is what actually drives the stock adjustment
       const { data: event, error: eventErr } = await supabase
         .from('inventory_events')
-        .insert({ event_number: eventNumber, warehouse: warehousesTouched[0], event_date: new Date().toISOString().split('T')[0], notes: notes || null })
+        .insert({ event_number: eventNumber, warehouse: warehousesTouched[0], event_date: new Date().toISOString().split('T')[0], notes: notes || null, status: 'draft' })
         .select().single()
 
       if (eventErr || !event) { alert('Error: ' + eventErr?.message); setSaving(false); return }
@@ -205,11 +205,11 @@ export default function NewStocktakePage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">New Stocktake</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{changedSkus.size} product(s) with a counted quantity different from the system</p>
+          <p className="text-gray-500 text-sm mt-0.5">{changedSkus.size} product(s) with a counted quantity different from the system · issuing the report does not change stock yet — you'll push it separately from the report page</p>
         </div>
         <button onClick={handleSubmit} disabled={saving || changedSkus.size === 0}
           className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
-          <Save className="h-4 w-4" />{saving ? 'Saving...' : 'Submit Stocktake'}
+          <Save className="h-4 w-4" />{saving ? 'Saving...' : 'Issue Report'}
         </button>
       </div>
 

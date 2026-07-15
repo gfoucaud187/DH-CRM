@@ -52,7 +52,8 @@ export default function StocktakeListPage() {
                 <th className="text-left px-3 py-3 font-medium text-gray-600">Date</th>
                 <th className="text-center px-3 py-3 font-medium text-gray-600">Lines</th>
                 <th className="text-right px-3 py-3 font-medium text-gray-600">Surplus</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Shortage</th>
+                <th className="text-right px-3 py-3 font-medium text-gray-600">Shortage</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -71,7 +72,12 @@ export default function StocktakeListPage() {
                     <td className="px-3 py-3 text-gray-500">{new Date(ev.event_date).toLocaleDateString('en-GB')}</td>
                     <td className="px-3 py-3 text-center text-gray-600">{lines.length}</td>
                     <td className="px-3 py-3 text-right text-green-600 font-medium">{surplus > 0 ? '+' + surplus : '—'}</td>
-                    <td className="px-4 py-3 text-right text-red-500 font-medium">{shortage > 0 ? '-' + shortage : '—'}</td>
+                    <td className="px-3 py-3 text-right text-red-500 font-medium">{shortage > 0 ? '-' + shortage : '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className={'px-2 py-0.5 rounded-full text-xs font-medium ' + (ev.status === 'applied' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
+                        {ev.status === 'applied' ? 'Applied' : 'Draft'}
+                      </span>
+                    </td>
                   </tr>
                 )
               })}

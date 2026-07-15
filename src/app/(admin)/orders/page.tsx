@@ -131,15 +131,12 @@ export default function OrdersPage() {
     sorted.forEach((o: any) => {
       if (visited.has(o.id)) return
 
-      // Find the root of this chain via promoted_from
+      // Find the root of this chain via promoted_from. This covers SO(DO) -> parent SO too:
+      // linked_order_id is not reliable for that once a document is itself promoted (the promote
+      // route overwrites it to point at the new invoice), but promoted_from is write-once.
       let root = o
       while (root.promoted_from && byIdAll[root.promoted_from]) {
         root = byIdAll[root.promoted_from]
-      }
-
-      // If it's a SO(DO) linked to a parent SO, use that parent as root
-      if (root.is_foc && root.document_type === 'so' && root.linked_order_id && byIdAll[root.linked_order_id]) {
-        root = byIdAll[root.linked_order_id]
       }
 
       // If root not in filtered, add it as standalone if it's not visited
@@ -168,9 +165,9 @@ export default function OrdersPage() {
         filtered
           .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'client_return')
           .forEach((d: any) => addToChain(d, depth + 1))
-        // SO(DO) children via linked_order_id (depth+1)
+        // SO(DO) children (depth+1)
         filtered
-          .filter((d: any) => d.linked_order_id === doc.id && d.is_foc && d.document_type === 'so')
+          .filter((d: any) => d.promoted_from === doc.id && d.is_foc && d.document_type === 'so')
           .forEach((d: any) => {
             addToChain(d, depth + 1)
             // INV(DO) under each SO(DO) (depth+2)

@@ -1,17 +1,21 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useParams } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowLeft, UploadCloud, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { warehouseLabel } from '@/lib/warehouse'
+import { logActivity } from '@/lib/log-activity'
 import StocktakePDF from '@/components/pdf/StocktakePDF'
 
 export default function StocktakeDetailPage() {
   const params = useParams()
   const id = Array.isArray(params.id) ? params.id[0] : params.id
   const supabase = createClient()
+  const queryClient = useQueryClient()
+  const [pushing, setPushing] = useState(false)
 
   const { data: event, isLoading } = useQuery({
     queryKey: ['stocktake-event', id],
@@ -24,6 +28,24 @@ export default function StocktakeDetailPage() {
       return data
     }
   })
+
+  const handlePushToStock = async () => {
+    if (!event) return
+    if (!confirm('Push these counted quantities as the new system stock? This cannot be undone from here.')) return
+    setPushing(true)
+    try {
+      const { error } = await supabase.from('inventory_events').update({ status: 'applied' }).eq('id', event.id)
+      if (error) { alert('Error: ' + error.message); setPushing(false); return }
+      await logActivity({
+        action: 'update_stocktake', entityType: 'inventory_event', entityId: event.id, entityRef: event.event_number,
+        metadata: { pushed_to_stock: true },
+      })
+      queryClient.invalidateQueries({ queryKey: ['stocktake-event', id] })
+      queryClient.invalidateQueries({ queryKey: ['stocktake-events-list'] })
+    } finally {
+      setPushing(false)
+    }
+  }
 
   if (isLoading) return <div className="flex items-center justify-center h-48 text-gray-400">Loading...</div>
   if (!event) return <div className="text-center py-12 text-gray-400">Stocktake not found</div>
@@ -43,13 +65,32 @@ export default function StocktakeDetailPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900">{event.event_number}</h1>
             <span className="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-700 uppercase">Stocktake</span>
+            {event.status === 'applied' ? (
+              <span className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700 uppercase">
+                <CheckCircle2 className="h-3 w-3" /> Applied
+              </span>
+            ) : (
+              <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-500 uppercase">Draft</span>
+            )}
           </div>
           <p className="text-gray-500 text-sm mt-0.5">
             {warehousesTouched.length > 0 ? warehousesTouched.map(w => warehouseLabel(w)).join(', ') : warehouseLabel(event.warehouse)}
             {' · '}{new Date(event.event_date).toLocaleDateString('en-GB')}
           </p>
         </div>
+        {event.status !== 'applied' && (
+          <button onClick={handlePushToStock} disabled={pushing}
+            className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
+            <UploadCloud className="h-4 w-4" />{pushing ? 'Pushing...' : 'Push to Stock'}
+          </button>
+        )}
       </div>
+
+      {event.status !== 'applied' && (
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-3 mb-4 text-sm text-amber-800">
+          This report has not been pushed to stock yet — system quantities are unchanged. Click "Push to Stock" once the counts are validated.
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-1 space-y-4">
