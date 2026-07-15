@@ -9,6 +9,7 @@ export type LogAction =
   | 'cancel_order'
   | 'delete_order'
   | 'create_client_return'
+  | 'create_stocktake'
   | 'create_customer'
   | 'update_customer'
   | 'approve_po'
@@ -35,7 +36,7 @@ export type LogAction =
   | 'update_b2c_contact'
   | 'delete_b2c_contact'
 
-export type LogEntity = 'order' | 'customer' | 'profile_request' | 'auth' | 'purchase_order' | 'product' | 'partner' | 'retailer' | 'b2c_contact'
+export type LogEntity = 'order' | 'customer' | 'profile_request' | 'auth' | 'purchase_order' | 'product' | 'partner' | 'retailer' | 'b2c_contact' | 'inventory_event'
 
 interface LogParams {
   action: LogAction
