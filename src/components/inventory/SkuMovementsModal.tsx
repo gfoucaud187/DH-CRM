@@ -12,6 +12,10 @@ interface SkuMovementsModalProps {
   onClose: () => void
 }
 
+// Movement types that INCREASE stock — everything else (out, transfer_out, *_reversed) decreases it.
+const INBOUND_MOVEMENT_TYPES = new Set(['in', 'transfer_in', 'stock_inbound', 'client_return_in', 'stocktake_in'])
+const isInboundType = (t: string) => INBOUND_MOVEMENT_TYPES.has(t)
+
 export default function SkuMovementsModal({ sku, productName, onClose }: SkuMovementsModalProps) {
   const supabase = createClient()
   const router = useRouter()
@@ -49,6 +53,9 @@ export default function SkuMovementsModal({ sku, productName, onClose }: SkuMove
 
   const getDocLabel = (o: any) => {
     if (!o) return '—'
+    if (o.document_type === 'client_return') return 'RETURN'
+    if (o.document_type === 'stock_inbound') return 'STOCK IN'
+    if (o.document_type === 'stocktake_diff') return 'STOCKTAKE'
     if (o.document_type === 'so_int') return 'SO(INT)'
     if (o.is_foc && o.document_type === 'invoice') return 'INV(DO)'
     if (o.is_foc) return 'SO(DO)'
@@ -61,6 +68,9 @@ export default function SkuMovementsModal({ sku, productName, onClose }: SkuMove
 
   const getDocColor = (o: any) => {
     if (!o) return 'bg-gray-100 text-gray-500'
+    if (o.document_type === 'client_return') return 'bg-pink-100 text-pink-700'
+    if (o.document_type === 'stock_inbound') return 'bg-cyan-100 text-cyan-700'
+    if (o.document_type === 'stocktake_diff') return 'bg-yellow-100 text-yellow-700'
     if (o.document_type === 'so_int') return 'bg-teal-100 text-teal-700'
     if (o.is_foc) return 'bg-green-100 text-green-700'
     if (o.document_type === 'invoice') return 'bg-purple-100 text-purple-700'
@@ -73,13 +83,13 @@ export default function SkuMovementsModal({ sku, productName, onClose }: SkuMove
 
   const enrichedMovements = [...(movements as any[])].reverse().map((m: any) => {
     if (!runningBalance[m.warehouse]) runningBalance[m.warehouse] = 0
-    if (m.movement_type === 'in')  runningBalance[m.warehouse] += m.quantity_packs
-    if (m.movement_type === 'out') runningBalance[m.warehouse] -= m.quantity_packs
+    if (isInboundType(m.movement_type)) runningBalance[m.warehouse] += m.quantity_packs
+    else                                runningBalance[m.warehouse] -= m.quantity_packs
     return { ...m, balance: runningBalance[m.warehouse] }
   }).reverse()
 
-  const totalIn  = (movements as any[]).filter((m: any) => m.movement_type === 'in').reduce((s: number, m: any) => s + m.quantity_packs, 0)
-  const totalOut = (movements as any[]).filter((m: any) => m.movement_type === 'out').reduce((s: number, m: any) => s + m.quantity_packs, 0)
+  const totalIn  = (movements as any[]).filter((m: any) => isInboundType(m.movement_type)).reduce((s: number, m: any) => s + m.quantity_packs, 0)
+  const totalOut = (movements as any[]).filter((m: any) => !isInboundType(m.movement_type)).reduce((s: number, m: any) => s + m.quantity_packs, 0)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
@@ -139,14 +149,14 @@ export default function SkuMovementsModal({ sku, productName, onClose }: SkuMove
                         {new Date(m.created_at).toLocaleDateString('en-GB')}
                       </td>
                       <td className="px-4 py-3">
-                        {m.movement_type === 'in'
+                        {isInboundType(m.movement_type)
                           ? <span className="flex items-center gap-1 text-green-600 text-xs font-semibold"><ArrowUp className="h-3 w-3" /> IN</span>
                           : <span className="flex items-center gap-1 text-red-500 text-xs font-semibold"><ArrowDown className="h-3 w-3" /> OUT</span>
                         }
                       </td>
                       <td className="px-4 py-3 text-gray-600 text-xs">{warehouseLabel(m.warehouse)}</td>
                       <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                        {m.movement_type === 'in' ? '+' : '-'}{m.quantity_packs}
+                        {isInboundType(m.movement_type) ? '+' : '-'}{m.quantity_packs}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-500 text-xs">{m.quantity_units}</td>
                       <td className="px-4 py-3">
