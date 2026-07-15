@@ -137,6 +137,14 @@ export function getStockInboundFileName(po: { po_number: string; partner_name: s
 }
 
 /**
+ * Purchase Order document — shares the Stock Inbound folder (same supplier shipment)
+ */
+export function getPurchaseOrderFileName(po: { po_number: string; partner_name: string }, version: number): string {
+  const date = formatDate(new Date().toISOString())
+  return `${date} - ${po.po_number} Purchase Order to ${po.partner_name} V${version}.pdf`
+}
+
+/**
  * Client Return — avoir/retour lié à un SO ou Invoice d'origine
  */
 export function getClientReturnFolderName(ret: { order_number: string; customer_name: string; created_at: string }): string {

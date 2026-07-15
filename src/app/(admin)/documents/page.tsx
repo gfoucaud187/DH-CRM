@@ -28,10 +28,12 @@ interface FolderData {
 
 const DOC_TYPE_LABEL: Record<string, string> = {
   so: 'SO', invoice: 'Invoice', so_do: 'SO(DO)', external: 'External',
+  po: 'PO', stock_inbound: 'Stock In', client_return: 'Return', stocktake_diff: 'Stocktake',
 }
 
 const DOC_TYPE_COLOR: Record<string, string> = {
   so: '#1C4B3C', invoice: '#6A1E2A', so_do: '#2D4E8A', external: '#92400E',
+  po: '#B45309', stock_inbound: '#0E7490', client_return: '#BE185D', stocktake_diff: '#A16207',
 }
 
 function formatBytes(bytes: number): string {

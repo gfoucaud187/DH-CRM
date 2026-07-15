@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { logActivity } from '@/lib/log-activity'
 import { warehouseLabel } from '@/lib/warehouse'
 import StockInboundPDF from '@/components/pdf/StockInboundPDF'
+import SupplierPOPDF from '@/components/pdf/SupplierPOPDF'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP']
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
@@ -59,6 +60,15 @@ export default function PurchaseOrderDetailPage() {
         .single()
       return data
     }
+  })
+
+  const { data: partner } = useQuery({
+    queryKey: ['po-partner', po?.partner_id],
+    queryFn: async () => {
+      const { data } = await supabase.from('partners').select('*').eq('id', po.partner_id).single()
+      return data
+    },
+    enabled: !!po?.partner_id
   })
 
   const { data: products = [] } = useQuery({
@@ -314,6 +324,12 @@ export default function PurchaseOrderDetailPage() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="font-semibold text-gray-900 mb-1">Document</h2>
+          <p className="text-xs text-gray-500 mb-3">Generates a PDF showing DH Signature as buyer and {po.partner_name} as supplier.</p>
+          <SupplierPOPDF po={po} lines={lines} partner={partner} />
         </div>
 
         {isCigars && isReceived && (
