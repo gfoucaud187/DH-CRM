@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getSignedUrl } from '@/lib/documents'
 import { Archive, X } from 'lucide-react'
 
 interface ExportTypeDef {
@@ -301,11 +302,16 @@ export default function ExportBundleModal() {
       let done = 0
       for (const row of rows) {
         setProgress(`Downloading files... (${done}/${rows.length})`)
-        const { data: blob, error: dlErr } = await step(`Downloading "${row.file.file_name}"`, () =>
-          supabase.storage.from('documents').download(row.file.file_path)
-        )
-        if (dlErr) throw new Error(`Downloading "${row.file.file_name}": ${dlErr.message}`)
-        if (blob) zip.file(row.file.file_name, blob)
+        // Use signed URLs, not storage.download() directly — same pattern as the working
+        // per-file download button on this page; .download() fails here (see prior incident).
+        const blob = await step(`Downloading "${row.file.file_name}"`, async () => {
+          const signedUrl = await getSignedUrl(supabase, row.file.file_path)
+          if (!signedUrl) throw new Error('could not get a signed URL')
+          const res = await fetch(signedUrl)
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          return res.blob()
+        })
+        zip.file(row.file.file_name, blob)
         done++
       }
       zip.file('Summary.pdf', summaryBlob)
