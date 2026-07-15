@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getSignedUrl } from '@/lib/documents'
 import { Archive, X } from 'lucide-react'
 
 interface ExportTypeDef {
@@ -153,6 +152,10 @@ export default function ExportBundleModal() {
 
   useEffect(() => {
     if (!open) return
+    // Reset to "all types selected" every time the modal opens, rather than keeping whatever
+    // was left checked from a previous session.
+    setSelectedTypes(new Set(EXPORT_TYPES.map(t => t.key)))
+    setError('')
     const run = async () => {
       try {
         const supabase = createClient()
@@ -224,7 +227,7 @@ export default function ExportBundleModal() {
             if (!po?.order_date) continue
             const d = po.order_date
             if (d < from || d > to) continue
-            const latest = group.reduce((a, b) => (b.version > a.version ? b : a))
+            const latest = group.reduce((a, b) => (Number(b.version) > Number(a.version) ? b : a))
             rows.push({
               file: latest, typeLabel: fileType === 'po' ? 'Purchase Order' : 'Stock Inbound',
               refNumber: po.po_number, date: d, party: po.partner_name,
@@ -246,7 +249,7 @@ export default function ExportBundleModal() {
             if (!ev?.event_date) continue
             const d = ev.event_date
             if (d < from || d > to) continue
-            const latest = group.reduce((a, b) => (b.version > a.version ? b : a))
+            const latest = group.reduce((a, b) => (Number(b.version) > Number(a.version) ? b : a))
             rows.push({
               file: latest, typeLabel: 'Stocktake', refNumber: ev.event_number, date: d,
               party: '—', quantityDisplay: '—', valueDisplay: '—', valueAmount: null, currency: null,
@@ -276,7 +279,7 @@ export default function ExportBundleModal() {
           const def = matchingDefs.find(t => t.soDocType === so.document_type)
           if (!def) continue
 
-          const latest = group.reduce((a, b) => (b.version > a.version ? b : a))
+          const latest = group.reduce((a, b) => (Number(b.version) > Number(a.version) ? b : a))
           rows.push({
             file: latest, typeLabel: def.label, refNumber: so.order_number, date: d,
             party: so.customer_name,
@@ -302,12 +305,12 @@ export default function ExportBundleModal() {
       let done = 0
       for (const row of rows) {
         setProgress(`Downloading files... (${done}/${rows.length})`)
-        // Use signed URLs, not storage.download() directly — same pattern as the working
-        // per-file download button on this page; .download() fails here (see prior incident).
+        // Neither storage.download() nor fetch(signedUrl) work here — both are browser-side
+        // fetches to the Supabase storage host, which is blocked by CORS on this self-hosted
+        // setup (only full-page navigations to it are exempt, which is why the per-file download
+        // button works). Proxy through our own origin instead, where CORS doesn't apply.
         const blob = await step(`Downloading "${row.file.file_name}"`, async () => {
-          const signedUrl = await getSignedUrl(supabase, row.file.file_path)
-          if (!signedUrl) throw new Error('could not get a signed URL')
-          const res = await fetch(signedUrl)
+          const res = await fetch(`/api/documents/download?path=${encodeURIComponent(row.file.file_path)}`)
           if (!res.ok) throw new Error(`HTTP ${res.status}`)
           return res.blob()
         })
