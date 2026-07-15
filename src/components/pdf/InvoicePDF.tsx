@@ -237,6 +237,9 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
   const isTT      = (order.is_tt_order || customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') && isInvoice
   const isInt     = order.document_type === 'so_int'
   const isDO      = order.is_foc && !isInvoice && !isInt
+  // SO(DO) and INV(DO): show the real commercial value per line, then zero it out with an
+  // equal-and-opposite Discount line so the document still reads as FOC overall.
+  const isFocDoc  = isFoc && !isInt
   const hasMixedWarehouses = !isInt && new Set(lines.map((l: any) => l.warehouse ?? order.warehouse)).size > 1
   const warehouseDisplay = hasMixedWarehouses ? 'Mixed' : warehouseLabel(order.warehouse)
 
@@ -273,6 +276,12 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
     : Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   const fmt2 = (n: any) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  // Real commercial value of the FOC lines, before the Discount line cancels it back out to 0
+  const focSubtotal = isFocDoc
+    ? lines.reduce((s: number, l: any) =>
+        s + (l.price_per_unit != null && l.quantity_units != null ? Number(l.price_per_unit) * Number(l.quantity_units) : 0), 0)
+    : 0
 
   const LINES_P1 = 10
   const LINES_PN = 14
@@ -339,8 +348,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
           ['Brand & Line', 'left'],['Vitola', 'left'],['SKU · Ref DH', 'left'],['Ref Fixmer', 'left'],
           ['Boxes', 'center'],['Articles', 'center'],['Dim L×Cepo', 'center'],['Shape', 'left'],
           ['Wrapper', 'left'],['Pack Type', 'center'],['Qty/Pack', 'left'],['Net/U g', 'right'],
-          ['Net Tot g', 'right'],['Price/U', 'right'],
-          ...(!isDO ? [['Total', 'right']] : []),
+          ['Net Tot g', 'right'],['Price/U', 'right'],['Total', 'right'],
         ]
     return (
       <thead>
@@ -354,7 +362,10 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
     const netWtTotal = (line.net_weight_g && line.quantity_units)
       ? Math.round(Number(line.net_weight_g) * Number(line.quantity_units)).toLocaleString('en-US') : '—'
     const priceUnit  = (!isInt && line.price_per_unit != null) ? fmt2(line.price_per_unit) : null
-    const priceTotal = (!isInt && !isDO && line.line_total != null) ? fmt2(line.line_total) : null
+    const effectiveLineTotal = isFocDoc
+      ? (line.price_per_unit != null && line.quantity_units != null ? Number(line.price_per_unit) * Number(line.quantity_units) : null)
+      : line.line_total
+    const priceTotal = (!isInt && effectiveLineTotal != null) ? fmt2(effectiveLineTotal) : null
     const brandLine  = line.brand
       ? (line.line_name ? line.brand + ' ' + line.line_name : line.brand)
       : (line.product_name ?? '').split(' ')[0]?.replace(/_/g, ' ') ?? line.product_name
@@ -563,23 +574,6 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                 )}
 
                 {isFirst && (
-                  <div className="kpi-strip">
-                    {[
-                      { label: 'Total Packs',    value: String(order.total_packs ?? 0), accent: false },
-                      { label: 'Total Articles', value: String(order.total_units ?? 0), accent: false },
-                      { label: 'Net Tobacco kg', value: netTobaccoKg,                   accent: false },
-                      { label: isInvoice ? 'Amount Due' : isInt ? 'Transfer' : 'Total Value',
-                        value: isInt ? 'INT' : (isFoc || isSample) ? 'FOC' : `USD ${totalValue}`, accent: true },
-                    ].map((k, i) => (
-                      <div key={i} className={k.accent ? 'kpi-seg-accent' : 'kpi-seg'}>
-                        <div className={k.accent ? 'kpi-label-accent' : 'kpi-label'}>{k.label}</div>
-                        <div className={k.accent ? 'kpi-value-accent' : 'kpi-value'}>{k.value}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {isFirst && (
                   <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start', flexShrink: 0 }}>
                     <div style={{ flex: 1 }}>
                       {isInt ? (
@@ -632,6 +626,23 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                   </div>
                 )}
 
+                {isFirst && (
+                  <div className="kpi-strip">
+                    {[
+                      { label: 'Total Packs',    value: String(order.total_packs ?? 0), accent: false },
+                      { label: 'Total Articles', value: String(order.total_units ?? 0), accent: false },
+                      { label: 'Net Tobacco kg', value: netTobaccoKg,                   accent: false },
+                      { label: isInvoice ? 'Amount Due' : isInt ? 'Transfer' : 'Total Value',
+                        value: isInt ? 'INT' : (isFoc || isSample) ? 'FOC' : `USD ${totalValue}`, accent: true },
+                    ].map((k, i) => (
+                      <div key={i} className={k.accent ? 'kpi-seg-accent' : 'kpi-seg'}>
+                        <div className={k.accent ? 'kpi-label-accent' : 'kpi-label'}>{k.label}</div>
+                        <div className={k.accent ? 'kpi-value-accent' : 'kpi-value'}>{k.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <table className="line-table">
                   <TableHead />
                   <tbody>
@@ -664,6 +675,9 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                     <div className="totals-block">
                       <div className="total-line"><span>Total Boxes</span><span>{Number(order.total_packs).toLocaleString('en-US')}</span></div>
                       <div className="total-line"><span>Total Articles</span><span>{Number(order.total_units).toLocaleString('en-US')}</span></div>
+                      {isFocDoc && (
+                        <div className="total-line"><span>Discount</span><span>-{order.currency} {fmt2(focSubtotal)}</span></div>
+                      )}
                       {services.map((s: any) => (
                         <div className="total-line" key={s.id}>
                           <span>{s.description}</span>
@@ -674,7 +688,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                       {!isInt && (
                         <div className="grand-row">
                           <span className="grand-label">{isInvoice ? 'Amount Due' : isDO ? 'Delivery Order' : 'Total'}</span>
-                          <span className="grand-value">{isDO ? 'FOC' : `${order.currency} ${totalValue}`}</span>
+                          <span className="grand-value">{isFocDoc ? `${order.currency} 0.00 (FOC)` : `${order.currency} ${totalValue}`}</span>
                         </div>
                       )}
                     </div>
