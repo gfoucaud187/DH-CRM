@@ -7,8 +7,10 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Save, Plus, Trash2, Package, Wrench, Box } from 'lucide-react'
 import Link from 'next/link'
 import { logActivity } from '@/lib/log-activity'
+import { warehouseLabel } from '@/lib/warehouse'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP']
+const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 type POType = 'cigars' | 'services' | 'goods'
 
 interface Line {
@@ -30,6 +32,7 @@ export default function NewPurchaseOrderPage() {
   const [expectedDelivery, setExpectedDelivery] = useState('')
   const [deliveryTba, setDeliveryTba]           = useState(false)
   const [notes, setNotes]                       = useState('')
+  const [warehouse, setWarehouse]               = useState('T1')
   const [saving, setSaving]                     = useState(false)
   const [lines, setLines]                       = useState<Line[]>([{ sku: '', description: '', quantity: 0, unit_price: 0 }])
   const [productSearch, setProductSearch]       = useState('')
@@ -92,6 +95,7 @@ export default function NewPurchaseOrderPage() {
         expected_delivery: deliveryTba ? null : (expectedDelivery || null),
         delivery_tba: deliveryTba,
         notes: notes || null,
+        ...(poType === 'cigars' ? { warehouse } : {}),
       })
       .select().single()
 
@@ -222,6 +226,15 @@ export default function NewPurchaseOrderPage() {
                 </label>
               </div>
             </div>
+            {poType === 'cigars' && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase">Receiving Warehouse</label>
+                <select value={warehouse} onChange={e => setWarehouse(e.target.value)}
+                  className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
+                  {WAREHOUSES.map(w => <option key={w} value={w}>{warehouseLabel(w)}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         </div>
 

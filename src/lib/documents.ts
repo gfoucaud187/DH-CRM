@@ -123,6 +123,47 @@ export function getFilePath(folderName: string, fileName: string): string {
 }
 
 /**
+ * Stock Inbound — reçu de réception d'une commande fournisseur
+ * Dossier distinct de celui des Orders (clients)
+ */
+export function getStockInboundFolderName(po: { po_number: string; partner_name: string; created_at: string }): string {
+  const year = new Date(po.created_at).getFullYear()
+  return `${year}-${po.po_number} from ${po.partner_name}`.trim()
+}
+
+export function getStockInboundFileName(po: { po_number: string; partner_name: string }, version: number): string {
+  const date = formatDate(new Date().toISOString())
+  return `${date} - ${po.po_number} Stock Inbound from ${po.partner_name} V${version}.pdf`
+}
+
+/**
+ * Client Return — avoir/retour lié à un SO ou Invoice d'origine
+ */
+export function getClientReturnFolderName(ret: { order_number: string; customer_name: string; created_at: string }): string {
+  const year = new Date(ret.created_at).getFullYear()
+  const num = extractNumeric(ret.order_number)
+  return `${year}-${num} return from ${ret.customer_name}`.trim()
+}
+
+export function getClientReturnFileName(ret: { order_number: string; customer_name: string; created_at: string }, version: number): string {
+  const date = formatDate(ret.created_at)
+  return `${date} - ${ret.order_number} Client Return from ${ret.customer_name} V${version}.pdf`
+}
+
+/**
+ * Stocktake Difference — session de comptage physique
+ */
+export function getStocktakeFolderName(ev: { event_number: string; warehouse: string; created_at: string }): string {
+  const year = new Date(ev.created_at).getFullYear()
+  return `${year}-${ev.event_number} stocktake ${ev.warehouse}`.trim()
+}
+
+export function getStocktakeFileName(ev: { event_number: string; warehouse: string }, version: number): string {
+  const date = formatDate(new Date().toISOString())
+  return `${date} - ${ev.event_number} Stocktake Difference ${ev.warehouse} V${version}.pdf`
+}
+
+/**
  * Récupère le prochain numéro de version pour un document
  */
 export async function getNextVersion(

@@ -7,8 +7,11 @@ import { useState, useEffect } from 'react'
 import { ArrowLeft, Save, Trash2, Plus, Package, Wrench, Box } from 'lucide-react'
 import Link from 'next/link'
 import { logActivity } from '@/lib/log-activity'
+import { warehouseLabel } from '@/lib/warehouse'
+import StockInboundPDF from '@/components/pdf/StockInboundPDF'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP']
+const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 const STATUS_FLOW = ['draft', 'sent', 'confirmed', 'received', 'cancelled']
 const STATUS_COLORS: Record<string, string> = {
   draft:     'bg-gray-100 text-gray-600',
@@ -39,6 +42,7 @@ export default function PurchaseOrderDetailPage() {
   const [expectedDelivery, setExpectedDelivery] = useState('')
   const [deliveryTba, setDeliveryTba]           = useState(false)
   const [notes, setNotes]                       = useState('')
+  const [warehouse, setWarehouse]               = useState('T1')
   const [lines, setLines]                       = useState<Line[]>([])
   const [saving, setSaving]                     = useState(false)
 
@@ -61,6 +65,7 @@ export default function PurchaseOrderDetailPage() {
     setExpectedDelivery(po.expected_delivery ?? '')
     setDeliveryTba(po.delivery_tba ?? false)
     setNotes(po.notes ?? '')
+    setWarehouse(po.warehouse ?? 'T1')
     setLines((po.purchase_order_lines ?? []).map((l: any) => ({
       id: l.id,
       sku: l.sku ?? '',
@@ -93,6 +98,7 @@ export default function PurchaseOrderDetailPage() {
       notes: notes || null,
       total_amount: totalAmount,
       updated_at: new Date().toISOString(),
+      ...(isCigars && !isReceived ? { warehouse } : {}),
     }).eq('id', id as string)
 
     await supabase.from('purchase_order_lines').delete().eq('po_id', id as string)
@@ -244,8 +250,28 @@ export default function PurchaseOrderDetailPage() {
                 </label>
               </div>
             </div>
+            {isCigars && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase">Receiving Warehouse</label>
+                <select value={warehouse} onChange={e => setWarehouse(e.target.value)}
+                  disabled={isReceived}
+                  className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none disabled:bg-gray-50 disabled:text-gray-400">
+                  {WAREHOUSES.map(w => <option key={w} value={w}>{warehouseLabel(w)}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         </div>
+
+        {isCigars && isReceived && (
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="font-semibold text-gray-900 mb-1">Stock Inbound Document</h2>
+            <p className="text-xs text-gray-500 mb-3">
+              Stock was credited to {warehouseLabel(po.warehouse)} and logged in Stock Movements. Generate the receipt document below.
+            </p>
+            <StockInboundPDF po={po} lines={po.purchase_order_lines ?? []} />
+          </div>
+        )}
 
         {/* Lines */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">

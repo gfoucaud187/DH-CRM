@@ -11,6 +11,9 @@ const WAREHOUSES = ['All', 'T1', 'Central', 'Aged', 'Sample', 'Private']
 const WAREHOUSE_LABELS: Record<string, string> = { Aged: 'Central Ageing' }
 
 const getDocLabel = (o: any) => {
+  if (o.document_type === 'stock_inbound') return 'STOCK IN'
+  if (o.document_type === 'client_return') return 'RETURN'
+  if (o.document_type === 'stocktake_diff') return 'STOCKTAKE'
   if (o.document_type === 'so_int') return 'SO(INT)'
   if (o.is_foc && o.document_type === 'invoice') return 'INV(DO)'
   if (o.is_foc) return 'SO(DO)'
@@ -19,7 +22,15 @@ const getDocLabel = (o: any) => {
   return o.document_type?.toUpperCase()
 }
 
+// Movement types that INCREASE stock — everything else (out, transfer_out, *_reversed) decreases it.
+// Used to sign the pivot so the Opening/Closing stock math (opening = current + net change) stays correct
+// now that inbound movements (Stock Inbound, Client Return, Stocktake surplus) show up alongside sales.
+const INBOUND_MOVEMENT_TYPES = new Set(['in', 'stock_inbound', 'client_return_in', 'stocktake_in'])
+
 const getDocColor = (o: any) => {
+  if (o.document_type === 'stock_inbound') return '#0891b2'
+  if (o.document_type === 'client_return') return '#db2777'
+  if (o.document_type === 'stocktake_diff') return '#ca8a04'
   if (o.document_type === 'so_int') return '#0d9488'
   if (o.is_foc) return '#16a34a'
   if (o.document_type === 'invoice') return '#7c3aed'
@@ -48,7 +59,7 @@ export default function StockMovementsView() {
         .select('*')
         .gte('created_at', dateFrom + 'T00:00:00')
         .lte('created_at', dateTo + 'T23:59:59')
-        .in('movement_type', ['out', 'transfer_out'])
+        .neq('movement_type', 'transfer_in')
         .order('created_at', { ascending: true })
 
       if (warehouse !== 'All') q = q.eq('warehouse', warehouse)
@@ -125,7 +136,8 @@ export default function StockMovementsView() {
       if (m.reference_id) orderSet.add(m.reference_id)
       if (!data[m.sku]) data[m.sku] = {}
       if (!data[m.sku][m.reference_id]) data[m.sku][m.reference_id] = 0
-      data[m.sku][m.reference_id] += unit === 'units' ? m.quantity_units : m.quantity_packs
+      const qty = unit === 'units' ? m.quantity_units : m.quantity_packs
+      data[m.sku][m.reference_id] += INBOUND_MOVEMENT_TYPES.has(m.movement_type) ? -qty : qty
     })
 
     // Sort orders by date
@@ -369,7 +381,7 @@ export default function StockMovementsView() {
                         const val = pivot[sku]?.[col]
                         return (
                           <td key={col} className="px-3 py-2.5 text-right border-r border-gray-100 font-mono text-xs">
-                            {val ? <span className="text-gray-800 font-medium">{val.toLocaleString('en-US')}</span> : <span className="text-gray-200">—</span>}
+                            {val ? <span className="text-gray-800 font-medium">{Math.abs(val).toLocaleString('en-US')}</span> : <span className="text-gray-200">—</span>}
                           </td>
                         )
                       })}
