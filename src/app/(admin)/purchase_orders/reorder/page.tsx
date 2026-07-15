@@ -86,6 +86,22 @@ export default function ReorderAnalysisPage() {
     }
   })
 
+  // Orders already placed but not yet received are still "in the pipeline" — with a lead time
+  // longer than the interval between orders, there's always one in transit, and it must be
+  // netted against demand or every new order double-counts stock that's already on its way.
+  const { data: openPoLines = [] } = useQuery({
+    queryKey: ['reorder-open-po-lines'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('purchase_order_lines')
+        .select('sku, quantity, purchase_orders!inner(po_type, status, warehouse)')
+        .eq('purchase_orders.po_type', 'cigars')
+        .in('purchase_orders.status', ['draft', 'sent', 'confirmed'])
+        .in('purchase_orders.warehouse', REORDER_WAREHOUSES)
+      return data ?? []
+    }
+  })
+
   const { data: products = [] } = useQuery({
     queryKey: ['reorder-products'],
     queryFn: async () => {
@@ -138,6 +154,9 @@ export default function ReorderAnalysisPage() {
     const stockBySku: Record<string, number> = {}
     ;(inventory as any[]).forEach(r => { stockBySku[r.sku] = (stockBySku[r.sku] ?? 0) + (r.quantity_packs ?? 0) })
 
+    const onOrderBySku: Record<string, number> = {}
+    ;(openPoLines as any[]).forEach(l => { onOrderBySku[l.sku] = (onOrderBySku[l.sku] ?? 0) + (l.quantity ?? 0) })
+
     const { coveredMonths } = factors
 
     return (products as any[])
@@ -145,24 +164,28 @@ export default function ReorderAnalysisPage() {
         const totalSold = totalSoldBySku[p.sku] ?? 0
         const baselineAvgMonthly = (deseasonalizedTotalBySku[p.sku] ?? 0) / windowMonths
         const currentStock = stockBySku[p.sku] ?? 0
+        const onOrder = onOrderBySku[p.sku] ?? 0
         // A negative stock balance isn't real available stock to net against demand —
-        // treat it as zero so it doesn't inflate the recommended quantity.
-        const currentStockClipped = Math.max(0, currentStock)
+        // treat it as zero so it doesn't inflate the recommended quantity. Orders already
+        // placed but not yet received are still counted — otherwise, whenever the lead time
+        // is longer than the interval between orders, every new order ignores the previous
+        // one still in transit and double-orders the overlap.
+        const netPosition = Math.max(0, currentStock) + onOrder
         const monthlyBreakdown = coveredMonths.map(m => ({
           ...m, contribution: baselineAvgMonthly * m.growthFactor * SEASONALITY[m.monthIdx],
         }))
         const targetDemand = monthlyBreakdown.reduce((s, m) => s + m.contribution, 0)
-        const rawQty = targetDemand - currentStockClipped
+        const rawQty = targetDemand - netPosition
         const recommendedQty = Math.max(0, Math.ceil(rawQty))
         return {
           sku: p.sku, full_name: p.full_name, brand: p.brand, units_per_pack: p.units_per_pack ?? 1,
-          totalSold, avgMonthly: baselineAvgMonthly, currentStock, currentStockClipped,
+          totalSold, avgMonthly: baselineAvgMonthly, currentStock, onOrder, netPosition,
           monthlyBreakdown, targetDemand, rawQty, recommendedQty,
         }
       })
       .filter(r => r.totalSold > 0 || r.currentStock > 0 || r.recommendedQty > 0)
       .sort((a, b) => b.recommendedQty - a.recommendedQty)
-  }, [products, salesLines, inventory, factors, windowMonths])
+  }, [products, salesLines, inventory, openPoLines, factors, windowMonths])
 
   const getQty = (sku: string, defaultQty: number) => {
     const ov = overrides[sku]
@@ -179,6 +202,7 @@ export default function ReorderAnalysisPage() {
         avg_monthly_sales_packs: Math.round(r.avgMonthly * 10) / 10,
         months_of_data: windowMonths,
         current_stock_packs: r.currentStock,
+        already_on_order_packs: r.onOrder,
         recommended_qty_packs: getQty(r.sku, r.recommendedQty),
       }))
       const res = await fetch('/api/purchase_orders/reorder_insights', {
@@ -310,7 +334,7 @@ export default function ReorderAnalysisPage() {
         <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 mb-4 text-sm text-blue-900 space-y-2">
           <p className="font-semibold">Formula</p>
           <p className="font-mono text-xs bg-white/60 rounded px-2 py-1.5 inline-block">
-            recommended_qty = Σ (baseline_avg_monthly × growth_factor(month) × seasonality(month)) − max(0, current_stock)
+            recommended_qty = Σ (baseline_avg_monthly × growth_factor(month) × seasonality(month)) − (max(0, current_stock) + open_purchase_orders)
           </p>
           <ul className="text-xs space-y-1 mt-2 list-disc list-inside text-blue-800">
             <li><strong>baseline_avg_monthly</strong>: each month's actual sales over the last {windowMonths} month{windowMonths > 1 ? 's' : ''} is first deseasonalized (divided by that calendar month's seasonality index) before averaging, so the baseline reflects underlying demand rather than the season it sold in</li>
@@ -318,6 +342,7 @@ export default function ReorderAnalysisPage() {
             <li><strong>lead time + coverage</strong> = {factors.lt.toFixed(2)} + {factors.coverage.toFixed(2)} = {(factors.lt + factors.coverage).toFixed(2)} months of demand this order must cover, starting from today → rounded to {factors.monthsCount} calendar month{factors.monthsCount > 1 ? 's' : ''}</li>
             <li><strong>covered months</strong>: {factors.coveredMonths.map(m => `${m.monthName} (×${SEASONALITY[m.monthIdx].toFixed(1)} seasonality, ×${m.growthFactor.toFixed(3)} growth)`).join(', ')}</li>
             <li>if current stock is negative, it's treated as 0 rather than added to the required quantity — a negative balance isn't stock available to net against demand</li>
+            <li><strong>open_purchase_orders</strong>: quantity already on draft/sent/confirmed cigar POs for this SKU, not yet received — since lead time is usually longer than the interval between orders, there's always a previous order still in transit, and it must be netted out or every new order double-counts it</li>
             <li>Click the <Info className="h-3 w-3 inline" /> icon on any product row to see its own numbers plugged into this formula</li>
           </ul>
         </div>
@@ -330,6 +355,7 @@ export default function ReorderAnalysisPage() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
               <th className="text-right px-3 py-3 font-medium text-gray-600">Avg/Month (boxes)</th>
               <th className="text-right px-3 py-3 font-medium text-gray-600">Current Stock</th>
+              <th className="text-right px-3 py-3 font-medium text-gray-600">On Order</th>
               <th className="text-right px-3 py-3 font-medium text-gray-600">Recommended Qty</th>
               <th className="px-3 py-3" />
               <th className="px-3 py-3" />
@@ -354,6 +380,7 @@ export default function ReorderAnalysisPage() {
                   </td>
                   <td className="px-3 py-3 text-right text-gray-500">{r.avgMonthly.toFixed(1)}</td>
                   <td className="px-3 py-3 text-right text-gray-500">{r.currentStock}</td>
+                  <td className="px-3 py-3 text-right text-gray-500">{r.onOrder > 0 ? r.onOrder : '—'}</td>
                   <td className="px-3 py-3 text-right">
                     <input type="number" min={0} disabled={isExcluded}
                       value={getQty(r.sku, r.recommendedQty)}
@@ -375,7 +402,7 @@ export default function ReorderAnalysisPage() {
                 </tr>
                 {isExpanded && (
                   <tr className="bg-gray-50">
-                    <td colSpan={6} className="px-4 py-3">
+                    <td colSpan={7} className="px-4 py-3">
                       <div className="text-xs text-gray-600 font-mono space-y-1">
                         <div>baseline_avg_monthly (deseasonalized) = {r.totalSold} boxes sold over {windowMonths} months, each divided by that month's seasonality → {r.avgMonthly.toFixed(2)}/month</div>
                         {r.currentStock < 0 && (
@@ -385,7 +412,8 @@ export default function ReorderAnalysisPage() {
                           <div key={m.offset}>{m.monthName}: {r.avgMonthly.toFixed(2)} × {m.growthFactor.toFixed(3)} growth × {SEASONALITY[m.monthIdx].toFixed(1)} seasonality = {m.contribution.toFixed(2)}</div>
                         ))}
                         <div>target_demand = {r.monthlyBreakdown.map((m: any) => m.contribution.toFixed(2)).join(' + ')} = {r.targetDemand.toFixed(2)} boxes</div>
-                        <div>recommended_qty = {r.targetDemand.toFixed(2)} − current_stock (max(0, {r.currentStock}) = {r.currentStockClipped}) = {r.rawQty.toFixed(2)} → rounded up to {r.recommendedQty}</div>
+                        <div>net_position = max(0, current_stock {r.currentStock}) + on_order ({r.onOrder}) = {r.netPosition}</div>
+                        <div>recommended_qty = {r.targetDemand.toFixed(2)} − net_position ({r.netPosition}) = {r.rawQty.toFixed(2)} → rounded up to {r.recommendedQty}</div>
                       </div>
                     </td>
                   </tr>
@@ -394,7 +422,7 @@ export default function ReorderAnalysisPage() {
               )
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">No sales history or stock found for active original products</td></tr>
+              <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No sales history or stock found for active original products</td></tr>
             )}
           </tbody>
         </table>
