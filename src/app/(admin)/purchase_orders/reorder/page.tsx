@@ -10,6 +10,11 @@ import { logActivity } from '@/lib/log-activity'
 
 const REORDER_WAREHOUSES = ['T1', 'Central'] // Aged excluded on purpose — not part of the regular replenishment cycle
 
+// Jan..Dec — relative demand vs. a "normal" month, used to deseasonalize history and
+// reseasonalize the forecast window (the order needs to cover specific calendar months, not an average one)
+const SEASONALITY = [0.8, 0.8, 1.0, 1.1, 1.2, 1.4, 2.0, 2.0, 1.5, 1.0, 1.8, 1.8]
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
 function monthsBetween(a: Date, b: Date): number {
   return Math.max(1, (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()))
 }
@@ -26,6 +31,8 @@ export default function ReorderAnalysisPage() {
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
   const [insights, setInsights] = useState<Record<string, string>>({})
   const [insightsLoading, setInsightsLoading] = useState(false)
+  const [insightsError, setInsightsError] = useState<string | null>(null)
+  const [insightsRan, setInsightsRan] = useState(false)
   const [showPoModal, setShowPoModal] = useState(false)
   const [selectedPartnerId, setSelectedPartnerId] = useState('')
   const [creating, setCreating] = useState(false)
@@ -104,32 +111,54 @@ export default function ReorderAnalysisPage() {
     const lt = parseFloat(leadTimeMonths) || 0
     const opy = parseFloat(ordersPerYear) || 1
     const coverage = 12 / opy
-    const midpoint = lt + coverage / 2
-    const growthFactor = Math.pow(1 + growth, midpoint / 12)
-    return { growth, lt, opy, coverage, midpoint, growthFactor }
+    const startOffset = Math.round(lt)
+    const monthsCount = Math.max(1, Math.round(coverage))
+    const today = new Date()
+    // The specific future calendar months this order must cover, starting `lt` months from now
+    const coveredMonths = Array.from({ length: monthsCount }, (_, i) => {
+      const offset = startOffset + i
+      const d = new Date(today.getFullYear(), today.getMonth() + offset, 1)
+      return { offset, monthIdx: d.getMonth(), monthName: MONTH_NAMES[d.getMonth()], growthFactor: Math.pow(1 + growth, offset / 12) }
+    })
+    return { growth, lt, opy, coverage, startOffset, monthsCount, coveredMonths }
   }, [annualGrowth, ordersPerYear, leadTimeMonths])
 
   const rows = useMemo(() => {
-    const salesBySku: Record<string, number> = {}
-    ;(salesLines as any[]).forEach(l => { salesBySku[l.sku] = (salesBySku[l.sku] ?? 0) + (l.quantity_packs ?? 0) })
+    // Deseasonalize each sale by its own calendar month's index before summing, so the
+    // resulting baseline reflects underlying demand rather than the season it was sold in.
+    const deseasonalizedTotalBySku: Record<string, number> = {}
+    const totalSoldBySku: Record<string, number> = {}
+    ;(salesLines as any[]).forEach(l => {
+      const orderDate = l.sales_orders?.order_date
+      const monthIdx = orderDate ? new Date(orderDate).getMonth() : new Date().getMonth()
+      const qty = l.quantity_packs ?? 0
+      deseasonalizedTotalBySku[l.sku] = (deseasonalizedTotalBySku[l.sku] ?? 0) + qty / SEASONALITY[monthIdx]
+      totalSoldBySku[l.sku] = (totalSoldBySku[l.sku] ?? 0) + qty
+    })
 
     const stockBySku: Record<string, number> = {}
     ;(inventory as any[]).forEach(r => { stockBySku[r.sku] = (stockBySku[r.sku] ?? 0) + (r.quantity_packs ?? 0) })
 
-    const { lt, coverage, growthFactor } = factors
+    const { coveredMonths } = factors
 
     return (products as any[])
       .map(p => {
-        const totalSold = salesBySku[p.sku] ?? 0
-        const avgMonthly = totalSold / windowMonths
+        const totalSold = totalSoldBySku[p.sku] ?? 0
+        const baselineAvgMonthly = (deseasonalizedTotalBySku[p.sku] ?? 0) / windowMonths
         const currentStock = stockBySku[p.sku] ?? 0
-        const adjustedMonthly = avgMonthly * growthFactor
-        const targetDemand = adjustedMonthly * (lt + coverage)
-        const rawQty = targetDemand - currentStock
+        // A negative stock balance isn't real available stock to net against demand —
+        // treat it as zero so it doesn't inflate the recommended quantity.
+        const currentStockClipped = Math.max(0, currentStock)
+        const monthlyBreakdown = coveredMonths.map(m => ({
+          ...m, contribution: baselineAvgMonthly * m.growthFactor * SEASONALITY[m.monthIdx],
+        }))
+        const targetDemand = monthlyBreakdown.reduce((s, m) => s + m.contribution, 0)
+        const rawQty = targetDemand - currentStockClipped
         const recommendedQty = Math.max(0, Math.ceil(rawQty))
         return {
           sku: p.sku, full_name: p.full_name, brand: p.brand, units_per_pack: p.units_per_pack ?? 1,
-          totalSold, avgMonthly, currentStock, adjustedMonthly, targetDemand, rawQty, recommendedQty,
+          totalSold, avgMonthly: baselineAvgMonthly, currentStock, currentStockClipped,
+          monthlyBreakdown, targetDemand, rawQty, recommendedQty,
         }
       })
       .filter(r => r.totalSold > 0 || r.currentStock > 0 || r.recommendedQty > 0)
@@ -143,6 +172,8 @@ export default function ReorderAnalysisPage() {
 
   const handleGetInsights = async () => {
     setInsightsLoading(true)
+    setInsightsError(null)
+    setInsightsRan(false)
     try {
       const payload = rows.filter(r => !excluded.has(r.sku)).map(r => ({
         sku: r.sku, product: r.full_name,
@@ -160,7 +191,12 @@ export default function ReorderAnalysisPage() {
         const map: Record<string, string> = {}
         ;(data.flags ?? []).forEach((f: any) => { map[f.sku] = f.comment })
         setInsights(map)
+        setInsightsRan(true)
+      } else {
+        setInsightsError(data.error ?? 'Unknown error while requesting AI insights')
       }
+    } catch (err: any) {
+      setInsightsError(err.message ?? 'Network error while requesting AI insights')
     } finally {
       setInsightsLoading(false)
     }
@@ -238,6 +274,17 @@ export default function ReorderAnalysisPage() {
         </button>
       </div>
 
+      {insightsError && (
+        <div className="bg-red-50 rounded-xl border border-red-200 p-3 mb-4 text-sm text-red-700">
+          Could not get AI insights: {insightsError}
+        </div>
+      )}
+      {insightsRan && !insightsError && Object.keys(insights).length === 0 && (
+        <div className="bg-green-50 rounded-xl border border-green-200 p-3 mb-4 text-sm text-green-700">
+          Claude reviewed {rows.filter(r => !excluded.has(r.sku)).length} line(s) and didn't flag any concerns.
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 grid grid-cols-3 gap-4">
         <div>
           <label className="text-xs font-medium text-gray-500 uppercase">Expected Annual Growth</label>
@@ -264,13 +311,14 @@ export default function ReorderAnalysisPage() {
         <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 mb-4 text-sm text-blue-900 space-y-2">
           <p className="font-semibold">Formula</p>
           <p className="font-mono text-xs bg-white/60 rounded px-2 py-1.5 inline-block">
-            recommended_qty = avg_monthly_sales × growth_factor × (lead_time + coverage) − current_stock
+            recommended_qty = Σ (baseline_avg_monthly × growth_factor(month) × seasonality(month)) − max(0, current_stock)
           </p>
           <ul className="text-xs space-y-1 mt-2 list-disc list-inside text-blue-800">
-            <li><strong>avg_monthly_sales</strong>: total boxes sold over the last {windowMonths} month{windowMonths > 1 ? 's' : ''} ÷ {windowMonths}</li>
-            <li><strong>coverage</strong> = 12 ÷ orders per year = {factors.coverage.toFixed(2)} months (how long this order must last until the next one)</li>
-            <li><strong>lead_time + coverage</strong> = {factors.lt.toFixed(2)} + {factors.coverage.toFixed(2)} = {(factors.lt + factors.coverage).toFixed(2)} months of demand this order must cover</li>
-            <li><strong>growth_factor</strong> = (1 + {annualGrowth}%) ^ (midpoint ÷ 12), midpoint = lead_time + coverage/2 = {factors.midpoint.toFixed(2)} months → factor = {factors.growthFactor.toFixed(3)}×</li>
+            <li><strong>baseline_avg_monthly</strong>: each month's actual sales over the last {windowMonths} month{windowMonths > 1 ? 's' : ''} is first deseasonalized (divided by that calendar month's seasonality index) before averaging, so the baseline reflects underlying demand rather than the season it sold in</li>
+            <li><strong>coverage</strong> = 12 ÷ orders per year = {factors.coverage.toFixed(2)} months → rounded to {factors.monthsCount} calendar month{factors.monthsCount > 1 ? 's' : ''} this order must cover</li>
+            <li><strong>lead time</strong> = {factors.lt.toFixed(2)} months → rounded to {factors.startOffset} month{factors.startOffset === 1 ? '' : 's'} from now before the covered period starts</li>
+            <li><strong>covered months</strong>: {factors.coveredMonths.map(m => `${m.monthName} (×${SEASONALITY[m.monthIdx].toFixed(1)} seasonality, ×${m.growthFactor.toFixed(3)} growth)`).join(', ')}</li>
+            <li>if current stock is negative, it's treated as 0 rather than added to the required quantity — a negative balance isn't stock available to net against demand</li>
             <li>Click the <Info className="h-3 w-3 inline" /> icon on any product row to see its own numbers plugged into this formula</li>
           </ul>
         </div>
@@ -330,10 +378,15 @@ export default function ReorderAnalysisPage() {
                   <tr className="bg-gray-50">
                     <td colSpan={6} className="px-4 py-3">
                       <div className="text-xs text-gray-600 font-mono space-y-1">
-                        <div>avg_monthly_sales = {r.totalSold} boxes ÷ {windowMonths} months = {r.avgMonthly.toFixed(2)}</div>
-                        <div>growth_factor = {factors.growthFactor.toFixed(3)}× → adjusted_monthly = {r.avgMonthly.toFixed(2)} × {factors.growthFactor.toFixed(3)} = {r.adjustedMonthly.toFixed(2)}</div>
-                        <div>target_demand = {r.adjustedMonthly.toFixed(2)} × ({factors.lt.toFixed(2)} + {factors.coverage.toFixed(2)}) = {r.targetDemand.toFixed(2)} boxes</div>
-                        <div>recommended_qty = {r.targetDemand.toFixed(2)} − current_stock ({r.currentStock}) = {r.rawQty.toFixed(2)} → rounded up to {r.recommendedQty}</div>
+                        <div>baseline_avg_monthly (deseasonalized) = {r.totalSold} boxes sold over {windowMonths} months, each divided by that month's seasonality → {r.avgMonthly.toFixed(2)}/month</div>
+                        {r.currentStock < 0 && (
+                          <div className="text-amber-600">current_stock is negative ({r.currentStock}) → treated as 0, not subtracted as-is</div>
+                        )}
+                        {r.monthlyBreakdown.map((m: any) => (
+                          <div key={m.offset}>{m.monthName}: {r.avgMonthly.toFixed(2)} × {m.growthFactor.toFixed(3)} growth × {SEASONALITY[m.monthIdx].toFixed(1)} seasonality = {m.contribution.toFixed(2)}</div>
+                        ))}
+                        <div>target_demand = {r.monthlyBreakdown.map((m: any) => m.contribution.toFixed(2)).join(' + ')} = {r.targetDemand.toFixed(2)} boxes</div>
+                        <div>recommended_qty = {r.targetDemand.toFixed(2)} − current_stock (max(0, {r.currentStock}) = {r.currentStockClipped}) = {r.rawQty.toFixed(2)} → rounded up to {r.recommendedQty}</div>
                       </div>
                     </td>
                   </tr>
