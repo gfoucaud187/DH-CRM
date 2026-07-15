@@ -303,21 +303,31 @@ export default function ExportBundleModal() {
       const JSZip = (await step('Loading ZIP library', async () => (await import('jszip')).default))
       const zip = new JSZip()
       let done = 0
+      const failed: { name: string; reason: string }[] = []
       for (const row of rows) {
         setProgress(`Downloading files... (${done}/${rows.length})`)
         // Neither storage.download() nor fetch(signedUrl) work here — both are browser-side
         // fetches to the Supabase storage host, which is blocked by CORS on this self-hosted
         // setup (only full-page navigations to it are exempt, which is why the per-file download
         // button works). Proxy through our own origin instead, where CORS doesn't apply.
-        const blob = await step(`Downloading "${row.file.file_name}"`, async () => {
-          const res = await fetch(`/api/documents/download?path=${encodeURIComponent(row.file.file_path)}`)
+        // Failures here don't abort the whole run — one bad reference shouldn't block everything
+        // else that's otherwise downloadable.
+        try {
+          const res = await fetch(`/api/documents/file?path=${encodeURIComponent(row.file.file_path)}`)
           if (!res.ok) throw new Error(`HTTP ${res.status}`)
-          return res.blob()
-        })
-        zip.file(row.file.file_name, blob)
+          const blob = await res.blob()
+          zip.file(row.file.file_name, blob)
+        } catch (e: any) {
+          console.error(`[ExportBundle] Downloading "${row.file.file_name}" failed:`, e)
+          failed.push({ name: row.file.file_name, reason: e?.message ?? String(e) })
+        }
         done++
       }
       zip.file('Summary.pdf', summaryBlob)
+
+      if (failed.length > 0) {
+        setError(`${failed.length} of ${rows.length} file(s) could not be downloaded and were left out of the ZIP: ${failed.map(f => f.name).join(', ')}`)
+      }
 
       setProgress('Packaging ZIP...')
       const zipBlob = await step('Packaging ZIP', () => zip.generateAsync({ type: 'blob' }))
@@ -327,7 +337,7 @@ export default function ExportBundleModal() {
       a.download = `Document Bundle ${from}_to_${to}.zip`
       a.click()
       URL.revokeObjectURL(url)
-      setOpen(false)
+      if (failed.length === 0) setOpen(false) // keep the modal open if some files were skipped, so the message stays visible
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong')
     } finally {
