@@ -35,7 +35,7 @@ export default function StocktakeDetailPage() {
   return (
     <div className="max-w-4xl">
       <div className="flex items-center gap-4 mb-6">
-        <Link href="/stock_movements" className="text-gray-400 hover:text-gray-900">
+        <Link href="/stocktake" className="text-gray-400 hover:text-gray-900">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">

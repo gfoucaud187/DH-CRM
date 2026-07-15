@@ -143,7 +143,7 @@ export default function NewStocktakePage() {
         metadata: { type: 'stocktake_diff', warehouse, lines: validLines.length },
       })
       queryClient.invalidateQueries({ queryKey: ['stocktake-events'] })
-      router.push('/stock_movements/stocktake/' + event.id)
+      router.push('/stocktake/' + event.id)
     } catch (err: any) {
       alert('Error: ' + err.message)
       setSaving(false)
@@ -153,7 +153,7 @@ export default function NewStocktakePage() {
   return (
     <div className="max-w-5xl">
       <div className="flex items-center gap-4 mb-6">
-        <Link href="/stock_movements" className="text-gray-400 hover:text-gray-900">
+        <Link href="/stocktake" className="text-gray-400 hover:text-gray-900">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">

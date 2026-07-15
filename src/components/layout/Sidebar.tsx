@@ -10,31 +10,40 @@ import {
   LayoutDashboard, Package, Users, Handshake, DollarSign,
   ShoppingCart, Warehouse, BarChart3, FolderOpen, Settings,
   ListChecks, LogOut, Target, Store, ChevronLeft, ChevronRight, ChevronDown,
-  ShoppingBag, Menu, X, Globe, Boxes, ArrowLeftRight
+  ShoppingBag, Menu, X, Globe, Boxes, ArrowLeftRight, ClipboardList
 } from 'lucide-react';
 import './sidebar.css';
 import { useT } from '@/lib/i18n/LanguageProvider';
 
 const NAV_ITEMS = [
-  { tKey: 'nav.dashboard',       fallback: 'Dashboard',         href: '/dashboard',        icon: LayoutDashboard },
-  { tKey: 'nav.products',        fallback: 'Products',          href: '/products',         icon: Package },
-  { tKey: 'nav.clients',         fallback: 'Clients',           href: '/clients',          icon: Users },
-  { tKey: 'nav.retailers',       fallback: 'Retailers',         href: '/retailers',        icon: Store },
-  { tKey: 'nav.partners',        fallback: 'Stakeholders',      href: '/stakeholders',     icon: Handshake },
-  { tKey: 'nav.price_lists',     fallback: 'Price Lists',       href: '/price_lists',      icon: DollarSign },
-  { tKey: 'nav.orders',          fallback: 'Orders',            href: '/orders',           icon: ShoppingCart, badge: true },
-  { tKey: 'nav.purchase_orders', fallback: 'Purchase Orders',   href: '/purchase_orders',  icon: ShoppingBag },
-  { tKey: 'nav.stock',           fallback: 'Stock',             icon: Warehouse, children: [
-      { tKey: 'nav.inventory',        fallback: 'Inventory',        href: '/inventory',        icon: Boxes },
-      { tKey: 'nav.stock_movements',  fallback: 'Stock Movements',  href: '/stock_movements',  icon: ArrowLeftRight },
+  { tKey: 'nav.dashboard',          fallback: 'Dashboard',      href: '/dashboard', icon: LayoutDashboard },
+  { tKey: 'nav.group_relationships', fallback: 'Relationships', icon: Handshake, children: [
+      { tKey: 'nav.clients',    fallback: 'Clients',      href: '/clients',      icon: Users },
+      { tKey: 'nav.retailers',  fallback: 'Retailers',    href: '/retailers',    icon: Store },
+      { tKey: 'nav.partners',   fallback: 'Stakeholders', href: '/stakeholders', icon: Handshake },
   ]},
-  { tKey: 'nav.finance',         fallback: 'Finance',           href: '/finance',          icon: DollarSign },
-  { tKey: 'nav.documents',       fallback: 'Documents',         href: '/documents',        icon: FolderOpen },
-  { tKey: 'nav.reports',         fallback: 'Reports',           href: '/reports',          icon: BarChart3 },
-  { tKey: 'nav.targets',         fallback: 'Targets',           href: '/targets',          icon: Target },
-  { tKey: 'nav.tracking',        fallback: 'Tracking Log',      href: '/tracking',         icon: ListChecks },
-  { tKey: 'nav.settings',        fallback: 'Settings',          href: '/settings',         icon: Settings },
-  { tKey: 'nav.cms',             fallback: 'Content Management',href: '/cms',              icon: Globe },
+  { tKey: 'nav.group_products', fallback: 'Products', icon: Package, children: [
+      { tKey: 'nav.products',    fallback: 'Products',    href: '/products',    icon: Package },
+      { tKey: 'nav.price_lists', fallback: 'Price Lists', href: '/price_lists', icon: DollarSign },
+  ]},
+  { tKey: 'nav.group_sales', fallback: 'Sales', icon: ShoppingCart, children: [
+      { tKey: 'nav.orders',          fallback: 'Orders',          href: '/orders',          icon: ShoppingCart, badge: true },
+      { tKey: 'nav.purchase_orders', fallback: 'Purchase Orders', href: '/purchase_orders', icon: ShoppingBag },
+      { tKey: 'nav.targets',         fallback: 'Targets',         href: '/targets',         icon: Target },
+  ]},
+  { tKey: 'nav.group_supply_chain', fallback: 'Supply Chain', icon: Warehouse, children: [
+      { tKey: 'nav.inventory',       fallback: 'Inventory',       href: '/inventory',       icon: Boxes },
+      { tKey: 'nav.stock_movements', fallback: 'Stock Movements', href: '/stock_movements', icon: ArrowLeftRight },
+      { tKey: 'nav.stocktake',       fallback: 'Stocktake',       href: '/stocktake',       icon: ClipboardList },
+  ]},
+  { tKey: 'nav.reports', fallback: 'Reports', href: '/reports', icon: BarChart3 },
+  { tKey: 'nav.group_admin', fallback: 'Admin', icon: Settings, children: [
+      { tKey: 'nav.settings',  fallback: 'Settings',            href: '/settings',  icon: Settings },
+      { tKey: 'nav.tracking',  fallback: 'Tracking Log',        href: '/tracking',  icon: ListChecks },
+      { tKey: 'nav.cms',       fallback: 'Content Management',  href: '/cms',       icon: Globe },
+      { tKey: 'nav.finance',   fallback: 'Finance',             href: '/finance',   icon: DollarSign },
+      { tKey: 'nav.documents', fallback: 'Documents',           href: '/documents', icon: FolderOpen },
+  ]},
 ];
 
 function StarLogo({ size = 30 }: { size?: number }) {
@@ -140,6 +149,7 @@ export default function Sidebar() {
             // a child route is active; the parent row still highlights via groupActive.
             const isOpen = openGroups[item.tKey] ?? false;
             const Icon = item.icon;
+            const hasBadgeChild = item.children.some((c: any) => c.badge);
             return (
               <div key={item.tKey}>
                 <button
@@ -150,11 +160,14 @@ export default function Sidebar() {
                 >
                   <Icon size={20} style={{ flexShrink: 0 }} />
                   <span className="sb-item-label">{label}</span>
+                  {hasBadgeChild && pendingPOCount > 0 && !isOpen && (
+                    <span className="sb-badge">{pendingPOCount}</span>
+                  )}
                   <ChevronDown size={14} style={{ flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }} />
                 </button>
                 {isOpen && (
                   <div className="sb-subnav">
-                    {item.children.map(child => {
+                    {item.children.map((child: any) => {
                       const childLabel = t(child.tKey) === child.tKey ? child.fallback : t(child.tKey);
                       const ChildIcon = child.icon;
                       return (
@@ -166,6 +179,9 @@ export default function Sidebar() {
                         >
                           <ChildIcon size={16} style={{ flexShrink: 0 }} />
                           <span className="sb-item-label">{childLabel}</span>
+                          {child.badge && pendingPOCount > 0 && (
+                            <span className="sb-badge">{pendingPOCount}</span>
+                          )}
                         </Link>
                       );
                     })}

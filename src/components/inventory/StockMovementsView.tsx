@@ -3,8 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useState, useMemo } from 'react'
-import { Download, Package, Search, Plus, ClipboardList } from 'lucide-react'
-import Link from 'next/link'
+import { Download, Package, Search } from 'lucide-react'
 import { useT } from '@/lib/i18n/LanguageProvider'
 
 const WAREHOUSES = ['All', 'T1', 'Central', 'Aged', 'Sample', 'Private']
@@ -97,18 +96,6 @@ export default function StockMovementsView() {
         .from('products')
         .select('sku, full_name, brand, line, vitola')
         .eq('product_role', 'original')
-      return data ?? []
-    }
-  })
-
-  const { data: recentStocktakes = [] } = useQuery({
-    queryKey: ['stocktake-events'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('inventory_events')
-        .select('id, event_number, warehouse, event_date, created_at')
-        .order('created_at', { ascending: false })
-        .limit(5)
       return data ?? []
     }
   })
@@ -257,29 +244,11 @@ export default function StockMovementsView() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900">Stock Movements</h2>
-        <div className="flex items-center gap-2">
-          <Link href="/stock_movements/stocktake/new"
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-            <Plus className="h-4 w-4" /> New Stocktake
-          </Link>
-          <button onClick={handleExport} disabled={movements.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-40 transition-colors">
-            <Download className="h-4 w-4" /> Export Excel
-          </button>
-        </div>
+        <button onClick={handleExport} disabled={movements.length === 0}
+          className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-40 transition-colors">
+          <Download className="h-4 w-4" /> Export Excel
+        </button>
       </div>
-
-      {recentStocktakes.length > 0 && (
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <span className="text-xs text-gray-400 uppercase font-medium flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5" /> Recent Stocktakes:</span>
-          {(recentStocktakes as any[]).map((ev: any) => (
-            <Link key={ev.id} href={'/stock_movements/stocktake/' + ev.id}
-              className="px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 transition-colors">
-              {ev.event_number} · {WAREHOUSE_LABELS[ev.warehouse] ?? ev.warehouse}
-            </Link>
-          ))}
-        </div>
-      )}
 
       {/* Search */}
       <div className="relative mb-4">
