@@ -115,6 +115,7 @@ export default function EditProductPage() {
   const [ma, setMa] = useState<MA>(emptyMA())
 
   const [prices, setPrices] = useState<Record<string, string>>({ G: '', G1: '', A1: '', SPECIAL: '' })
+  const [cogs, setCogs] = useState('')
   const [saving, setSaving] = useState(false)
 
   const { data: product, isLoading } = useQuery({
@@ -131,6 +132,16 @@ export default function EditProductPage() {
       if (!product?.sku) return []
       const { data } = await supabase.from('price_list_entries').select('*').eq('sku', product.sku)
       return data ?? []
+    },
+    enabled: !!product?.sku
+  })
+
+  const { data: latestCogs } = useQuery({
+    queryKey: ['product-cogs-latest', product?.sku],
+    queryFn: async () => {
+      const { data } = await supabase.from('product_cogs').select('*')
+        .eq('sku', product.sku).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      return data
     },
     enabled: !!product?.sku
   })
@@ -198,6 +209,10 @@ export default function EditProductPage() {
     ;(priceEntries as any[]).forEach((e: any) => { if (p.hasOwnProperty(e.price_list)) p[e.price_list] = e.price_per_unit?.toString() ?? '' })
     setPrices(p)
   }, [priceEntries])
+
+  useEffect(() => {
+    setCogs(latestCogs?.cogs != null ? String(latestCogs.cogs) : '')
+  }, [latestCogs])
 
   const buildMaJson = () => {
     const out: Record<string, number | null> = {}
@@ -290,10 +305,16 @@ export default function EditProductPage() {
       }
     }
 
+    const cogsVal = parseFloat(cogs)
+    if (cogs && !isNaN(cogsVal) && cogsVal !== Number(latestCogs?.cogs ?? NaN)) {
+      await supabase.from('product_cogs').insert({ sku, cogs: cogsVal, currency: 'USD', notes: 'Manual edit via Product page' })
+    }
+
     await logActivity({ action: 'update_product', entityType: 'product', entityId: id as string, entityRef: sku, metadata: { name: fullName, brand, status } })
     setSaving(false)
     queryClient.invalidateQueries({ queryKey: ['products'] })
     queryClient.invalidateQueries({ queryKey: ['price-entries-all'] })
+    queryClient.invalidateQueries({ queryKey: ['product-cogs-all'] })
     router.push('/products')
   }
 
@@ -448,6 +469,16 @@ export default function EditProductPage() {
                 <span className="text-xs text-gray-400 flex-shrink-0">USD</span>
               </div>
             ))}
+          </div>
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="flex items-center gap-3">
+              <span className="text-xs px-2 py-1 rounded font-semibold w-16 flex-shrink-0 text-center bg-gray-100 text-gray-600">COGS</span>
+              <input type="number" step="0.0001" min="0"
+                value={cogs} onChange={e => setCogs(e.target.value)}
+                placeholder="0.0000" className="flex-1 min-w-0 h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none text-right" />
+              <span className="text-xs text-gray-400 flex-shrink-0">USD / unit</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Cost per unit — saving a changed value logs a new historical entry (used for inventory valuation)</p>
           </div>
         </div>
 

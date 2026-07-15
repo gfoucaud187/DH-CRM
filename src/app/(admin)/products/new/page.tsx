@@ -235,6 +235,7 @@ function CigarForm() {
   const [netWeightG, setNetWeightG] = useState('')
   const [gtin, setGtin] = useState('')
   const [prices, setPrices] = useState<Record<string, string>>({ G: '', G1: '', A1: '', SPECIAL: '' })
+  const [cogs, setCogs] = useState('')
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
@@ -268,6 +269,11 @@ function CigarForm() {
       .filter(l => prices[l] && parseFloat(prices[l]) > 0)
       .map(l => ({ sku, product_name: fullName, price_list: l, price_per_unit: parseFloat(prices[l]), currency: 'USD' }))
     if (priceRows.length > 0) await supabase.from('price_list_entries').insert(priceRows)
+
+    const cogsVal = parseFloat(cogs)
+    if (cogs && !isNaN(cogsVal) && cogsVal > 0) {
+      await supabase.from('product_cogs').insert({ sku, cogs: cogsVal, currency: 'USD', notes: 'Set at product creation' })
+    }
 
     await logActivity({
       action: 'create_product',
@@ -389,6 +395,17 @@ function CigarForm() {
                 <span className="text-xs text-gray-400">USD</span>
               </div>
             ))}
+          </div>
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="flex items-center gap-3">
+              <span className="text-xs px-2 py-1 rounded font-semibold w-16 text-center bg-gray-100 text-gray-600">COGS</span>
+              <input type="number" step="0.0001" min="0"
+                value={cogs} onChange={e => setCogs(e.target.value)}
+                placeholder="0.0000"
+                className="flex-1 h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none text-right" />
+              <span className="text-xs text-gray-400">USD / unit</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Cost per unit — used for inventory valuation</p>
           </div>
         </div>
 
