@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Plus, Package, Wrench, Box, Trash2 } from 'lucide-react'
+import { Plus, Package, Wrench, Box, Trash2, Sparkles } from 'lucide-react'
 import { useT } from '@/lib/i18n/LanguageProvider'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -55,10 +55,16 @@ export default function PurchaseOrdersPage() {
           <h1 className="text-2xl font-bold text-gray-900">{t('purchase_orders.page_title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{pos?.length ?? 0} orders</p>
         </div>
-        <Link href="/purchase_orders/new"
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
-          <Plus className="h-4 w-4" /> {t('purchase_orders.new_po')}
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/purchase_orders/reorder"
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+            <Sparkles className="h-4 w-4" /> Reorder Analysis
+          </Link>
+          <Link href="/purchase_orders/new"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
+            <Plus className="h-4 w-4" /> {t('purchase_orders.new_po')}
+          </Link>
+        </div>
       </div>
 
       {isLoading ? (

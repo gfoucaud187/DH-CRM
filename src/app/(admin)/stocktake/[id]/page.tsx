@@ -31,6 +31,7 @@ export default function StocktakeDetailPage() {
   const lines = event.lines ?? []
   const totalSurplus = lines.filter((l: any) => l.delta_packs > 0).reduce((s: number, l: any) => s + l.delta_packs, 0)
   const totalShortage = lines.filter((l: any) => l.delta_packs < 0).reduce((s: number, l: any) => s + Math.abs(l.delta_packs), 0)
+  const warehousesTouched = Array.from(new Set(lines.map((l: any) => l.warehouse))) as string[]
 
   return (
     <div className="max-w-4xl">
@@ -43,7 +44,10 @@ export default function StocktakeDetailPage() {
             <h1 className="text-2xl font-bold text-gray-900">{event.event_number}</h1>
             <span className="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-700 uppercase">Stocktake</span>
           </div>
-          <p className="text-gray-500 text-sm mt-0.5">{warehouseLabel(event.warehouse)} · {new Date(event.event_date).toLocaleDateString('en-GB')}</p>
+          <p className="text-gray-500 text-sm mt-0.5">
+            {warehousesTouched.length > 0 ? warehousesTouched.map(w => warehouseLabel(w)).join(', ') : warehouseLabel(event.warehouse)}
+            {' · '}{new Date(event.event_date).toLocaleDateString('en-GB')}
+          </p>
         </div>
       </div>
 

@@ -16,7 +16,7 @@ export default function StocktakeListPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('inventory_events')
-        .select('*, lines:inventory_event_lines(delta_packs)')
+        .select('*, lines:inventory_event_lines(delta_packs, warehouse)')
         .order('created_at', { ascending: false })
       return data ?? []
     }
@@ -60,11 +60,14 @@ export default function StocktakeListPage() {
                 const lines = ev.lines ?? []
                 const surplus = lines.filter((l: any) => l.delta_packs > 0).reduce((s: number, l: any) => s + l.delta_packs, 0)
                 const shortage = lines.filter((l: any) => l.delta_packs < 0).reduce((s: number, l: any) => s + Math.abs(l.delta_packs), 0)
+                const warehousesTouched = Array.from(new Set(lines.map((l: any) => l.warehouse).filter(Boolean)))
                 return (
                   <tr key={ev.id} onClick={() => router.push('/stocktake/' + ev.id)}
                     className="hover:bg-gray-50 cursor-pointer">
                     <td className="px-4 py-3 font-mono font-medium text-gray-900">{ev.event_number}</td>
-                    <td className="px-3 py-3 text-gray-600">{warehouseLabel(ev.warehouse)}</td>
+                    <td className="px-3 py-3 text-gray-600">
+                      {warehousesTouched.length > 0 ? warehousesTouched.map((w: any) => warehouseLabel(w)).join(', ') : warehouseLabel(ev.warehouse)}
+                    </td>
                     <td className="px-3 py-3 text-gray-500">{new Date(ev.event_date).toLocaleDateString('en-GB')}</td>
                     <td className="px-3 py-3 text-center text-gray-600">{lines.length}</td>
                     <td className="px-3 py-3 text-right text-green-600 font-medium">{surplus > 0 ? '+' + surplus : '—'}</td>
