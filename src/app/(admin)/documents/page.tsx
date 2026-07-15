@@ -50,6 +50,27 @@ function formatDate(dateStr: string): string {
   })
 }
 
+// Groups a folder's files by document identity (file name minus the " V<n>.pdf" suffix) and
+// splits each group into its latest version (shown at top level) and older ones (archived).
+function splitLatestAndArchive(files: DocumentFile[]): { latest: DocumentFile[]; archived: DocumentFile[] } {
+  const groups: Record<string, DocumentFile[]> = {}
+  for (const file of files) {
+    const key = file.file_name.replace(/ V\d+\.pdf$/, '')
+    if (!groups[key]) groups[key] = []
+    groups[key].push(file)
+  }
+  const latest: DocumentFile[] = []
+  const archived: DocumentFile[] = []
+  for (const group of Object.values(groups)) {
+    const sorted = [...group].sort((a, b) => b.version - a.version)
+    latest.push(sorted[0])
+    archived.push(...sorted.slice(1))
+  }
+  latest.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  archived.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  return { latest, archived }
+}
+
 export default function DocumentsPage() {
   const supabase = createClient()
   const t = useT()
@@ -57,6 +78,7 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  const [expandedArchives, setExpandedArchives] = useState<Set<string>>(new Set())
   const [downloading, setDownloading] = useState<string | null>(null)
   const [uploadingFolder, setUploadingFolder] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -103,6 +125,15 @@ export default function DocumentsPage() {
 
   const toggleFolder = (folderName: string) => {
     setExpandedFolders(prev => {
+      const next = new Set(prev)
+      if (next.has(folderName)) next.delete(folderName)
+      else next.add(folderName)
+      return next
+    })
+  }
+
+  const toggleArchive = (folderName: string) => {
+    setExpandedArchives(prev => {
       const next = new Set(prev)
       if (next.has(folderName)) next.delete(folderName)
       else next.add(folderName)
@@ -317,34 +348,56 @@ export default function DocumentsPage() {
                 </div>
 
                 {/* Files list */}
-                {isExpanded && (
-                  <div style={{ borderTop: '1px solid #F3F4F6' }}>
-                    {folder.files.map((file, i) => (
-                      <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 18px 10px 52px', borderBottom: i < folder.files.length - 1 ? '1px solid #F9FAFB' : 'none', background: i % 2 === 0 ? '#FAFAFA' : '#fff' }}>
-                        <FileText size={16} color={DOC_TYPE_COLOR[file.document_type] ?? '#6B7280'} style={{ flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {file.file_name}
-                          </div>
-                          <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '1px' }}>
-                            {formatDate(file.created_at)} · {formatBytes(file.file_size)}
-                          </div>
+                {isExpanded && (() => {
+                  const { latest, archived } = splitLatestAndArchive(folder.files)
+                  const archiveExpanded = expandedArchives.has(folder.folder_name)
+                  const FileRow = ({ file, dim, last }: { file: DocumentFile; dim?: boolean; last?: boolean }) => (
+                    <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: dim ? '10px 18px 10px 84px' : '10px 18px 10px 52px', borderBottom: last ? 'none' : '1px solid #F9FAFB', background: dim ? '#F9FAFB' : '#fff' }}>
+                      <FileText size={16} color={dim ? '#D1D5DB' : (DOC_TYPE_COLOR[file.document_type] ?? '#6B7280')} style={{ flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: dim ? 400 : 500, color: dim ? '#9CA3AF' : '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {file.file_name}
                         </div>
-                        <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: DOC_TYPE_COLOR[file.document_type] ?? '#6B7280', background: '#F3F4F6', flexShrink: 0 }}>
-                          {file.document_type === 'external' ? 'EXT' : `V${file.version}`}
-                        </span>
-                        <button
-                          onClick={() => handleDownload(file)}
-                          disabled={downloading === file.id}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #E5E7EB', background: downloading === file.id ? '#F3F4F6' : '#fff', cursor: downloading === file.id ? 'not-allowed' : 'pointer', flexShrink: 0 }}
-                          title="Open"
-                        >
-                          <Download size={14} color={downloading === file.id ? '#9CA3AF' : '#374151'} />
-                        </button>
+                        <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '1px' }}>
+                          {formatDate(file.created_at)} · {formatBytes(file.file_size)}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: dim ? '#9CA3AF' : (DOC_TYPE_COLOR[file.document_type] ?? '#6B7280'), background: dim ? '#F3F4F6' : '#F3F4F6', flexShrink: 0 }}>
+                        {file.document_type === 'external' ? 'EXT' : `V${file.version}`}
+                      </span>
+                      <button
+                        onClick={() => handleDownload(file)}
+                        disabled={downloading === file.id}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #E5E7EB', background: downloading === file.id ? '#F3F4F6' : '#fff', cursor: downloading === file.id ? 'not-allowed' : 'pointer', flexShrink: 0 }}
+                        title="Open"
+                      >
+                        <Download size={14} color={downloading === file.id ? '#9CA3AF' : '#374151'} />
+                      </button>
+                    </div>
+                  )
+                  return (
+                    <div style={{ borderTop: '1px solid #F3F4F6' }}>
+                      {latest.map((file, i) => (
+                        <FileRow key={file.id} file={file} last={archived.length === 0 && i === latest.length - 1} />
+                      ))}
+                      {archived.length > 0 && (
+                        <div>
+                          <div onClick={() => toggleArchive(folder.folder_name)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px 10px 52px', cursor: 'pointer', background: '#FAFAFA', borderTop: '1px solid #F3F4F6' }}>
+                            {archiveExpanded ? <ChevronDown size={14} color="#9CA3AF" /> : <ChevronRight size={14} color="#9CA3AF" />}
+                            <Folder size={15} color="#D1D5DB" style={{ flexShrink: 0 }} />
+                            <span style={{ fontSize: '12px', fontWeight: 500, color: '#9CA3AF' }}>
+                              Archive · {archived.length} older version{archived.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          {archiveExpanded && archived.map((file, i) => (
+                            <FileRow key={file.id} file={file} dim last={i === archived.length - 1} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             )
           })}
