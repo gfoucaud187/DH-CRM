@@ -80,11 +80,13 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
     let rootSO = order
 
     if (isInvoice && sourceDoc) {
-      if (sourceDoc.is_foc && sourceDoc.linked_order_id) {
+      if (sourceDoc.is_foc && sourceDoc.promoted_from) {
+        // promoted_from, not linked_order_id: a SO(DO)'s linked_order_id gets overwritten to
+        // point at its own promoted invoice once it's promoted, so it's not stable for this walk
         const { data } = await supabase
           .from('sales_orders')
           .select('order_number, customer_name, warehouse, created_at, is_foc')
-          .eq('id', sourceDoc.linked_order_id)
+          .eq('id', sourceDoc.promoted_from)
           .single()
         if (data) rootSO = data
       } else {
@@ -93,15 +95,15 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
     } else if (isInvoice && order.promoted_from) {
       const { data: src } = await supabase
         .from('sales_orders')
-        .select('id, order_number, customer_name, warehouse, created_at, is_foc, linked_order_id')
+        .select('id, order_number, customer_name, warehouse, created_at, is_foc, promoted_from')
         .eq('id', order.promoted_from)
         .single()
       if (src) {
-        if (src.is_foc && src.linked_order_id) {
+        if (src.is_foc && src.promoted_from) {
           const { data: parent } = await supabase
             .from('sales_orders')
             .select('order_number, customer_name, warehouse, created_at')
-            .eq('id', src.linked_order_id)
+            .eq('id', src.promoted_from)
             .single()
           if (parent) rootSO = parent
         } else {
@@ -124,11 +126,11 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
         if (soRacine) rootSO = soRacine
         else if (mainInv) rootSO = mainInv
       }
-    } else if (isFoc && order.linked_order_id) {
+    } else if (isFoc && order.promoted_from) {
       const { data } = await supabase
         .from('sales_orders')
         .select('order_number, customer_name, warehouse, created_at')
-        .eq('id', order.linked_order_id)
+        .eq('id', order.promoted_from)
         .single()
       if (data) rootSO = data
     }

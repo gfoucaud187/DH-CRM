@@ -355,7 +355,7 @@ export async function POST(request: NextRequest) {
       const { data: focSo } = await supabase
         .from('sales_orders')
         .select('*, lines:sales_order_lines(*)')
-        .eq('linked_order_id', so.id)
+        .eq('promoted_from', so.id)
         .eq('is_foc', true)
         .maybeSingle()
 

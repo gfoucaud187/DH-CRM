@@ -94,7 +94,7 @@ export default function OrderDetailPage() {
       const { data } = await supabase
         .from('sales_orders')
         .select('*, lines:sales_order_lines(*)')
-        .eq('linked_order_id', id)
+        .eq('promoted_from', id)
         .eq('is_foc', true)
         .maybeSingle()
       return data
@@ -102,14 +102,16 @@ export default function OrderDetailPage() {
     enabled: !!id
   })
 
-  // Fetch ALL SO(DO) linked to this SO (multiple allowed)
+  // Fetch ALL SO(DO) linked to this SO (multiple allowed). Matched via promoted_from, not
+  // linked_order_id — the latter gets overwritten to point at the SO(DO)'s own promoted
+  // invoice once it's promoted, so it can't be used to find the SO(DO) from its parent SO.
   const { data: allFocOrders = [] } = useQuery({
     queryKey: ['order-all-foc', id],
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_orders')
         .select('id, order_number, status, document_type, is_foc, promoted_from, linked_order_id')
-        .eq('linked_order_id', id)
+        .eq('promoted_from', id)
         .eq('is_foc', true)
         .order('created_at', { ascending: true })
       return data ?? []
@@ -126,7 +128,7 @@ export default function OrderDetailPage() {
       const { data: focs } = await supabase
         .from('sales_orders')
         .select('id')
-        .eq('linked_order_id', id)
+        .eq('promoted_from', id)
         .eq('is_foc', true)
       if (!focs || focs.length === 0) return []
       const focIds = focs.map((f: any) => f.id)
@@ -176,7 +178,7 @@ export default function OrderDetailPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_orders')
-        .select('id, order_number, document_type, status, warehouse, customer_name, created_at, is_foc, linked_order_id')
+        .select('id, order_number, document_type, status, warehouse, customer_name, created_at, is_foc, linked_order_id, promoted_from')
         .eq('id', order.promoted_from)
         .single()
       return data
