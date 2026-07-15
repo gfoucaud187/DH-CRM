@@ -45,6 +45,9 @@ export default function PurchaseOrderDetailPage() {
   const [warehouse, setWarehouse]               = useState('T1')
   const [lines, setLines]                       = useState<Line[]>([])
   const [saving, setSaving]                     = useState(false)
+  const [ocrFile, setOcrFile]                   = useState<File | null>(null)
+  const [ocrLoading, setOcrLoading]             = useState(false)
+  const [ocrError, setOcrError]                 = useState('')
 
   const { data: po, isLoading } = useQuery({
     queryKey: ['purchase_order', id],
@@ -55,6 +58,17 @@ export default function PurchaseOrderDetailPage() {
         .eq('id', id)
         .single()
       return data
+    }
+  })
+
+  const { data: products = [] } = useQuery({
+    queryKey: ['products-po-ocr'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('products')
+        .select('sku, full_name')
+        .in('product_role', ['original', 'aged']).eq('status', 'active')
+      return data ?? []
     }
   })
 
@@ -80,6 +94,45 @@ export default function PurchaseOrderDetailPage() {
   const removeLine = (i: number) => setLines(l => l.filter((_, idx) => idx !== i))
   const updateLine = (i: number, field: keyof Line, value: any) =>
     setLines(l => l.map((ln, idx) => idx === i ? { ...ln, [field]: value } : ln))
+
+  // Best-effort match against our catalogue — the user still reviews/corrects every line before saving
+  const guessSku = (skuGuess: string | null, description: string) => {
+    const candidates = products as any[]
+    if (skuGuess) {
+      const exact = candidates.find(p => p.sku.toLowerCase() === skuGuess.toLowerCase())
+      if (exact) return exact.sku
+    }
+    const desc = (description || '').toLowerCase()
+    const byName = candidates.find(p => desc.includes(p.full_name.toLowerCase()) || p.full_name.toLowerCase().includes(desc))
+    return byName?.sku ?? (skuGuess ?? '')
+  }
+
+  const handleOcrExtract = async () => {
+    if (!ocrFile) return
+    setOcrLoading(true)
+    setOcrError('')
+    try {
+      const formData = new FormData()
+      formData.append('file', ocrFile)
+      const res = await fetch('/api/purchase_orders/ocr', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) { setOcrError(data.error ?? 'Extraction failed'); setOcrLoading(false); return }
+
+      const extracted: Line[] = (data.lines ?? []).map((l: any) => ({
+        sku: guessSku(l.sku_guess, l.description ?? ''),
+        description: l.description ?? l.sku_guess ?? '',
+        quantity: Number(l.quantity) || 0,
+        unit_price: 0,
+        received_unit_price: l.unit_price != null ? Number(l.unit_price) : null,
+      }))
+      setLines(prev => [...prev, ...extracted])
+      setOcrFile(null)
+    } catch (err: any) {
+      setOcrError(err.message)
+    } finally {
+      setOcrLoading(false)
+    }
+  }
 
   const isCigars = po?.po_type === 'cigars'
   const isReceived = po?.status === 'received'
@@ -270,6 +323,25 @@ export default function PurchaseOrderDetailPage() {
               Stock was credited to {warehouseLabel(po.warehouse)} and logged in Stock Movements. Generate the receipt document below.
             </p>
             <StockInboundPDF po={po} lines={po.purchase_order_lines ?? []} />
+          </div>
+        )}
+
+        {isCigars && !isReceived && (
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="font-semibold text-gray-900 mb-1">Extract Lines from Supplier Document</h2>
+            <p className="text-xs text-gray-500 mb-3">
+              Upload the supplier's invoice or packing list (PDF or photo) — lines are extracted for you to review, correct, and add below before saving.
+            </p>
+            <div className="flex items-center gap-2">
+              <input type="file" accept="application/pdf,image/*"
+                onChange={e => setOcrFile(e.target.files?.[0] ?? null)}
+                className="flex-1 text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700 file:text-sm" />
+              <button onClick={handleOcrExtract} disabled={!ocrFile || ocrLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors whitespace-nowrap">
+                {ocrLoading ? 'Extracting...' : 'Extract Lines'}
+              </button>
+            </div>
+            {ocrError && <p className="text-xs text-red-500 mt-2">{ocrError}</p>}
           </div>
         )}
 
