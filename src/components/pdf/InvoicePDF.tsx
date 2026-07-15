@@ -3,6 +3,7 @@
 import { Download } from 'lucide-react'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { warehouseLabel } from '@/lib/warehouse'
 import {
   getFolderName,
   getSOFileName,
@@ -442,7 +443,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                     { label: 'Incoterms', value: order.incoterms },
                     { label: 'Payment',   value: order.payment_terms },
                     { label: 'Currency',  value: order.currency },
-                    { label: 'Warehouse', value: order.warehouse },
+                    { label: 'Warehouse', value: warehouseLabel(order.warehouse) },
                   ].filter(m => m.value).map((m, i) => (
                     <div key={i}>
                       <div className="meta-label">{m.label}</div>
@@ -581,11 +582,11 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                         <div style={{ display: 'flex', gap: '40px' }}>
                           <div>
                             <div className="party-eyebrow">From Warehouse</div>
-                            <div className="party-name" style={{ fontSize: '18px' }}>{order.warehouse ?? '—'}</div>
+                            <div className="party-name" style={{ fontSize: '18px' }}>{warehouseLabel(order.warehouse) || '—'}</div>
                           </div>
                           <div>
                             <div className="party-eyebrow">To Warehouse</div>
-                            <div className="party-name" style={{ fontSize: '18px' }}>{order.warehouse_destination ?? '—'}</div>
+                            <div className="party-name" style={{ fontSize: '18px' }}>{warehouseLabel(order.warehouse_destination) || '—'}</div>
                           </div>
                         </div>
                       ) : (
@@ -616,7 +617,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                         { label: 'Incoterms', value: order.incoterms },
                         { label: 'Payment',   value: order.payment_terms },
                         { label: 'Currency',  value: order.currency },
-                        { label: 'Warehouse', value: order.warehouse },
+                        { label: 'Warehouse', value: warehouseLabel(order.warehouse) },
                       ].filter(m => m.value).map((m, i) => (
                         <div key={i}>
                           <div className="meta-label">{m.label}</div>

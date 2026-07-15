@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Save, Trash2, Plus, ArrowRight } from 'lucide-react'
+import { warehouseLabel } from '@/lib/warehouse'
 import Link from 'next/link'
 import { logActivity } from '@/lib/log-activity'
 
@@ -330,9 +331,9 @@ export default function EditOrderPage() {
           <h1 className="text-2xl font-bold text-gray-900">Edit {order.order_number}</h1>
           {isInt ? (
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-sm font-semibold text-teal-700">{warehouse}</span>
+              <span className="text-sm font-semibold text-teal-700">{warehouseLabel(warehouse)}</span>
               <ArrowRight className="h-4 w-4 text-teal-500" />
-              <span className="text-sm font-semibold text-teal-700">{warehouseDestination}</span>
+              <span className="text-sm font-semibold text-teal-700">{warehouseLabel(warehouseDestination)}</span>
               <span className="text-gray-400 text-sm">· Internal Transfer</span>
             </div>
           ) : (
@@ -356,7 +357,7 @@ export default function EditOrderPage() {
                   <label className="text-xs font-medium text-gray-500 uppercase">From Warehouse</label>
                   <select value={warehouse} onChange={e => setWarehouse(e.target.value)}
                     className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-                    {availableFrom.map(w => <option key={w} value={w}>{w}</option>)}
+                    {availableFrom.map(w => <option key={w} value={w}>{warehouseLabel(w)}</option>)}
                   </select>
                 </div>
                 <div className="flex items-center justify-center">
@@ -366,13 +367,13 @@ export default function EditOrderPage() {
                   <label className="text-xs font-medium text-gray-500 uppercase">To Warehouse</label>
                   <select value={warehouseDestination} onChange={e => setWarehouseDestination(e.target.value)}
                     className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-                    {availableTo.map(w => <option key={w} value={w}>{w}</option>)}
+                    {availableTo.map(w => <option key={w} value={w}>{warehouseLabel(w)}</option>)}
                   </select>
                 </div>
                 <div className="flex items-center justify-center gap-3 py-2 bg-teal-50 rounded-lg">
-                  <span className="px-3 py-1 bg-white border border-teal-200 rounded text-sm font-bold text-teal-800">{warehouse}</span>
+                  <span className="px-3 py-1 bg-white border border-teal-200 rounded text-sm font-bold text-teal-800">{warehouseLabel(warehouse)}</span>
                   <ArrowRight className="h-4 w-4 text-teal-500" />
-                  <span className="px-3 py-1 bg-white border border-teal-200 rounded text-sm font-bold text-teal-800">{warehouseDestination}</span>
+                  <span className="px-3 py-1 bg-white border border-teal-200 rounded text-sm font-bold text-teal-800">{warehouseLabel(warehouseDestination)}</span>
                 </div>
               </>
             ) : (
@@ -382,7 +383,7 @@ export default function EditOrderPage() {
                   <select value={warehouse} onChange={e => setWarehouse(e.target.value)}
                     disabled={order.document_type === 'invoice' && !!order.promoted_from}
                     className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none disabled:bg-gray-50 disabled:text-gray-400">
-                    {WAREHOUSES.map(w => <option key={w} value={w}>{w}</option>)}
+                    {WAREHOUSES.map(w => <option key={w} value={w}>{warehouseLabel(w)}</option>)}
                   </select>
                 </div>
                 <div>
@@ -424,7 +425,7 @@ export default function EditOrderPage() {
                 <div className="border-t border-gray-700 pt-2 flex justify-between font-semibold">
                   <span>Total</span>
                   {isInt
-                    ? <span className="text-teal-400">{warehouse} → {warehouseDestination}</span>
+                    ? <span className="text-teal-400">{warehouseLabel(warehouse)} → {warehouseLabel(warehouseDestination)}</span>
                     : <span>{order.is_foc || order.is_sample ? 'FOC' : order.currency + ' ' + Number(total + servicesTotal).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
                   }
                 </div>

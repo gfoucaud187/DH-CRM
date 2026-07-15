@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, ShoppingCart, FileText, Gift, Package, ArrowRight } from 'lucide-react'
 import { logActivity } from '@/lib/log-activity'
+import { warehouseLabel } from '@/lib/warehouse'
 
 const WAREHOUSES = ['T1', 'Central', 'Aged', 'Sample', 'Private']
 
@@ -308,7 +309,7 @@ export default function NewOrderPage() {
       )}
       {isInt && (
         <div className="mb-4 p-3 bg-teal-50 border border-teal-200 rounded-lg text-sm text-teal-800">
-          <strong>Internal Transfer</strong> — no customer, no price. Stock will move from <strong>{warehouse}</strong> → <strong>{warehouseDestination}</strong> when status is set to <strong>Stock Transferred</strong>.
+          <strong>Internal Transfer</strong> — no customer, no price. Stock will move from <strong>{warehouseLabel(warehouse)}</strong> → <strong>{warehouseLabel(warehouseDestination)}</strong> when status is set to <strong>Stock Transferred</strong>.
         </div>
       )}
 
@@ -344,7 +345,7 @@ export default function NewOrderPage() {
               <select value={isSample ? 'Sample' : warehouse} onChange={e => setWarehouse(e.target.value)}
                 disabled={isSample}
                 className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none disabled:bg-gray-50 disabled:text-gray-400">
-                {availableWarehouses.map(w => <option key={w} value={w}>{w}</option>)}
+                {availableWarehouses.map(w => <option key={w} value={w}>{warehouseLabel(w)}</option>)}
               </select>
             </div>
 
@@ -353,7 +354,7 @@ export default function NewOrderPage() {
                 <label className="text-xs font-medium text-gray-500 uppercase">To Warehouse</label>
                 <select value={warehouseDestination} onChange={e => setWarehouseDestination(e.target.value)}
                   className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
-                  {availableDestinations.map(w => <option key={w} value={w}>{w}</option>)}
+                  {availableDestinations.map(w => <option key={w} value={w}>{warehouseLabel(w)}</option>)}
                 </select>
                 {warehouse === warehouseDestination && (
                   <p className="text-xs text-red-500 mt-1">FROM and TO must be different</p>
@@ -363,9 +364,9 @@ export default function NewOrderPage() {
 
             {isInt && (
               <div className="flex items-center justify-center gap-3 py-2">
-                <span className="px-3 py-1.5 bg-teal-100 text-teal-800 rounded-lg text-sm font-semibold">{warehouse}</span>
+                <span className="px-3 py-1.5 bg-teal-100 text-teal-800 rounded-lg text-sm font-semibold">{warehouseLabel(warehouse)}</span>
                 <ArrowRight className="h-5 w-5 text-teal-600" />
-                <span className="px-3 py-1.5 bg-teal-100 text-teal-800 rounded-lg text-sm font-semibold">{warehouseDestination}</span>
+                <span className="px-3 py-1.5 bg-teal-100 text-teal-800 rounded-lg text-sm font-semibold">{warehouseLabel(warehouseDestination)}</span>
               </div>
             )}
 
@@ -453,7 +454,7 @@ export default function NewOrderPage() {
                 {isInt && (
                   <div className="border-t border-gray-700 pt-2 mt-2 flex justify-between font-semibold">
                     <span>Transfer</span>
-                    <span className="text-teal-400">{warehouse} → {warehouseDestination}</span>
+                    <span className="text-teal-400">{warehouseLabel(warehouse)} → {warehouseLabel(warehouseDestination)}</span>
                   </div>
                 )}
                 {!isInt && (

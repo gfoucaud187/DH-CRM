@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Package, Truck, CheckCircle, XCircle, FileText, Edit, Send, ArrowRight } from 'lucide-react'
+import { warehouseLabel } from '@/lib/warehouse'
 import Link from 'next/link'
 import InvoicePDF from '@/components/pdf/InvoicePDF'
 import { logActivity } from '@/lib/log-activity'
@@ -317,13 +318,13 @@ export default function OrderDetailPage() {
           </div>
           {isInt ? (
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded">{order.warehouse}</span>
+              <span className="text-sm font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded">{warehouseLabel(order.warehouse)}</span>
               <ArrowRight className="h-4 w-4 text-teal-500" />
-              <span className="text-sm font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded">{order.warehouse_destination ?? '—'}</span>
+              <span className="text-sm font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded">{warehouseLabel(order.warehouse_destination) || '—'}</span>
               <span className="text-gray-400 text-sm ml-1">Internal transfer</span>
             </div>
           ) : (
-            <p className="text-gray-500 text-sm mt-0.5">{order.customer_name} · {order.warehouse}</p>
+            <p className="text-gray-500 text-sm mt-0.5">{order.customer_name} · {warehouseLabel(order.warehouse)}</p>
           )}
         </div>
         {(isDraft && !isPO) || (isDraft && isInt) ? (
@@ -343,12 +344,12 @@ export default function OrderDetailPage() {
               <div className="flex items-center justify-between mb-3">
                 <div className="text-center">
                   <p className="text-xs text-teal-600 mb-1">FROM</p>
-                  <span className="px-3 py-2 bg-white border border-teal-200 rounded-lg text-sm font-bold text-teal-800">{order.warehouse}</span>
+                  <span className="px-3 py-2 bg-white border border-teal-200 rounded-lg text-sm font-bold text-teal-800">{warehouseLabel(order.warehouse)}</span>
                 </div>
                 <ArrowRight className="h-6 w-6 text-teal-400" />
                 <div className="text-center">
                   <p className="text-xs text-teal-600 mb-1">TO</p>
-                  <span className="px-3 py-2 bg-white border border-teal-200 rounded-lg text-sm font-bold text-teal-800">{order.warehouse_destination ?? '—'}</span>
+                  <span className="px-3 py-2 bg-white border border-teal-200 rounded-lg text-sm font-bold text-teal-800">{warehouseLabel(order.warehouse_destination) || '—'}</span>
                 </div>
               </div>
               {order.status === 'stock_transferred' && (
@@ -487,8 +488,8 @@ export default function OrderDetailPage() {
             <h2 className="font-semibold text-gray-900">Order Info</h2>
             {isInt ? (
               [
-                { label: 'From Warehouse',    value: order.warehouse },
-                { label: 'To Warehouse',      value: order.warehouse_destination ?? '—' },
+                { label: 'From Warehouse',    value: warehouseLabel(order.warehouse) },
+                { label: 'To Warehouse',      value: warehouseLabel(order.warehouse_destination) || '—' },
                 { label: 'Order Date',        value: order.order_date ? new Date(order.order_date).toLocaleDateString() : '—' },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between text-sm">
@@ -499,7 +500,7 @@ export default function OrderDetailPage() {
             ) : (
               [
                 { label: 'Customer',      value: order.customer_name },
-                { label: 'Warehouse',     value: order.warehouse },
+                { label: 'Warehouse',     value: warehouseLabel(order.warehouse) },
                 { label: 'Price List',    value: order.price_list },
                 { label: 'Currency',      value: order.currency },
                 { label: 'Incoterms',     value: order.incoterms },
@@ -538,7 +539,7 @@ export default function OrderDetailPage() {
               {isInt && order.status !== 'stock_transferred' && (
                 <p className="text-xs text-teal-600 mt-2 flex items-center gap-1">
                   <ArrowRight className="h-3 w-3" />
-                  Set to "Stock Transferred" to move stock from {order.warehouse} → {order.warehouse_destination}
+                  Set to "Stock Transferred" to move stock from {warehouseLabel(order.warehouse)} → {warehouseLabel(order.warehouse_destination)}
                 </p>
               )}
             </div>
@@ -582,7 +583,7 @@ export default function OrderDetailPage() {
               <h2 className="font-semibold text-gray-900">Lines</h2>
               {isInt && (
                 <span className="text-xs text-teal-600 bg-teal-50 px-2 py-1 rounded font-medium">
-                  {order.warehouse} → {order.warehouse_destination}
+                  {warehouseLabel(order.warehouse)} → {warehouseLabel(order.warehouse_destination)}
                 </span>
               )}
               {sourceDoc && !isInt && <span className="text-xs text-gray-400">From {sourceDoc.order_number}</span>}

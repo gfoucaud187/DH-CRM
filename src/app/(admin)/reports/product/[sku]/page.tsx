@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Download, TrendingUp, Package, Users, Warehouse } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo, useRef } from 'react'
+import { warehouseLabel } from '@/lib/warehouse'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const WH = ['T1','Central','Aged','Sample','Private']
@@ -213,7 +214,7 @@ export default function ProductReportPage() {
                 <div key={w} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: WH_COLORS[w] }} />
-                    <span className="text-sm text-gray-700">{w}</span>
+                    <span className="text-sm text-gray-700">{warehouseLabel(w)}</span>
                   </div>
                   <div className="text-right">
                     <span className="font-semibold text-gray-900">{packs} packs</span>
@@ -364,7 +365,7 @@ export default function ProductReportPage() {
                   <tr key={w} style={{ borderBottom: '1px solid #f9f9f9' }}>
                     <td style={{ padding: '8px 4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: WH_COLORS[w] }} />
-                      <span style={{ fontSize: '11px' }}>{w}</span>
+                      <span style={{ fontSize: '11px' }}>{warehouseLabel(w)}</span>
                     </td>
                     <td style={{ padding: '8px 4px', fontWeight: record?.quantity_packs ? 'bold' : 'normal', color: record?.quantity_packs ? '#1a1a1a' : '#aaa' }}>{record?.quantity_packs ?? 0}</td>
                     <td style={{ padding: '8px 4px', color: '#666' }}>{record?.quantity_units ?? 0}</td>

@@ -1,6 +1,7 @@
 'use client'
 
 import { Download } from 'lucide-react'
+import { warehouseLabel } from '@/lib/warehouse'
 
 interface PurchaseOrderPDFProps {
   order: any
@@ -236,7 +237,7 @@ export default function PurchaseOrderPDF({ order, lines, customer }: PurchaseOrd
                         { label: 'Incoterms', value: order.incoterms },
                         { label: 'Payment',   value: order.payment_terms },
                         { label: 'Currency',  value: order.currency },
-                        { label: 'Warehouse', value: order.warehouse },
+                        { label: 'Warehouse', value: warehouseLabel(order.warehouse) },
                       ].filter(m => m.value).map((m, i) => (
                         <div key={i}>
                           <div className="meta-label">{m.label}</div>

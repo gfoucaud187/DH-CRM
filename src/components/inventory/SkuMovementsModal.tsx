@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { X, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { warehouseLabel } from '@/lib/warehouse'
 
 interface SkuMovementsModalProps {
   sku: string
@@ -143,7 +144,7 @@ export default function SkuMovementsModal({ sku, productName, onClose }: SkuMove
                           : <span className="flex items-center gap-1 text-red-500 text-xs font-semibold"><ArrowDown className="h-3 w-3" /> OUT</span>
                         }
                       </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">{m.warehouse}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{warehouseLabel(m.warehouse)}</td>
                       <td className="px-4 py-3 text-right font-semibold text-gray-900">
                         {m.movement_type === 'in' ? '+' : '-'}{m.quantity_packs}
                       </td>

@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { ArrowLeft, Download, Edit, ShoppingCart } from 'lucide-react'
 import Link from 'next/link'
 import PurchaseOrderPDF from '@/components/pdf/PurchaseOrderPDF'
+import { warehouseLabel } from '@/lib/warehouse'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:            'bg-gray-100 text-gray-500',
@@ -169,7 +170,7 @@ export default function PortalOrderDetailPage() {
               { label: 'Currency',      value: order.currency },
               { label: 'Incoterms',     value: order.incoterms ?? '—' },
               { label: 'Payment Terms', value: order.payment_terms ?? '—' },
-              { label: 'Warehouse',     value: order.warehouse ?? '—' },
+              { label: 'Warehouse',     value: warehouseLabel(order.warehouse) || '—' },
               { label: 'Order Date',    value: order.order_date ? new Date(order.order_date).toLocaleDateString('en-GB') : '—' },
               { label: 'Submitted',     value: order.created_at ? new Date(order.created_at).toLocaleString('en-GB') : '—' },
             ].map(({ label, value }) => (

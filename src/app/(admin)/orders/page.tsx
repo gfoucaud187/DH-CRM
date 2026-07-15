@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useMemo } from 'react'
 import { useT } from '@/lib/i18n/LanguageProvider'
+import { warehouseLabel } from '@/lib/warehouse'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:                'bg-gray-100 text-gray-500',
@@ -213,7 +214,7 @@ export default function OrdersPage() {
       <td className="px-4 py-3">
         <span className={'text-xs px-2 py-0.5 rounded font-mono font-medium ' + getDocColor(o)}>{getDocLabel(o)}</span>
       </td>
-      <td className="px-4 py-3 text-gray-600 text-sm">{o.warehouse}</td>
+      <td className="px-4 py-3 text-gray-600 text-sm">{warehouseLabel(o.warehouse)}</td>
       <td className="px-4 py-3 text-right">
         <div className="flex flex-col items-end">
           <span className="font-medium text-gray-900 text-sm">{(o.total_units ?? 0).toLocaleString()} u</span>
