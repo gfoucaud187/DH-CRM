@@ -56,6 +56,17 @@ function fmtMoney(n: number, currency: string) {
   return `${currency} ${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+// Wraps a step so failures say WHERE they happened instead of a bare "Failed to fetch" —
+// that message is a raw browser network error and gives no clue which call actually failed.
+async function step<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e: any) {
+    console.error(`[ExportBundle] ${label} failed:`, e)
+    throw new Error(`${label}: ${e?.message ?? String(e)}`)
+  }
+}
+
 async function generateSummaryPdf(rows: Row[], meta: { from: string; to: string; customerName?: string }): Promise<Blob> {
   const jsPDF = (await import('jspdf')).default
   const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
@@ -141,9 +152,17 @@ export default function ExportBundleModal() {
 
   useEffect(() => {
     if (!open) return
-    const supabase = createClient()
-    supabase.from('customers').select('id, legal_name').eq('status', 'active').order('legal_name')
-      .then(({ data }) => setCustomers(data ?? []))
+    const run = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase.from('customers').select('id, legal_name').eq('status', 'active').order('legal_name')
+        if (error) console.error('[ExportBundle] Loading customers failed:', error)
+        setCustomers(data ?? [])
+      } catch (e) {
+        console.error('[ExportBundle] Loading customers failed:', e)
+      }
+    }
+    run()
   }, [open])
 
   const toggleType = (key: string) => setSelectedTypes(prev => {
@@ -168,7 +187,10 @@ export default function ExportBundleModal() {
 
       for (const fileType of fileTypesNeeded) {
         const matchingDefs = activeTypes.filter(t => t.fileType === fileType)
-        const { data: files } = await supabase.from('document_files').select('*').eq('document_type', fileType)
+        const { data: files, error: filesErr } = await step(`Loading ${fileType} documents`, async () =>
+          supabase.from('document_files').select('*').eq('document_type', fileType)
+        )
+        if (filesErr) throw new Error(`Loading ${fileType} documents: ${filesErr.message}`)
         if (!files || files.length === 0) continue
 
         if (fileType === 'external') {
@@ -189,9 +211,12 @@ export default function ExportBundleModal() {
         if (orderIds.length === 0) continue
 
         if (fileType === 'po' || fileType === 'stock_inbound') {
-          const { data: pos } = await supabase.from('purchase_orders')
-            .select('id, po_number, order_date, partner_name, total_amount, currency')
-            .in('id', orderIds)
+          const { data: pos, error: posErr } = await step('Loading purchase orders', async () =>
+            supabase.from('purchase_orders')
+              .select('id, po_number, order_date, partner_name, total_amount, currency')
+              .in('id', orderIds)
+          )
+          if (posErr) throw new Error(`Loading purchase orders: ${posErr.message}`)
           const byId = Object.fromEntries((pos ?? []).map((p: any) => [p.id, p]))
           for (const [orderId, group] of Object.entries(byOrder)) {
             const po = byId[orderId]
@@ -210,7 +235,10 @@ export default function ExportBundleModal() {
         }
 
         if (fileType === 'stocktake_diff') {
-          const { data: events } = await supabase.from('inventory_events').select('id, event_number, event_date').in('id', orderIds)
+          const { data: events, error: eventsErr } = await step('Loading stocktake sessions', async () =>
+            supabase.from('inventory_events').select('id, event_number, event_date').in('id', orderIds)
+          )
+          if (eventsErr) throw new Error(`Loading stocktake sessions: ${eventsErr.message}`)
           const byId = Object.fromEntries((events ?? []).map((e: any) => [e.id, e]))
           for (const [orderId, group] of Object.entries(byOrder)) {
             const ev = byId[orderId]
@@ -229,9 +257,12 @@ export default function ExportBundleModal() {
         // Sales-linked: so, so_int, so_do, invoice, client_return — share the underlying
         // sales_orders table, disambiguated by its own document_type/is_foc, not the
         // document_files.document_type bucket alone (so and so_int both save as 'so').
-        const { data: orders } = await supabase.from('sales_orders')
-          .select('id, order_number, order_date, customer_id, customer_name, document_type, is_foc, total_amount, total_units, total_packs, currency')
-          .in('id', orderIds)
+        const { data: orders, error: ordersErr } = await step('Loading sales orders', async () =>
+          supabase.from('sales_orders')
+            .select('id, order_number, order_date, customer_id, customer_name, document_type, is_foc, total_amount, total_units, total_packs, currency')
+            .in('id', orderIds)
+        )
+        if (ordersErr) throw new Error(`Loading sales orders: ${ordersErr.message}`)
         const byId = Object.fromEntries((orders ?? []).map((o: any) => [o.id, o]))
 
         for (const [orderId, group] of Object.entries(byOrder)) {
@@ -261,23 +292,26 @@ export default function ExportBundleModal() {
       rows.sort((a, b) => a.date.localeCompare(b.date))
 
       setProgress(`Generating summary (${rows.length} document${rows.length !== 1 ? 's' : ''})...`)
-      const summaryBlob = await generateSummaryPdf(rows, {
+      const summaryBlob = await step('Generating summary PDF', () => generateSummaryPdf(rows, {
         from, to, customerName: customers.find(c => c.id === customerId)?.legal_name,
-      })
+      }))
 
-      const JSZip = (await import('jszip')).default
+      const JSZip = (await step('Loading ZIP library', async () => (await import('jszip')).default))
       const zip = new JSZip()
       let done = 0
       for (const row of rows) {
         setProgress(`Downloading files... (${done}/${rows.length})`)
-        const { data: blob } = await supabase.storage.from('documents').download(row.file.file_path)
+        const { data: blob, error: dlErr } = await step(`Downloading "${row.file.file_name}"`, () =>
+          supabase.storage.from('documents').download(row.file.file_path)
+        )
+        if (dlErr) throw new Error(`Downloading "${row.file.file_name}": ${dlErr.message}`)
         if (blob) zip.file(row.file.file_name, blob)
         done++
       }
       zip.file('Summary.pdf', summaryBlob)
 
       setProgress('Packaging ZIP...')
-      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const zipBlob = await step('Packaging ZIP', () => zip.generateAsync({ type: 'blob' }))
       const url = URL.createObjectURL(zipBlob)
       const a = document.createElement('a')
       a.href = url
