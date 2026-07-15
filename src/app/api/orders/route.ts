@@ -123,6 +123,7 @@ export async function POST(request: NextRequest) {
           promoted_from:   createdOrder.id, // stable parent reference — linked_order_id gets overwritten once this doc is itself promoted to an invoice
           customer_id:     order.customer_id,
           customer_name:   order.customer_name,
+          price_list:      order.price_list, // needed to look up the reference (commercial) price of FOC lines later
           currency:        order.currency,
           status:          'draft',
           warehouse:       order.warehouse,

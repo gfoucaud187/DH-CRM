@@ -1,7 +1,7 @@
 'use client'
 
 import { Download } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { warehouseLabel } from '@/lib/warehouse'
 import {
@@ -23,8 +23,68 @@ interface InvoicePDFProps {
 
 export default function InvoicePDF({ order, lines, services = [], customer, appSettings, sourceDoc }: InvoicePDFProps) {
   const [saving, setSaving] = useState(false)
+  const [refPrices, setRefPrices] = useState<Record<string, number>>({})
 
   const isLinked = order.order_number?.includes('LINKED')
+  const skusKey = lines.map((l: any) => l.sku).join(',')
+
+  // FOC lines are stored at price_per_unit=0 (the order really is free) — for display on
+  // SO(DO)/INV(DO) we still want to show what the customer would normally pay. Look that up
+  // fresh here rather than trusting the stored (zeroed) value, walking up via promoted_from to
+  // find a price_list if this document doesn't carry one itself (older SO(DO)s didn't).
+  useEffect(() => {
+    const isFocDocument = order.is_foc && order.document_type !== 'so_int'
+    if (!isFocDocument || !skusKey) { setRefPrices({}); return }
+    let cancelled = false
+    const run = async () => {
+      const supabase = createClient()
+      let priceList = order.price_list as string | null
+      let cursorPromotedFrom = order.promoted_from as string | null
+      while (!priceList && cursorPromotedFrom) {
+        const { data } = await supabase
+          .from('sales_orders')
+          .select('price_list, promoted_from')
+          .eq('id', cursorPromotedFrom)
+          .single()
+        if (!data) break
+        priceList = data.price_list
+        cursorPromotedFrom = data.promoted_from
+      }
+      if (!priceList) { if (!cancelled) setRefPrices({}); return }
+
+      const skus = skusKey.split(',')
+      const priceMap: Record<string, number> = {}
+
+      const { data: custRow } = await supabase
+        .from('customers')
+        .select('manual_pricing_enabled')
+        .eq('id', order.customer_id)
+        .single()
+
+      if (custRow?.manual_pricing_enabled) {
+        const { data: negotiated } = await supabase
+          .from('customer_negotiated_prices')
+          .select('sku, price_per_unit')
+          .eq('customer_id', order.customer_id)
+          .in('sku', skus)
+        ;(negotiated ?? []).forEach((n: any) => { priceMap[n.sku] = Number(n.price_per_unit) })
+      }
+
+      const missingSkus = skus.filter(s => priceMap[s] === undefined)
+      if (missingSkus.length > 0) {
+        const { data: entries } = await supabase
+          .from('price_list_entries')
+          .select('sku, price_per_unit')
+          .eq('price_list', priceList)
+          .in('sku', missingSkus)
+        ;(entries ?? []).forEach((e: any) => { priceMap[e.sku] = Number(e.price_per_unit) })
+      }
+
+      if (!cancelled) setRefPrices(priceMap)
+    }
+    run()
+    return () => { cancelled = true }
+  }, [order.id, order.is_foc, order.document_type, order.price_list, order.promoted_from, order.customer_id, skusKey])
 
   // ─── Génère le PDF en blob ───────────────────────────────────────────────────
   const generatePdfBlob = async (): Promise<Blob | null> => {
@@ -277,10 +337,13 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
 
   const fmt2 = (n: any) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-  // Real commercial value of the FOC lines, before the Discount line cancels it back out to 0
+  // Real commercial value of the FOC lines, before the Discount line cancels it back out to 0.
+  // The stored price_per_unit is 0 for FOC lines, so use the looked-up reference price instead.
   const focSubtotal = isFocDoc
-    ? lines.reduce((s: number, l: any) =>
-        s + (l.price_per_unit != null && l.quantity_units != null ? Number(l.price_per_unit) * Number(l.quantity_units) : 0), 0)
+    ? lines.reduce((s: number, l: any) => {
+        const refPrice = refPrices[l.sku]
+        return s + (refPrice != null && l.quantity_units != null ? refPrice * Number(l.quantity_units) : 0)
+      }, 0)
     : 0
 
   const LINES_P1 = 10
@@ -361,9 +424,10 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
     const dim        = (line.length_inches && line.ring_gauge) ? `${line.length_inches}×${line.ring_gauge}` : '—'
     const netWtTotal = (line.net_weight_g && line.quantity_units)
       ? Math.round(Number(line.net_weight_g) * Number(line.quantity_units)).toLocaleString('en-US') : '—'
-    const priceUnit  = (!isInt && line.price_per_unit != null) ? fmt2(line.price_per_unit) : null
+    const effectiveUnitPrice = isFocDoc ? (refPrices[line.sku] ?? null) : line.price_per_unit
+    const priceUnit  = (!isInt && effectiveUnitPrice != null) ? fmt2(effectiveUnitPrice) : null
     const effectiveLineTotal = isFocDoc
-      ? (line.price_per_unit != null && line.quantity_units != null ? Number(line.price_per_unit) * Number(line.quantity_units) : null)
+      ? (effectiveUnitPrice != null && line.quantity_units != null ? effectiveUnitPrice * Number(line.quantity_units) : null)
       : line.line_total
     const priceTotal = (!isInt && effectiveLineTotal != null) ? fmt2(effectiveLineTotal) : null
     const brandLine  = line.brand
