@@ -14,6 +14,7 @@ const getDocLabel = (o: any) => {
   if (o.document_type === 'stock_inbound') return 'STOCK IN'
   if (o.document_type === 'client_return') return 'RETURN'
   if (o.document_type === 'stocktake_diff') return 'STOCKTAKE'
+  if (o.document_type === 'transformation') return 'TRANSFORM'
   if (o.document_type === 'so_int') return 'SO(INT)'
   if (o.is_foc && o.document_type === 'invoice') return 'INV(DO)'
   if (o.is_foc) return 'SO(DO)'
@@ -25,12 +26,13 @@ const getDocLabel = (o: any) => {
 // Movement types that INCREASE stock — everything else (out, transfer_out, *_reversed) decreases it.
 // Used to sign the pivot so the Opening/Closing stock math (opening = current + net change) stays correct
 // now that inbound movements (Stock Inbound, Client Return, Stocktake surplus) show up alongside sales.
-const INBOUND_MOVEMENT_TYPES = new Set(['in', 'stock_inbound', 'client_return_in', 'stocktake_in'])
+const INBOUND_MOVEMENT_TYPES = new Set(['in', 'stock_inbound', 'client_return_in', 'stocktake_in', 'transformation_in'])
 
 const getDocColor = (o: any) => {
   if (o.document_type === 'stock_inbound') return '#0891b2'
   if (o.document_type === 'client_return') return '#db2777'
   if (o.document_type === 'stocktake_diff') return '#ca8a04'
+  if (o.document_type === 'transformation') return '#4f46e5'
   if (o.document_type === 'so_int') return '#0d9488'
   if (o.is_foc) return '#16a34a'
   if (o.document_type === 'invoice') return '#7c3aed'

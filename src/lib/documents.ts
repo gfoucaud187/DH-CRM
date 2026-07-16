@@ -171,6 +171,16 @@ export function getStocktakeFileName(ev: { event_number: string; warehouse: stri
   return `${date} - ${ev.event_number} Stocktake Difference ${ev.warehouse} V${version}.pdf`
 }
 
+export function getTransformationFolderName(tr: { transformation_number: string; warehouse: string; created_at: string }): string {
+  const year = new Date(tr.created_at).getFullYear()
+  return `${year}-${tr.transformation_number} transformation ${tr.warehouse}`.trim()
+}
+
+export function getTransformationFileName(tr: { transformation_number: string; warehouse: string }, version: number): string {
+  const date = formatDate(new Date().toISOString())
+  return `${date} - ${tr.transformation_number} Transformation ${tr.warehouse} V${version}.pdf`
+}
+
 /**
  * Récupère le prochain numéro de version pour un document
  */

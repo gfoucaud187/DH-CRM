@@ -41,7 +41,19 @@ export default function AgeingPage() {
           .neq('status', 'cancelled')
           .order('created_at', { ascending: true })
 
-        const customerIds = Array.from(new Set((orders ?? []).map((o: any) => o.customer_id).filter(Boolean)))
+        // Client returns are money owed TO the client (a credit note) — they net against AR
+        // as a negative outstanding amount rather than being excluded from the report entirely.
+        const { data: returns } = await supabase
+          .from('sales_orders')
+          .select('id, order_number, customer_id, total_amount, created_at, status')
+          .eq('document_type', 'client_return')
+          .neq('status', 'cancelled')
+          .order('created_at', { ascending: true })
+
+        const customerIds = Array.from(new Set([
+          ...(orders ?? []).map((o: any) => o.customer_id),
+          ...(returns ?? []).map((r: any) => r.customer_id),
+        ].filter(Boolean)))
         const { data: customers } = customerIds.length
           ? await supabase.from('customers').select('id, trading_name, legal_name').in('id', customerIds)
           : { data: [] }
@@ -50,7 +62,7 @@ export default function AgeingPage() {
           customerMap[c.id] = c.trading_name || c.legal_name || c.id
         }
 
-        return (orders ?? [])
+        const invoiceRows = (orders ?? [])
           .map((o: any) => {
             const outstanding = Number(o.total_amount ?? 0) - Number(o.amount_received ?? 0)
             // Age from the payment due date (shipment + payment terms), per the rule that
@@ -67,6 +79,17 @@ export default function AgeingPage() {
             }
           })
           .filter((r: any) => r.amount > 0.005) // fully paid — drop from ageing entirely
+
+        const returnRows = (returns ?? [])
+          .map((r: any) => ({
+            ref: r.order_number,
+            entity: customerMap[r.customer_id] ?? r.customer_id ?? 'Unknown',
+            amount: -Number(r.total_amount ?? 0),
+            date: r.created_at?.slice(0, 10) ?? today,
+          }))
+          .filter((r: any) => Math.abs(r.amount) > 0.005)
+
+        return [...invoiceRows, ...returnRows]
       } else {
         const { data: pos } = await supabase
           .from('purchase_orders')
@@ -129,7 +152,7 @@ export default function AgeingPage() {
           <p className="text-sm text-gray-500 mt-0.5">
             As at {new Date(today).toLocaleDateString('en-SG')}
             {mode === 'ar'
-              ? ' · aged from payment due date (shipment + payment terms), net of amounts received'
+              ? ' · aged from payment due date (shipment + payment terms), net of amounts received; client returns shown as negative (credit owed to client)'
               : ' · aged from order date'}
           </p>
         </div>
@@ -193,8 +216,8 @@ export default function AgeingPage() {
                       {e.name}
                     </td>
                     {e.buckets.map((amt, i) => (
-                      <td key={i} className={`px-3 py-3 text-right whitespace-nowrap ${i >= 3 && amt > 0 ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                        {amt > 0 ? sgd(amt) : <span className="text-gray-200">—</span>}
+                      <td key={i} className={`px-3 py-3 text-right whitespace-nowrap ${amt < -0.005 ? 'text-pink-600 font-medium' : i >= 3 && amt > 0 ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                        {Math.abs(amt) > 0.005 ? sgd(amt) : <span className="text-gray-200">—</span>}
                       </td>
                     ))}
                     <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap">{sgd(e.total)}</td>

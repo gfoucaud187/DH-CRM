@@ -59,7 +59,7 @@ const ACTION_GROUPS: Record<string, string[]> = {
   orders:    ['create_order', 'update_order', 'update_order_status', 'cancel_order', 'delete_order', 'promote_order', 'approve_po', 'reject_po'],
   purchases: ['create_purchase_order', 'update_purchase_order', 'update_purchase_order_status', 'delete_purchase_order'],
   customers: ['create_customer', 'update_customer'],
-  products:  ['create_product', 'update_product', 'adjust_inventory'],
+  products:  ['create_product', 'update_product', 'adjust_inventory', 'create_stocktake', 'update_stocktake', 'create_transformation'],
   prices:    ['update_price'],
   partners:  ['create_partner', 'update_partner', 'delete_partner'],
   retailers: ['create_retailer', 'update_retailer', 'delete_retailer', 'create_b2c_contact', 'update_b2c_contact', 'delete_b2c_contact'],

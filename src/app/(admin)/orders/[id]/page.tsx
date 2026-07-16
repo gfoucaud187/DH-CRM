@@ -164,9 +164,45 @@ export default function OrderDetailPage() {
     enabled: !!id
   })
 
-  // Find invoice promoted FROM this SO
-  const { data: linkedDoc } = useQuery({
-    queryKey: ['order-linked-invoice', id],
+  // All invoices generated from this SO (primary + any T&T "LINKED" price-difference invoice) —
+  // needed to compute the SO's aggregate Paid / Partial / Pending Payment tag, since payment
+  // tracking itself only lives on invoices (the SO is a logistics document, not a finance one).
+  const { data: soInvoices = [] } = useQuery({
+    queryKey: ['order-so-invoices', id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('sales_orders')
+        .select('id, order_number, total_amount, amount_received')
+        .eq('promoted_from', id)
+        .eq('document_type', 'invoice')
+        .eq('is_foc', false)
+      return data ?? []
+    },
+    enabled: !!id && order?.document_type === 'so' && !order?.is_foc
+  })
+
+  // Client returns registered against any invoice of this SO (returns can be registered from
+  // either the SO or the invoice page) — netted into the SO's aggregate payment status below.
+  const { data: soInvoiceReturns = [] } = useQuery({
+    queryKey: ['order-so-invoice-returns', id, (soInvoices as any[]).map((i: any) => i.id).join(',')],
+    queryFn: async () => {
+      const invoiceIds = (soInvoices as any[]).map((i: any) => i.id)
+      if (invoiceIds.length === 0) return []
+      const { data } = await supabase
+        .from('sales_orders')
+        .select('id, total_amount, promoted_from')
+        .in('promoted_from', invoiceIds)
+        .eq('document_type', 'client_return')
+      return data ?? []
+    },
+    enabled: (soInvoices as any[]).length > 0
+  })
+
+  // Invoice(s) promoted FROM this SO — an array, not a single row, because T&T orders can carry
+  // a second "LINKED" invoice for the price difference (see promote/route.ts). Using
+  // .maybeSingle() here used to throw when both existed, silently hiding both from the UI.
+  const { data: linkedInvoices = [] } = useQuery({
+    queryKey: ['order-linked-invoices', id],
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_orders')
@@ -174,8 +210,8 @@ export default function OrderDetailPage() {
         .eq('promoted_from', id)
         .eq('document_type', 'invoice')
         .eq('is_foc', false)
-        .maybeSingle()
-      return data
+        .order('created_at', { ascending: true })
+      return data ?? []
     },
     enabled: !!id && !order?.is_foc
   })
@@ -386,8 +422,19 @@ export default function OrderDetailPage() {
   const currentStatus = statuses.find((s: any) => s.value === order.status) ?? statuses[0]
   const commercialLines = (order.lines ?? []).filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')
   const hasMixedWarehouses = !isInt && new Set(commercialLines.map((l: any) => l.warehouse ?? order.warehouse)).size > 1
-  const alreadyHasInvoice = isSO && !!linkedDoc
+  const alreadyHasInvoice = isSO && (linkedInvoices as any[]).length > 0
   const alreadyHasFoc = false // Multiple SO(DO) always allowed
+
+  // SO-level payment tag — aggregated from its invoice(s), net of client returns. The SO itself
+  // never records payments (that's a finance action on the invoice); this just reflects status.
+  const soTotalInvoiced = (soInvoices as any[]).reduce((s: number, i: any) => s + Number(i.total_amount ?? 0), 0)
+  const soTotalReceived = (soInvoices as any[]).reduce((s: number, i: any) => s + Number(i.amount_received ?? 0), 0)
+  const soTotalReturned = (soInvoiceReturns as any[]).reduce((s: number, r: any) => s + Number(r.total_amount ?? 0), 0)
+  const soNetOutstanding = soTotalInvoiced - soTotalReceived - soTotalReturned
+  const soPaymentTag = (soInvoices as any[]).length === 0 ? null
+    : soNetOutstanding <= 0.005 ? { label: 'Paid', color: 'bg-green-100 text-green-700' }
+    : soTotalReceived > 0.005 ? { label: 'Partial Payment', color: 'bg-amber-100 text-amber-700' }
+    : { label: 'Pending Payment', color: 'bg-red-100 text-red-600' }
 
   const getDocLabel = () => {
     if (order.document_type === 'client_return') return 'RETURN'
@@ -413,6 +460,9 @@ export default function OrderDetailPage() {
               {getDocLabel()}
             </span>
             {order.is_tt_order && <span className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">T&T</span>}
+            {isSO && !order.is_foc && soPaymentTag && (
+              <span className={'px-2 py-1 rounded-full text-xs font-medium ' + soPaymentTag.color}>{soPaymentTag.label}</span>
+            )}
             {order.is_foc && <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">FOC</span>}
             {order.is_sample && <span className="px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-700">SAMPLE</span>}
             {isPO && order.requires_stock_review && (
@@ -499,7 +549,7 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {(sourceDoc || linkedDoc || allFocOrders.length > 0 || clientReturns.length > 0) && (
+          {(sourceDoc || (linkedInvoices as any[]).length > 0 || allFocOrders.length > 0 || clientReturns.length > 0) && (
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-2">
               <h2 className="font-semibold text-blue-800 text-sm">Linked Documents</h2>
               {sourceDoc && (
@@ -508,12 +558,12 @@ export default function OrderDetailPage() {
                   <span className="text-blue-400">↑</span> From: {sourceDoc.order_number}
                 </button>
               )}
-              {linkedDoc && linkedDoc.document_type === 'invoice' && (
-                <button onClick={() => router.push('/orders/' + linkedDoc.id)}
+              {(linkedInvoices as any[]).map((inv: any) => (
+                <button key={inv.id} onClick={() => router.push('/orders/' + inv.id)}
                   className="w-full text-left text-sm text-blue-700 hover:underline flex items-center gap-1">
-                  <span className="text-blue-400">→</span> {linkedDoc.order_number}
+                  <span className="text-blue-400">→</span> {inv.order_number}
                 </button>
-              )}
+              ))}
               {(clientReturns as any[]).map((ret: any) => (
                 <button key={ret.id} onClick={() => router.push('/orders/' + ret.id)}
                   className="w-full text-left text-sm text-pink-700 hover:underline flex items-center gap-1">
@@ -648,10 +698,11 @@ export default function OrderDetailPage() {
             )}
           </div>
 
-          {(isSO || isInvoice) && !order.is_foc && !order.is_sample && (() => {
+          {isInvoice && !order.is_foc && !order.is_sample && (() => {
             const amountReceived = Number(order.amount_received ?? 0)
             const totalAmount = Number(order.total_amount ?? 0)
-            const balance = totalAmount - amountReceived
+            const totalReturned = (clientReturns as any[]).reduce((s: number, r: any) => s + Number(r.total_amount ?? 0), 0)
+            const balance = totalAmount - amountReceived - totalReturned
             const isFullyPaid = balance <= 0.005
             const dueDate = (order.shipment_date && order.payment_terms_days != null)
               ? addDays(order.shipment_date, order.payment_terms_days) : null
@@ -680,9 +731,17 @@ export default function OrderDetailPage() {
                     <span className="text-gray-500">Amount Received</span>
                     <span className="font-medium text-green-700">{order.currency} {amountReceived.toFixed(2)}</span>
                   </div>
+                  {totalReturned > 0.005 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Client Returns</span>
+                      <span className="font-medium text-pink-600">-{order.currency} {totalReturned.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Balance Due</span>
-                    <span className="font-semibold text-gray-900">{order.currency} {Math.max(0, balance).toFixed(2)}</span>
+                    <span className={'font-semibold ' + (balance < 0 ? 'text-pink-600' : 'text-gray-900')}>
+                      {balance < 0 ? '-' : ''}{order.currency} {Math.abs(balance).toFixed(2)}
+                    </span>
                   </div>
                   {dueDate && (
                     <div className="flex justify-between text-sm">

@@ -25,16 +25,19 @@ interface FolderData {
   last_updated: string
   document_types: string[]
   files: DocumentFile[]
+  hasCancelled: boolean
 }
 
 const DOC_TYPE_LABEL: Record<string, string> = {
   so: 'SO', invoice: 'Invoice', so_do: 'SO(DO)', external: 'External',
   po: 'PO', stock_inbound: 'Stock In', client_return: 'Return', stocktake_diff: 'Stocktake',
+  transformation: 'Transformation',
 }
 
 const DOC_TYPE_COLOR: Record<string, string> = {
   so: '#1C4B3C', invoice: '#6A1E2A', so_do: '#2D4E8A', external: '#92400E',
   po: '#B45309', stock_inbound: '#0E7490', client_return: '#BE185D', stocktake_diff: '#A16207',
+  transformation: '#4338CA',
 }
 
 function formatBytes(bytes: number): string {
@@ -107,6 +110,7 @@ export default function DocumentsPage() {
           last_updated: file.created_at,
           document_types: [],
           files: [],
+          hasCancelled: false,
         }
       }
       const folder = folderMap[file.folder_name]
@@ -117,6 +121,23 @@ export default function DocumentsPage() {
       }
       if (new Date(file.created_at) > new Date(folder.last_updated)) {
         folder.last_updated = file.created_at
+      }
+    }
+
+    // Surface cancellation status on the folder — files themselves never disappear when a
+    // SO/SO(DO)/Invoice/Return is cancelled, so this is the only place that shows it changed.
+    const orderIds = Array.from(new Set(
+      data.map((f: DocumentFile) => f.order_id).filter(Boolean)
+    ))
+    if (orderIds.length > 0) {
+      const { data: orders } = await supabase
+        .from('sales_orders')
+        .select('id, status')
+        .in('id', orderIds)
+      const statusMap: Record<string, string> = {}
+      for (const o of (orders ?? []) as any[]) statusMap[o.id] = o.status
+      for (const folder of Object.values(folderMap)) {
+        folder.hasCancelled = folder.files.some(f => statusMap[f.order_id] === 'cancelled')
       }
     }
 
@@ -333,6 +354,11 @@ export default function DocumentsPage() {
 
                   {/* Doc type badges */}
                   <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                    {folder.hasCancelled && (
+                      <span style={{ padding: '2px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, color: '#B91C1C', background: '#FEE2E2' }}>
+                        Cancelled
+                      </span>
+                    )}
                     {folder.document_types.map(dt => (
                       <span key={dt} style={{ padding: '2px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, color: '#fff', background: DOC_TYPE_COLOR[dt] ?? '#6B7280' }}>
                         {DOC_TYPE_LABEL[dt] ?? dt}

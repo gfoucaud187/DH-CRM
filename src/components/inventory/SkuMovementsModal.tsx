@@ -13,7 +13,7 @@ interface SkuMovementsModalProps {
 }
 
 // Movement types that INCREASE stock — everything else (out, transfer_out, *_reversed) decreases it.
-const INBOUND_MOVEMENT_TYPES = new Set(['in', 'transfer_in', 'stock_inbound', 'client_return_in', 'stocktake_in'])
+const INBOUND_MOVEMENT_TYPES = new Set(['in', 'transfer_in', 'stock_inbound', 'client_return_in', 'stocktake_in', 'transformation_in'])
 const isInboundType = (t: string) => INBOUND_MOVEMENT_TYPES.has(t)
 
 export default function SkuMovementsModal({ sku, productName, onClose }: SkuMovementsModalProps) {
@@ -56,6 +56,7 @@ export default function SkuMovementsModal({ sku, productName, onClose }: SkuMove
     if (o.document_type === 'client_return') return 'RETURN'
     if (o.document_type === 'stock_inbound') return 'STOCK IN'
     if (o.document_type === 'stocktake_diff') return 'STOCKTAKE'
+    if (o.document_type === 'transformation') return 'TRANSFORM'
     if (o.document_type === 'so_int') return 'SO(INT)'
     if (o.is_foc && o.document_type === 'invoice') return 'INV(DO)'
     if (o.is_foc) return 'SO(DO)'
@@ -71,6 +72,7 @@ export default function SkuMovementsModal({ sku, productName, onClose }: SkuMove
     if (o.document_type === 'client_return') return 'bg-pink-100 text-pink-700'
     if (o.document_type === 'stock_inbound') return 'bg-cyan-100 text-cyan-700'
     if (o.document_type === 'stocktake_diff') return 'bg-yellow-100 text-yellow-700'
+    if (o.document_type === 'transformation') return 'bg-indigo-100 text-indigo-700'
     if (o.document_type === 'so_int') return 'bg-teal-100 text-teal-700'
     if (o.is_foc) return 'bg-green-100 text-green-700'
     if (o.document_type === 'invoice') return 'bg-purple-100 text-purple-700'

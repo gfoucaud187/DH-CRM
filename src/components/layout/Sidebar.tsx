@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Package, Users, Handshake, DollarSign,
   ShoppingCart, Warehouse, BarChart3, FolderOpen, Settings,
   ListChecks, LogOut, Target, Store, ChevronLeft, ChevronRight, ChevronDown,
-  ShoppingBag, Menu, X, Globe, Boxes, ArrowLeftRight, ClipboardList
+  ShoppingBag, Menu, X, Globe, Boxes, ArrowLeftRight, ClipboardList, Repeat
 } from 'lucide-react';
 import './sidebar.css';
 import { useT } from '@/lib/i18n/LanguageProvider';
@@ -35,6 +35,7 @@ const NAV_ITEMS = [
       { tKey: 'nav.inventory',       fallback: 'Inventory',       href: '/inventory',       icon: Boxes },
       { tKey: 'nav.stock_movements', fallback: 'Stock Movements', href: '/stock_movements', icon: ArrowLeftRight },
       { tKey: 'nav.stocktake',       fallback: 'Stocktake',       href: '/stocktake',       icon: ClipboardList },
+      { tKey: 'nav.transformations', fallback: 'Transformations', href: '/transformations', icon: Repeat },
   ]},
   { tKey: 'nav.reports', fallback: 'Reports', href: '/reports', icon: BarChart3 },
   { tKey: 'nav.group_admin', fallback: 'Admin', icon: Settings, children: [

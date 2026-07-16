@@ -11,6 +11,7 @@ export type LogAction =
   | 'create_client_return'
   | 'create_stocktake'
   | 'update_stocktake'
+  | 'create_transformation'
   | 'record_payment'
   | 'delete_payment'
   | 'create_customer'
@@ -39,7 +40,7 @@ export type LogAction =
   | 'update_b2c_contact'
   | 'delete_b2c_contact'
 
-export type LogEntity = 'order' | 'customer' | 'profile_request' | 'auth' | 'purchase_order' | 'product' | 'partner' | 'retailer' | 'b2c_contact' | 'inventory_event'
+export type LogEntity = 'order' | 'customer' | 'profile_request' | 'auth' | 'purchase_order' | 'product' | 'partner' | 'retailer' | 'b2c_contact' | 'inventory_event' | 'transformation'
 
 interface LogParams {
   action: LogAction
