@@ -163,6 +163,12 @@ export default function OrdersPage() {
         filtered
           .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'invoice' && !d.is_foc)
           .forEach((d: any) => addToChain(d, depth + 1))
+        // INV(DO) promoted directly from this doc (e.g. a root-level, standalone SO(DO)
+        // with no parent SO — the nested lookup below only covers SO(DO)s found as a
+        // child of some other SO, not one that's the chain's own root)
+        filtered
+          .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'invoice' && d.is_foc)
+          .forEach((d: any) => addToChain(d, depth + 1))
         // Credit Note promoted from this doc (depth+1)
         filtered
           .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'credit_note')
@@ -171,16 +177,10 @@ export default function OrdersPage() {
         filtered
           .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'client_return')
           .forEach((d: any) => addToChain(d, depth + 1))
-        // SO(DO) children (depth+1)
+        // SO(DO) children (depth+1) — its own INV(DO) is picked up by the recursive call above
         filtered
           .filter((d: any) => d.promoted_from === doc.id && d.is_foc && d.document_type === 'so')
-          .forEach((d: any) => {
-            addToChain(d, depth + 1)
-            // INV(DO) under each SO(DO) (depth+2)
-            filtered
-              .filter((inv: any) => inv.promoted_from === d.id && inv.document_type === 'invoice')
-              .forEach((inv: any) => addToChain(inv, depth + 2))
-          })
+          .forEach((d: any) => addToChain(d, depth + 1))
       }
       addToChain(root, 0)
 
