@@ -314,7 +314,14 @@ export default function ExportBundleModal() {
         // else that's otherwise downloadable.
         try {
           const res = await fetch(`/api/documents/file?id=${row.file.id}`)
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          if (!res.ok) {
+            let detail = `HTTP ${res.status}`
+            try {
+              const body = await res.json()
+              if (body?.error) detail += `: ${body.error}`
+            } catch {}
+            throw new Error(detail)
+          }
           const blob = await res.blob()
           zip.file(row.file.file_name, blob)
         } catch (e: any) {
@@ -326,7 +333,7 @@ export default function ExportBundleModal() {
       zip.file('Summary.pdf', summaryBlob)
 
       if (failed.length > 0) {
-        setError(`${failed.length} of ${rows.length} file(s) could not be downloaded and were left out of the ZIP: ${failed.map(f => f.name).join(', ')}`)
+        setError(`${failed.length} of ${rows.length} file(s) could not be downloaded and were left out of the ZIP:\n${failed.map(f => `${f.name} — ${f.reason}`).join('\n')}`)
       }
 
       setProgress('Packaging ZIP...')
@@ -411,7 +418,7 @@ export default function ExportBundleModal() {
             )}
             {preset !== 'custom' && <div style={{ marginBottom: '18px' }} />}
 
-            {error && <p style={{ fontSize: '13px', color: '#DC2626', marginBottom: '12px' }}>{error}</p>}
+            {error && <p style={{ fontSize: '13px', color: '#DC2626', marginBottom: '12px', whiteSpace: 'pre-wrap' }}>{error}</p>}
             {generating && progress && <p style={{ fontSize: '13px', color: '#6B7280', marginBottom: '12px' }}>{progress}</p>}
 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
