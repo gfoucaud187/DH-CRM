@@ -50,7 +50,7 @@ If a field isn't present, use null. Do not invent values. Return only the JSON a
     }
 
     const data = await response.json()
-    const text = data.content?.[0]?.text ?? ''
+    const text = data.content?.find((b: any) => b.type === 'text')?.text ?? ''
     const jsonMatch = text.match(/\[[\s\S]*\]/)
     if (!jsonMatch) return NextResponse.json({ error: 'Could not parse any line items from the document' }, { status: 422 })
 

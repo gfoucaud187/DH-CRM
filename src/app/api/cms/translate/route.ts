@@ -99,7 +99,8 @@ ${JSON.stringify(sourceJson, null, 2)}`
   })
 
   let translatedJson: Record<string, string> = {}
-  const rawContent = message.content[0].type === 'text' ? message.content[0].text : ''
+  const textBlock = message.content.find(b => b.type === 'text')
+  const rawContent = textBlock ? textBlock.text : ''
 
   try {
     // Strip markdown code blocks if present

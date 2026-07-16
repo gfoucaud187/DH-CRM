@@ -40,7 +40,7 @@ If nothing looks concerning, return [].`,
     }
 
     const data = await response.json()
-    const text = data.content?.[0]?.text ?? ''
+    const text = data.content?.find((b: any) => b.type === 'text')?.text ?? ''
     const jsonMatch = text.match(/\[[\s\S]*\]/)
     const flags = jsonMatch ? JSON.parse(jsonMatch[0]) : []
     return NextResponse.json({ flags })
