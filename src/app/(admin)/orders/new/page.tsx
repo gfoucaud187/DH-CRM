@@ -250,7 +250,10 @@ export default function NewOrderPage() {
       if (data.order_number_guess) setOcrDetectedNumber(data.order_number_guess)
 
       let matched = 0
-      const newLines: OrderLine[] = []
+      // Keyed by SKU: if the document (or the model) lists the same product on more than
+      // one line, merge them into a single line with combined quantity instead of creating
+      // duplicate rows.
+      const newLinesBySku = new Map<string, OrderLine>()
       for (const l of (data.lines ?? [])) {
         const product = guessProduct(l.sku_guess, l.description)
         if (!product || !l.quantity_packs) continue
@@ -263,20 +266,29 @@ export default function NewOrderPage() {
         const price = l.line_total_guess != null && units > 0
           ? Number(l.line_total_guess) / units
           : l.unit_price != null ? Number(l.unit_price) : getPrice(product.sku)
-        newLines.push({
-          sku: product.sku,
-          product_name: product.full_name,
-          brand: product.brand,
-          units_per_pack: product.units_per_pack ?? 1,
-          quantity_packs: packs,
-          quantity_units: units,
-          price_per_unit: price,
-          line_total: units * price,
-          fixmer_reference: product.fixmer_reference ?? null,
-          diff_price_per_unit: null,
-          warehouse: isSample ? 'Sample' : (data.warehouse_guess && WAREHOUSES.includes(data.warehouse_guess) ? data.warehouse_guess : warehouse),
-        })
+
+        const existing = newLinesBySku.get(product.sku)
+        if (existing) {
+          existing.quantity_packs += packs
+          existing.quantity_units += units
+          existing.line_total += units * price
+        } else {
+          newLinesBySku.set(product.sku, {
+            sku: product.sku,
+            product_name: product.full_name,
+            brand: product.brand,
+            units_per_pack: product.units_per_pack ?? 1,
+            quantity_packs: packs,
+            quantity_units: units,
+            price_per_unit: price,
+            line_total: units * price,
+            fixmer_reference: product.fixmer_reference ?? null,
+            diff_price_per_unit: null,
+            warehouse: isSample ? 'Sample' : (data.warehouse_guess && WAREHOUSES.includes(data.warehouse_guess) ? data.warehouse_guess : warehouse),
+          })
+        }
       }
+      const newLines = Array.from(newLinesBySku.values())
       setLines(prev => {
         const existingSkus = new Set(prev.map(l => l.sku))
         return [...prev, ...newLines.filter(l => !existingSkus.has(l.sku))]
