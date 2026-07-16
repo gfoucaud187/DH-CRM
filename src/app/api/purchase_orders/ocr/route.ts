@@ -35,10 +35,17 @@ Return ONLY a JSON array (no other text), one object per line item, with these f
     "sku_guess": "the supplier's product code/reference for this line, exactly as written, or null",
     "description": "product name/description as written on the document",
     "quantity": number (quantity of boxes/units on this line — the count, not a weight or price),
-    "unit_price": number (unit cost for this line if shown, else null)
+    "unit_price": number (unit cost for this line if shown, else null),
+    "line_total_guess": number (this line's total price as written, if shown, else null)
   }
 ]
-If a field isn't present on the document, use null. Do not invent values. Return only the JSON array.`,
+Numbers on these documents are sometimes written with a comma as the decimal separator (e.g. "5,520"
+meaning 5.52, not five thousand five hundred twenty) instead of a decimal point. Use context to tell
+which convention a given document uses — cross-check unit_price against line_total_guess and quantity
+(unit_price * quantity should roughly equal line_total_guess), and against any grand total shown for
+the whole order. Cigar box unit costs are typically a few dollars to a few hundred dollars, never in
+the thousands. If a field isn't present on the document, use null. Do not invent values. Return only
+the JSON array.`,
             },
           ],
         }],
