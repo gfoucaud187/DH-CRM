@@ -7,6 +7,12 @@ import { createClient } from '@/lib/supabase/client'
 const sgd = (n: number) =>
   new Intl.NumberFormat('en-SG', { style: 'currency', currency: 'SGD' }).format(n)
 
+function addDays(dateStr: string, days: number): Date {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + days)
+  return d
+}
+
 const BUCKETS = [
   { label: 'Current',    min: 0,  max: 0 },
   { label: '1–30 days',  min: 1,  max: 30 },
@@ -25,9 +31,13 @@ export default function AgeingPage() {
     queryKey: ['ageing', mode],
     queryFn: async () => {
       if (mode === 'ar') {
+        // AR only makes sense for SO/Invoice (real money changes hands) — proforma isn't
+        // confirmed yet, so_int/so_do/client_return carry no independent receivable balance.
         const { data: orders } = await supabase
           .from('sales_orders')
-          .select('id, order_number, customer_id, total_amount, created_at, status')
+          .select('id, order_number, customer_id, total_amount, amount_received, created_at, shipment_date, payment_terms_days, status')
+          .in('document_type', ['so', 'invoice'])
+          .eq('is_foc', false)
           .neq('status', 'cancelled')
           .order('created_at', { ascending: true })
 
@@ -41,13 +51,22 @@ export default function AgeingPage() {
         }
 
         return (orders ?? [])
-          .filter((o: any) => Number(o.total_amount ?? 0) > 0)
-          .map((o: any) => ({
-            ref: o.order_number,
-            entity: customerMap[o.customer_id] ?? o.customer_id ?? 'Unknown',
-            amount: Number(o.total_amount ?? 0),
-            date: o.created_at?.slice(0, 10) ?? today,
-          }))
+          .map((o: any) => {
+            const outstanding = Number(o.total_amount ?? 0) - Number(o.amount_received ?? 0)
+            // Age from the payment due date (shipment + payment terms), per the rule that
+            // terms count from departure — fall back to created_at for older orders that
+            // don't carry shipment_date/payment_terms_days yet.
+            const dueDate = (o.shipment_date && o.payment_terms_days != null)
+              ? addDays(o.shipment_date, o.payment_terms_days).toISOString().slice(0, 10)
+              : (o.created_at?.slice(0, 10) ?? today)
+            return {
+              ref: o.order_number,
+              entity: customerMap[o.customer_id] ?? o.customer_id ?? 'Unknown',
+              amount: outstanding,
+              date: dueDate,
+            }
+          })
+          .filter((r: any) => r.amount > 0.005) // fully paid — drop from ageing entirely
       } else {
         const { data: pos } = await supabase
           .from('purchase_orders')
@@ -107,7 +126,12 @@ export default function AgeingPage() {
       <div className="flex items-start justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">AR / AP Ageing</h1>
-          <p className="text-sm text-gray-500 mt-0.5">As at {new Date(today).toLocaleDateString('en-SG')}</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            As at {new Date(today).toLocaleDateString('en-SG')}
+            {mode === 'ar'
+              ? ' · aged from payment due date (shipment + payment terms), net of amounts received'
+              : ' · aged from order date'}
+          </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {[
