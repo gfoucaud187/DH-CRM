@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ShoppingCart, FileText, Gift, Package, ArrowRight } from 'lucide-react'
+import { Plus, Trash2, ShoppingCart, FileText, Gift, Package, ArrowRight, Sparkles } from 'lucide-react'
 import { logActivity } from '@/lib/log-activity'
 import { warehouseLabel } from '@/lib/warehouse'
 
@@ -69,12 +69,18 @@ export default function NewOrderPage() {
   const [paymentTerms, setPaymentTerms] = useState('Net 30')
   const [paymentTermsDays, setPaymentTermsDays] = useState('30')
   const [notes, setNotes] = useState('')
+  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0])
   const [shipmentDate, setShipmentDate] = useState('')
   const [orderReceivedDate, setOrderReceivedDate] = useState('')
   const [lines, setLines] = useState<OrderLine[]>([])
   const [services, setServices] = useState<OrderService[]>([])
   const [saving, setSaving] = useState(false)
   const [productSearch, setProductSearch] = useState('')
+
+  const [ocrFile, setOcrFile] = useState<File | null>(null)
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrError, setOcrError] = useState('')
+  const [ocrDetectedNumber, setOcrDetectedNumber] = useState('')
 
   const cfg = MODE_CONFIG[mode]
   const isFoc = cfg.isFoc
@@ -202,6 +208,82 @@ export default function NewOrderPage() {
 
   const removeLine = (idx: number) => setLines(l => l.filter((_, i) => i !== idx))
 
+  const guessCustomer = (nameGuess: string | null): any | null => {
+    if (!nameGuess) return null
+    const needle = nameGuess.toLowerCase().trim()
+    const list = customers as any[]
+    const exact = list.find(c => c.legal_name?.toLowerCase() === needle)
+    if (exact) return exact
+    return list.find(c => c.legal_name?.toLowerCase().includes(needle) || needle.includes(c.legal_name?.toLowerCase() ?? ' ')) ?? null
+  }
+
+  const guessProduct = (skuGuess: string | null, description: string | null): any | null => {
+    const list = products as any[]
+    if (skuGuess) {
+      const exact = list.find(p => p.sku.toLowerCase() === skuGuess.toLowerCase())
+      if (exact) return exact
+    }
+    const desc = (description || '').toLowerCase()
+    if (!desc) return null
+    return list.find(p => desc.includes(p.full_name.toLowerCase()) || p.full_name.toLowerCase().includes(desc)) ?? null
+  }
+
+  const handleOcrExtract = async () => {
+    if (!ocrFile) return
+    setOcrLoading(true)
+    setOcrError('')
+    setOcrDetectedNumber('')
+    try {
+      const formData = new FormData()
+      formData.append('file', ocrFile)
+      const res = await fetch('/api/orders/ocr', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) { setOcrError(data.error ?? 'Extraction failed'); setOcrLoading(false); return }
+
+      const matchedCustomer = guessCustomer(data.customer_name_guess)
+      if (matchedCustomer) handleCustomerChange(matchedCustomer.id)
+
+      if (data.warehouse_guess && WAREHOUSES.includes(data.warehouse_guess)) setWarehouse(data.warehouse_guess)
+      if (data.order_date_guess) setOrderDate(data.order_date_guess)
+      if (data.incoterms_guess) setIncoterms(data.incoterms_guess)
+      if (data.order_number_guess) setOcrDetectedNumber(data.order_number_guess)
+
+      let matched = 0
+      const newLines: OrderLine[] = []
+      for (const l of (data.lines ?? [])) {
+        const product = guessProduct(l.sku_guess, l.description)
+        if (!product || !l.quantity_packs) continue
+        matched++
+        const packs = Number(l.quantity_packs)
+        const units = packs * (product.units_per_pack ?? 1)
+        const price = l.unit_price != null ? Number(l.unit_price) : getPrice(product.sku)
+        newLines.push({
+          sku: product.sku,
+          product_name: product.full_name,
+          brand: product.brand,
+          units_per_pack: product.units_per_pack ?? 1,
+          quantity_packs: packs,
+          quantity_units: units,
+          price_per_unit: price,
+          line_total: units * price,
+          fixmer_reference: product.fixmer_reference ?? null,
+          diff_price_per_unit: null,
+          warehouse: isSample ? 'Sample' : (data.warehouse_guess && WAREHOUSES.includes(data.warehouse_guess) ? data.warehouse_guess : warehouse),
+        })
+      }
+      setLines(prev => {
+        const existingSkus = new Set(prev.map(l => l.sku))
+        return [...prev, ...newLines.filter(l => !existingSkus.has(l.sku))]
+      })
+      setOcrFile(null)
+      if (matched === 0) setOcrError('No line items could be matched to a product in the catalogue — add them manually below.')
+    } catch (err: any) {
+      setOcrError(err.message)
+    } finally {
+      setOcrLoading(false)
+    }
+  }
+
   const addService = () => setServices(s => [...s, { service_type: 'consulting', description: 'Consulting Services', price: '' }])
   const removeService = (idx: number) => setServices(s => s.filter((_, i) => i !== idx))
   const updateService = (idx: number, field: keyof OrderService, value: string) => {
@@ -243,6 +325,7 @@ export default function NewOrderPage() {
             payment_terms:         isInt ? '—' : paymentTerms,
             payment_terms_days:    isInt ? null : (paymentTermsDays ? parseInt(paymentTermsDays) : null),
             notes,
+            order_date:            orderDate || null,
             shipment_date:         shipmentDate || null,
             order_received_date:   isInt ? null : (orderReceivedDate || null),
             price_list:            priceIsZero ? null : getCustomerPriceList(),
@@ -314,6 +397,28 @@ export default function NewOrderPage() {
           )
         })}
       </div>
+
+      {!isInt && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Sparkles className="h-4 w-4" /> Extract from Existing Document</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input type="file" accept="application/pdf,image/*"
+              onChange={e => setOcrFile(e.target.files?.[0] ?? null)}
+              className="flex-1 min-w-64 text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700 file:text-sm" />
+            <button onClick={handleOcrExtract} disabled={!ocrFile || ocrLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors whitespace-nowrap">
+              {ocrLoading ? 'Extracting...' : 'Extract & Fill'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">Upload an existing SO/Invoice (PDF or photo) — pre-fills the customer, warehouse, date, and matched product lines below. Useful when re-entering historical orders.</p>
+          {ocrError && <p className="text-xs text-red-500 mt-2">{ocrError}</p>}
+          {ocrDetectedNumber && (
+            <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-2">
+              Detected original document number: <span className="font-mono font-medium">{ocrDetectedNumber}</span> — set this after creating the order via its Edit page.
+            </p>
+          )}
+        </div>
+      )}
 
       {isSample && (
         <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
@@ -415,6 +520,12 @@ export default function NewOrderPage() {
                     placeholder="e.g. 30"
                     className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
                   <p className="text-xs text-gray-400 mt-1">Payment is due this many days after the Shipment Date</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Order Date</label>
+                  <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+                  <p className="text-xs text-gray-400 mt-1">Defaults to today — backdate when re-entering a historical order</p>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500 uppercase">Order Received Date</label>
