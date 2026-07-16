@@ -97,9 +97,14 @@ export default function EditCustomerPage() {
   }, [country])
 
   useEffect(() => {
-    if (isEuropean && euComplianceType === '') setEuComplianceType('TT')
+    if (isEuropean && euComplianceType !== 'PR') setEuComplianceType('TT')
     if (!isEuropean) setEuComplianceType('')
   }, [isEuropean])
+
+  // TT is implied by the compliance type itself — no separate manual toggle needed.
+  useEffect(() => {
+    if (euComplianceType === 'TT') setTrackTrace(true)
+  }, [euComplianceType])
 
   useEffect(() => {
     if (!customer) return
@@ -403,11 +408,10 @@ export default function EditCustomerPage() {
             <div className="space-y-5">
               <div>
                 <label className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3 block">EU Compliance Type *</label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   {[
                     { value: 'TT', title: 'Track & Trace (TT)', desc: 'EMCS + TPD2. Products travel via e-AD under duty suspension. Stock: Central warehouse.', badge: 'Default for EU', color: 'border-blue-400 bg-blue-50', badgeColor: 'bg-blue-100 text-blue-700' },
                     { value: 'PR', title: 'Primary Repository (PR)', desc: 'Authorized tax warehouse. Contracted data storage for TPD2. Access: T1 + Central.', badge: 'Extended access', color: 'border-green-400 bg-green-50', badgeColor: 'bg-green-100 text-green-700' },
-                    { value: '', title: '⚠️ Not configured', desc: 'EU compliance not set. Order creation will be blocked until TT or PR is configured.', badge: 'Blocked', color: 'border-red-300 bg-red-50', badgeColor: 'bg-red-100 text-red-600' },
                   ].map(opt => (
                     <label key={opt.value} className={`cursor-pointer rounded-xl border-2 p-4 transition-all ${euComplianceType === opt.value ? opt.color : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
                       <div className="flex items-start gap-3">
@@ -423,28 +427,6 @@ export default function EditCustomerPage() {
                   ))}
                 </div>
               </div>
-
-              {euComplianceType === 'TT' && (
-                <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                  <h3 className="text-sm font-semibold text-blue-900 mb-3">Track & Trace Configuration</h3>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="checkbox" checked={trackTrace} onChange={e => setTrackTrace(e.target.checked)} className="rounded" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Track & Trace activated</p>
-                        <p className="text-xs text-gray-400">Products carry Unique Identifiers (UI). Movements reported via EMCS e-AD.</p>
-                      </div>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="checkbox" checked={tpdActivated} onChange={e => setTpdActivated(e.target.checked)} className="rounded" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">TPD2 serialization active</p>
-                        <p className="text-xs text-gray-400">EU Tobacco Products Directive 2014/40/EU — mandatory since May 2024 for OTP.</p>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              )}
 
               {euComplianceType === 'PR' && (
                 <div className="bg-green-50 rounded-xl p-4 border border-green-100">
