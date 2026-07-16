@@ -24,6 +24,30 @@ interface InvoicePDFProps {
 export default function InvoicePDF({ order, lines, services = [], customer, appSettings, sourceDoc }: InvoicePDFProps) {
   const [saving, setSaving] = useState(false)
   const [refPrices, setRefPrices] = useState<Record<string, number>>({})
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'stale' | 'loading'>('loading')
+
+  // Green once the current state of the order has a matching saved document; falls back to
+  // orange the moment the order is modified afterward (a save now would create a new version).
+  useEffect(() => {
+    let cancelled = false
+    const docType = order.document_type === 'invoice' ? 'invoice' : (order.is_foc ? 'so_do' : 'so')
+    const checkSaveStatus = async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('document_files')
+        .select('created_at')
+        .eq('order_id', order.id)
+        .eq('document_type', docType)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (cancelled) return
+      const isSaved = !!data && new Date(data.created_at) >= new Date(order.updated_at)
+      setSaveStatus(isSaved ? 'saved' : 'stale')
+    }
+    checkSaveStatus()
+    return () => { cancelled = true }
+  }, [order.id, order.updated_at, order.document_type, order.is_foc])
 
   const isLinked = order.order_number?.includes('LINKED')
   const skusKey = lines.map((l: any) => l.sku).join(',')
@@ -285,7 +309,10 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
     setSaving(true)
     try {
       const blob = await generatePdfBlob()
-      if (blob) await savePdfToStorage(blob, true)
+      if (blob) {
+        await savePdfToStorage(blob, true)
+        setSaveStatus('saved')
+      }
     } finally {
       setSaving(false)
     }
@@ -485,6 +512,12 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
             </svg>
             {saving ? 'Saving…' : 'Save to Documents'}
           </button>
+          {saveStatus !== 'loading' && (
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${saveStatus === 'saved' ? 'bg-green-500' : 'bg-orange-500'}`}
+              title={saveStatus === 'saved' ? 'Saved — matches the current version' : 'Not saved — saving now will create a new version'}
+            />
+          )}
         </div>
 
         <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
@@ -605,6 +638,12 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
           </svg>
           {saving ? 'Saving…' : 'Save to Documents'}
         </button>
+        {saveStatus !== 'loading' && (
+          <span
+            className={`h-2.5 w-2.5 rounded-full ${saveStatus === 'saved' ? 'bg-green-500' : 'bg-orange-500'}`}
+            title={saveStatus === 'saved' ? 'Saved — matches the current version' : 'Not saved — saving now will create a new version'}
+          />
+        )}
       </div>
 
       <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
