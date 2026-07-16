@@ -585,13 +585,13 @@ export default function OrderDetailPage() {
               {(linkedCreditNotes as any[]).map((cn: any) => (
                 <button key={cn.id} onClick={() => router.push('/orders/' + cn.id)}
                   className="w-full text-left text-sm text-teal-700 hover:underline flex items-center gap-1">
-                  <span className="text-teal-400">→</span> {cn.order_number} (Credit Note, {cn.currency} {Number(cn.total_amount).toFixed(2)})
+                  <span className="text-teal-400">→</span> {cn.order_number} (Credit Note, {cn.currency} {Number(cn.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                 </button>
               ))}
               {(clientReturns as any[]).map((ret: any) => (
                 <button key={ret.id} onClick={() => router.push('/orders/' + ret.id)}
                   className="w-full text-left text-sm text-pink-700 hover:underline flex items-center gap-1">
-                  <span className="text-pink-400">↩</span> {ret.order_number} ({ret.currency} {Number(ret.total_amount).toFixed(2)})
+                  <span className="text-pink-400">↩</span> {ret.order_number} ({ret.currency} {Number(ret.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                 </button>
               ))}
               {(allFocOrders as any[]).map((foc: any) => {
@@ -749,22 +749,22 @@ export default function OrderDetailPage() {
                 <div className="space-y-1 mb-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Total Amount</span>
-                    <span className="font-medium text-gray-900">{order.currency} {totalAmount.toFixed(2)}</span>
+                    <span className="font-medium text-gray-900">{order.currency} {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Amount Received</span>
-                    <span className="font-medium text-green-700">{order.currency} {amountReceived.toFixed(2)}</span>
+                    <span className="font-medium text-green-700">{order.currency} {amountReceived.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   {totalReturned > 0.005 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Client Returns</span>
-                      <span className="font-medium text-pink-600">-{order.currency} {totalReturned.toFixed(2)}</span>
+                      <span className="font-medium text-pink-600">-{order.currency} {totalReturned.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Balance Due</span>
                     <span className={'font-semibold ' + (balance < 0 ? 'text-pink-600' : 'text-gray-900')}>
-                      {balance < 0 ? '-' : ''}{order.currency} {Math.abs(balance).toFixed(2)}
+                      {balance < 0 ? '-' : ''}{order.currency} {Math.abs(balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                   {dueDate && (
@@ -784,7 +784,7 @@ export default function OrderDetailPage() {
                           <span className="text-gray-400 ml-2">{p.method || p.reference || ''}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">{p.currency} {Number(p.amount).toFixed(2)}</span>
+                          <span className="font-medium text-gray-900">{p.currency} {Number(p.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           <button onClick={() => { if (confirm('Delete this payment?')) deletePayment(p.id) }}
                             className="text-gray-300 hover:text-red-500">
                             <Trash2 className="h-3 w-3" />
@@ -841,9 +841,9 @@ export default function OrderDetailPage() {
         <div className="col-span-2 space-y-4">
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: 'Total Packs',  value: order.total_packs },
-              { label: 'Total Units',  value: order.total_units },
-              { label: 'Total Amount', value: isInt ? 'INT' : (order.is_foc || order.is_sample ? 'FOC' : order.currency + ' ' + Number(order.total_amount).toFixed(2)) },
+              { label: 'Total Packs',  value: Number(order.total_packs).toLocaleString('en-US') },
+              { label: 'Total Units',  value: Number(order.total_units).toLocaleString('en-US') },
+              { label: 'Total Amount', value: isInt ? 'INT' : (order.is_foc || order.is_sample ? 'FOC' : order.currency + ' ' + Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
                 <p className="text-2xl font-bold text-gray-900">{value}</p>
@@ -903,12 +903,12 @@ export default function OrderDetailPage() {
                     {hasMixedWarehouses && (
                       <td className="px-3 py-3 text-gray-600">{warehouseLabel(line.warehouse ?? order.warehouse)}</td>
                     )}
-                    <td className="px-3 py-3 text-center">{line.quantity_packs}</td>
-                    <td className="px-3 py-3 text-center">{line.quantity_units}</td>
+                    <td className="px-3 py-3 text-center">{Number(line.quantity_packs).toLocaleString('en-US')}</td>
+                    <td className="px-3 py-3 text-center">{Number(line.quantity_units).toLocaleString('en-US')}</td>
                     {!order.is_foc && !order.is_sample && !isInt && (
                       <>
-                        <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toFixed(2)}</td>
-                        <td className="px-4 py-3 text-right font-medium">{Number(line.line_total).toFixed(2)}</td>
+                        <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 text-right font-medium">{Number(line.line_total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       </>
                     )}
                   </tr>
@@ -919,7 +919,7 @@ export default function OrderDetailPage() {
                   <tr>
                     <td colSpan={hasMixedWarehouses ? 5 : 4} className="px-4 py-3 text-right font-semibold">Total</td>
                     <td className="px-4 py-3 text-right font-bold">
-                      {order.currency} {Number(order.total_amount).toFixed(2)}
+                      {order.currency} {Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                   </tr>
                 </tfoot>
@@ -945,7 +945,7 @@ export default function OrderDetailPage() {
                     <tr key={s.id}>
                       <td className="px-4 py-3 capitalize text-gray-600">{s.service_type}</td>
                       <td className="px-3 py-3">{s.description}</td>
-                      <td className="px-4 py-3 text-right font-medium">{s.currency} {Number(s.price).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right font-medium">{s.currency} {Number(s.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     </tr>
                   ))}
                 </tbody>
