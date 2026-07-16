@@ -41,6 +41,10 @@ interface Row {
   valueDisplay: string
   valueAmount: number | null
   currency: string | null
+  // SO(DO) only: what the given-away goods were worth, and what they cost the company
+  marketValue: number | null
+  cogsValue: number | null
+  mvCurrency: string | null
 }
 
 function presetRange(preset: Preset, customFrom: string, customTo: string): { from: string; to: string } {
@@ -92,13 +96,15 @@ async function generateSummaryPdf(rows: Row[], meta: { from: string; to: string;
   y += 10
 
   const cols = [
-    { key: 'refNumber', label: 'Document', w: 45 },
-    { key: 'typeLabel', label: 'Type', w: 32 },
-    { key: 'party', label: 'Customer / Partner', w: 55 },
-    { key: 'date', label: 'Date', w: 22 },
-    { key: 'packsDisplay', label: 'Boxes (SKU)', w: 22 },
-    { key: 'unitsDisplay', label: 'Cigars', w: 22 },
-    { key: 'valueDisplay', label: 'Value', w: 40 },
+    { key: 'refNumber', label: 'Document', w: 38 },
+    { key: 'typeLabel', label: 'Type', w: 24 },
+    { key: 'party', label: 'Customer / Partner', w: 42 },
+    { key: 'date', label: 'Date', w: 20 },
+    { key: 'packsDisplay', label: 'Boxes (SKU)', w: 18 },
+    { key: 'unitsDisplay', label: 'Cigars', w: 18 },
+    { key: 'valueDisplay', label: 'Value', w: 32 },
+    { key: 'marketValueDisplay', label: 'Market Value (FOC)', w: 32 },
+    { key: 'cogsValueDisplay', label: 'COGS Value (FOC)', w: 32 },
   ]
   const drawHeader = () => {
     pdf.setFont('helvetica', 'bold')
@@ -120,19 +126,29 @@ async function generateSummaryPdf(rows: Row[], meta: { from: string; to: string;
       ...row,
       packsDisplay: row.packs != null ? String(row.packs) : '—',
       unitsDisplay: row.units != null ? String(row.units) : '—',
+      marketValueDisplay: row.marketValue != null ? fmtMoney(row.marketValue, row.mvCurrency ?? 'USD') : '—',
+      cogsValueDisplay: row.cogsValue != null ? fmtMoney(row.cogsValue, row.mvCurrency ?? 'USD') : '—',
     }
     cols.forEach(c => {
       const raw = String(display[c.key] ?? '')
-      const val = raw.length > 38 ? raw.slice(0, 35) + '...' : raw
+      const val = raw.length > 26 ? raw.slice(0, 23) + '...' : raw
       pdf.text(val, x, y)
       x += c.w
     })
     y += 6
   }
 
-  // Totals row, aligned under the Boxes/Cigars columns specifically
+  // Totals row, aligned under the Boxes/Cigars/Market/COGS columns specifically
   const totalPacks = rows.reduce((s, r) => s + (r.packs ?? 0), 0)
   const totalUnits = rows.reduce((s, r) => s + (r.units ?? 0), 0)
+  const totalMarketByCurrency: Record<string, number> = {}
+  const totalCogsByCurrency: Record<string, number> = {}
+  rows.forEach(r => {
+    if (r.marketValue != null) totalMarketByCurrency[r.mvCurrency ?? 'USD'] = (totalMarketByCurrency[r.mvCurrency ?? 'USD'] ?? 0) + r.marketValue
+    if (r.cogsValue != null) totalCogsByCurrency[r.mvCurrency ?? 'USD'] = (totalCogsByCurrency[r.mvCurrency ?? 'USD'] ?? 0) + r.cogsValue
+  })
+  const soloCurrency = (m: Record<string, number>) => { const cs = Object.keys(m); return cs.length === 1 ? fmtMoney(m[cs[0]], cs[0]) : null }
+
   y += 4
   pdf.setDrawColor(180)
   pdf.line(marginX, y, pageW - marginX, y)
@@ -144,6 +160,8 @@ async function generateSummaryPdf(rows: Row[], meta: { from: string; to: string;
       if (c.key === 'refNumber') pdf.text('TOTAL', x, y)
       else if (c.key === 'packsDisplay') pdf.text(String(totalPacks), x, y)
       else if (c.key === 'unitsDisplay') pdf.text(String(totalUnits), x, y)
+      else if (c.key === 'marketValueDisplay') { const s = soloCurrency(totalMarketByCurrency); if (s) pdf.text(s, x, y) }
+      else if (c.key === 'cogsValueDisplay') { const s = soloCurrency(totalCogsByCurrency); if (s) pdf.text(s, x, y) }
       x += c.w
     })
   }
@@ -155,6 +173,21 @@ async function generateSummaryPdf(rows: Row[], meta: { from: string; to: string;
     Object.entries(totalsByCurrency).forEach(([cur, amt]) => {
       if (y > pageH - 20) { pdf.addPage(); y = 18 }
       pdf.text(`Total (${cur}): ${fmtMoney(amt, cur)}`, marginX, y)
+      y += 6
+    })
+  }
+  // Market/COGS totals when documents span multiple currencies (can't fit one number in the column)
+  if (Object.keys(totalMarketByCurrency).length > 1) {
+    Object.entries(totalMarketByCurrency).forEach(([cur, amt]) => {
+      if (y > pageH - 20) { pdf.addPage(); y = 18 }
+      pdf.text(`Total Market Value FOC (${cur}): ${fmtMoney(amt, cur)}`, marginX, y)
+      y += 6
+    })
+  }
+  if (Object.keys(totalCogsByCurrency).length > 1) {
+    Object.entries(totalCogsByCurrency).forEach(([cur, amt]) => {
+      if (y > pageH - 20) { pdf.addPage(); y = 18 }
+      pdf.text(`Total COGS Value FOC (${cur}): ${fmtMoney(amt, cur)}`, marginX, y)
       y += 6
     })
   }
@@ -228,6 +261,7 @@ export default function ExportBundleModal() {
             rows.push({
               file: f, typeLabel: 'External', refNumber: f.file_name, date: d,
               party: '—', packs: null, units: null, valueDisplay: '—', valueAmount: null, currency: null,
+              marketValue: null, cogsValue: null, mvCurrency: null,
             })
           }
           continue
@@ -257,6 +291,7 @@ export default function ExportBundleModal() {
               refNumber: po.po_number, date: d, party: po.partner_name,
               packs: null, units: null, valueDisplay: fmtMoney(po.total_amount ?? 0, po.currency ?? 'USD'),
               valueAmount: Number(po.total_amount ?? 0), currency: po.currency ?? 'USD',
+              marketValue: null, cogsValue: null, mvCurrency: null,
             })
           }
           continue
@@ -277,6 +312,7 @@ export default function ExportBundleModal() {
             rows.push({
               file: latest, typeLabel: 'Stocktake', refNumber: ev.event_number, date: d,
               party: '—', packs: null, units: null, valueDisplay: '—', valueAmount: null, currency: null,
+              marketValue: null, cogsValue: null, mvCurrency: null,
             })
           }
           continue
@@ -287,11 +323,63 @@ export default function ExportBundleModal() {
         // document_files.document_type bucket alone (so and so_int both save as 'so').
         const { data: orders, error: ordersErr } = await step('Loading sales orders', async () =>
           supabase.from('sales_orders')
-            .select('id, order_number, order_date, customer_id, customer_name, document_type, is_foc, total_amount, total_units, total_packs, currency')
+            .select('id, order_number, order_date, customer_id, customer_name, document_type, is_foc, total_amount, total_units, total_packs, currency, price_list, promoted_from')
             .in('id', orderIds)
         )
         if (ordersErr) throw new Error(`Loading sales orders: ${ordersErr.message}`)
         const byId = Object.fromEntries((orders ?? []).map((o: any) => [o.id, o]))
+
+        // SO(DO): the goods went out for free, but we still want to show what they were worth
+        // (market price) and what they cost the company (COGS), so compute both per order from
+        // its lines — sales_orders.total_amount is 0 for these, so there's nothing to derive it from.
+        let marketBySo: Record<string, number> = {}
+        let cogsBySo: Record<string, number> = {}
+        if (fileType === 'so_do') {
+          const { data: lines, error: linesErr } = await step('Loading SO(DO) lines', async () =>
+            supabase.from('sales_order_lines').select('order_id, sku, quantity_units').in('order_id', orderIds)
+          )
+          if (linesErr) throw new Error(`Loading SO(DO) lines: ${linesErr.message}`)
+          const skus = Array.from(new Set((lines ?? []).map((l: any) => l.sku)))
+
+          // Resolve a usable price_list per order: its own, or one hop up via promoted_from
+          // (older SO(DO)s were created before price_list was copied from the parent SO).
+          const priceListByOrder: Record<string, string | null> = {}
+          const missingPriceList = (orders ?? []).filter((o: any) => !o.price_list && o.promoted_from)
+          if (missingPriceList.length > 0) {
+            const { data: parents } = await step('Resolving SO(DO) price lists', async () =>
+              supabase.from('sales_orders').select('id, price_list').in('id', missingPriceList.map((o: any) => o.promoted_from))
+            )
+            const parentById = Object.fromEntries((parents ?? []).map((p: any) => [p.id, p.price_list]))
+            missingPriceList.forEach((o: any) => { priceListByOrder[o.id] = parentById[o.promoted_from] ?? null })
+          }
+          ;(orders ?? []).forEach((o: any) => { if (priceListByOrder[o.id] === undefined) priceListByOrder[o.id] = o.price_list ?? null })
+
+          const priceLists = Array.from(new Set(Object.values(priceListByOrder).filter(Boolean)))
+          const { data: priceEntries } = skus.length > 0 && priceLists.length > 0
+            ? await step('Loading price list entries', async () =>
+                supabase.from('price_list_entries').select('sku, price_list, price_per_unit').in('sku', skus).in('price_list', priceLists as string[])
+              )
+            : { data: [] as any[] }
+          const priceMap: Record<string, number> = {} // `${priceList}|${sku}`
+          ;(priceEntries ?? []).forEach((e: any) => { priceMap[`${e.price_list}|${e.sku}`] = Number(e.price_per_unit) })
+
+          const { data: cogsRows } = skus.length > 0
+            ? await step('Loading COGS', async () =>
+                supabase.from('product_cogs').select('sku, cogs, created_at').in('sku', skus).order('created_at', { ascending: false })
+              )
+            : { data: [] as any[] }
+          const cogsMap: Record<string, number> = {}
+          ;(cogsRows ?? []).forEach((c: any) => { if (cogsMap[c.sku] === undefined) cogsMap[c.sku] = Number(c.cogs) }) // first hit per sku = latest, thanks to the desc order
+
+          ;(lines ?? []).forEach((l: any) => {
+            const priceList = priceListByOrder[l.order_id]
+            const unitPrice = priceList ? (priceMap[`${priceList}|${l.sku}`] ?? 0) : 0
+            const unitCogs = cogsMap[l.sku] ?? 0
+            const qty = Number(l.quantity_units ?? 0)
+            marketBySo[l.order_id] = (marketBySo[l.order_id] ?? 0) + unitPrice * qty
+            cogsBySo[l.order_id] = (cogsBySo[l.order_id] ?? 0) + unitCogs * qty
+          })
+        }
 
         for (const [orderId, group] of Object.entries(byOrder)) {
           const so = byId[orderId]
@@ -311,6 +399,9 @@ export default function ExportBundleModal() {
             valueDisplay: so.is_foc ? 'FOC' : fmtMoney(so.total_amount ?? 0, so.currency ?? 'USD'),
             valueAmount: so.is_foc ? null : Number(so.total_amount ?? 0),
             currency: so.is_foc ? null : (so.currency ?? 'USD'),
+            marketValue: fileType === 'so_do' ? (marketBySo[orderId] ?? 0) : null,
+            cogsValue: fileType === 'so_do' ? (cogsBySo[orderId] ?? 0) : null,
+            mvCurrency: fileType === 'so_do' ? (so.currency ?? 'USD') : null,
           })
         }
       }
