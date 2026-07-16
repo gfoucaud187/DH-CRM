@@ -90,11 +90,11 @@ export async function POST(request: NextRequest) {
     // Vérifie si le client est T&T directement sur le customer
     const { data: customer } = await supabase
       .from('customers')
-      .select('track_trace_enabled, eu_compliance_type, manual_pricing_enabled, reference_price_list')
+      .select('is_european, track_trace_enabled, eu_compliance_type, manual_pricing_enabled, reference_price_list')
       .eq('id', so.customer_id)
       .single()
 
-    const isTT = !!(customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT')
+    const isTT = !!(customer?.is_european && (customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT'))
 
     // Pour T&T: récupère les prix SPECIAL
     let specialPriceMap: Record<string, number> = {}

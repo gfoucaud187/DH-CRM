@@ -140,7 +140,7 @@ export default function NewOrderPage() {
     // Best-effort default from the free-text terms — that field isn't a controlled vocabulary,
     // so this is just a starting point the user can adjust.
     setPaymentTermsDays(c.payment_terms?.match(/\d+/)?.[0] ?? '30')
-    if (c.track_trace_enabled || (c.is_european && c.eu_compliance_type === 'TT')) setWarehouse('Central')
+    if (c.is_european && (c.track_trace_enabled || c.eu_compliance_type === 'TT')) setWarehouse('Central')
     else if (c.is_european && c.eu_compliance_type === 'PR') setWarehouse('T1')
   }
 

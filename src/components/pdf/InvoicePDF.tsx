@@ -229,10 +229,10 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
       // Pour T&T: le destinataire est Fixmer, pas le client original
       const { data: cust } = await supabase
         .from('customers')
-        .select('track_trace_enabled, eu_compliance_type')
+        .select('is_european, track_trace_enabled, eu_compliance_type')
         .eq('id', order.customer_id)
         .single()
-      const isTTInvoice = !!(cust?.track_trace_enabled || cust?.eu_compliance_type === 'TT')
+      const isTTInvoice = !!(cust?.is_european && (cust?.track_trace_enabled || cust?.eu_compliance_type === 'TT'))
       const invoiceForNaming = isTTInvoice
         ? { ...order, customer_name: 'Fixmer' }
         : order
@@ -321,7 +321,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
   const isInvoice = order.document_type === 'invoice'
   const isFoc     = order.is_foc
   const isSample  = order.is_sample
-  const isTT      = (order.is_tt_order || customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') && isInvoice
+  const isTT      = (order.is_tt_order || (customer?.is_european && (customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT'))) && isInvoice
   const isInt     = order.document_type === 'so_int'
   const isDO      = order.is_foc && !isInvoice && !isInt
   // SO(DO) and INV(DO): show the real commercial value per line, then zero it out with an
