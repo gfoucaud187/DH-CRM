@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callAnthropic } from '@/lib/anthropic'
+import { callAnthropicForJson } from '@/lib/anthropic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const base64 = Buffer.from(bytes).toString('base64')
     const mediaType = file.type || 'image/jpeg'
 
-    const response = await callAnthropic(apiKey, {
+    const result = await callAnthropicForJson(apiKey, {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 500,
         messages: [{
@@ -40,20 +40,10 @@ Return only the JSON, no other text.`,
             },
           ],
         }],
-      })
+      }, /\{[\s\S]*\}/)
 
-    if (!response.ok) {
-      const err = await response.text()
-      return NextResponse.json({ error: 'Anthropic API error: ' + err }, { status: 502 })
-    }
-
-    const data = await response.json()
-    const text = data.content?.find((b: any) => b.type === 'text')?.text ?? ''
-    const jsonMatch = text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return NextResponse.json({ error: 'Could not parse receipt' }, { status: 422 })
-
-    const parsed = JSON.parse(jsonMatch[0])
-    return NextResponse.json(parsed)
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+    return NextResponse.json(result.parsed)
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

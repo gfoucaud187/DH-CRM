@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { buildFileContentBlocks } from '@/lib/ocr-content'
-import { callAnthropic } from '@/lib/anthropic'
+import { callAnthropicForJson } from '@/lib/anthropic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     const fileBlocks = await buildFileContentBlocks(file)
 
-    const response = await callAnthropic(apiKey, {
+    const result = await callAnthropicForJson(apiKey, {
         model: 'claude-sonnet-5',
         max_tokens: 4000,
         messages: [{
@@ -35,20 +35,10 @@ If a field isn't present, use null. Do not invent values. Return only the JSON a
             },
           ],
         }],
-      })
+      }, /\[[\s\S]*\]/)
 
-    if (!response.ok) {
-      const err = await response.text()
-      return NextResponse.json({ error: 'Anthropic API error: ' + err }, { status: 502 })
-    }
-
-    const data = await response.json()
-    const text = data.content?.find((b: any) => b.type === 'text')?.text ?? ''
-    const jsonMatch = text.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) return NextResponse.json({ error: 'Could not parse any line items from the document' }, { status: 422 })
-
-    const lines = JSON.parse(jsonMatch[0])
-    return NextResponse.json({ lines })
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+    return NextResponse.json({ lines: result.parsed })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

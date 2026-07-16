@@ -23,3 +23,39 @@ export async function callAnthropic(apiKey: string, body: unknown, maxRetries = 
   }
   return lastResponse!
 }
+
+export type JsonExtractResult =
+  | { ok: true; parsed: any }
+  | { ok: false; error: string; status: number }
+
+// The model occasionally returns truncated/malformed JSON (independent of the HTTP-level
+// retries above — the call itself succeeds, the text just doesn't parse). Re-running the
+// whole generation is the only real fix, since retrying the parse on the same text can't
+// help — so this retries the full call+extract+parse sequence a couple of times.
+export async function callAnthropicForJson(
+  apiKey: string,
+  body: unknown,
+  pattern: RegExp,
+  maxAttempts = 2
+): Promise<JsonExtractResult> {
+  let lastError = 'Could not parse the model response'
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const response = await callAnthropic(apiKey, body)
+    if (!response.ok) {
+      const err = await response.text()
+      return { ok: false, error: 'Anthropic API error: ' + err, status: 502 }
+    }
+
+    const data = await response.json()
+    const text = data.content?.find((b: any) => b.type === 'text')?.text ?? ''
+    const match = text.match(pattern)
+    if (!match) { lastError = 'No JSON found in the model response'; continue }
+
+    try {
+      return { ok: true, parsed: JSON.parse(match[0]) }
+    } catch (e: any) {
+      lastError = e.message
+    }
+  }
+  return { ok: false, error: lastError, status: 422 }
+}
