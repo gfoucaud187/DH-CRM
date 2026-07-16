@@ -20,15 +20,15 @@ export default function PurchaseOrderPDF({ order, lines, customer }: PurchaseOrd
     const pdfW = pdf.internal.pageSize.getWidth()
     for (let i = 0; i < pageEls.length; i++) {
       const el = pageEls[i] as HTMLElement
-      const canvas = await html2canvas(el, { useCORS: true, allowTaint: false })
-      const imgData = canvas.toDataURL('image/png')
+      const canvas = await html2canvas(el, { useCORS: true, allowTaint: false, scale: 2 })
+      const imgData = canvas.toDataURL('image/jpeg', 0.92)
       const imgH = (canvas.height * pdfW) / canvas.width
       if (i > 0) {
         pdf.addPage([pdfW, imgH], 'landscape')
       } else {
         pdf.internal.pageSize.height = imgH
       }
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfW, imgH)
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, imgH)
     }
     pdf.save(order.order_number + '.pdf')
   }
