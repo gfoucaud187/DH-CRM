@@ -181,7 +181,7 @@ export default function EditOrderPage() {
     const referenceEntry = (priceEntries as any[]).find((e: any) => e.sku === sku && e.price_list === customer.reference_price_list)
     if (!referenceEntry) return null
     const gap = Number(referenceEntry.price_per_unit) - Number(negotiated.price_per_unit)
-    return gap > 0.0001 ? gap : null
+    return Math.abs(gap) > 0.0001 ? gap : null
   }
 
   const addLine = (product: any) => {

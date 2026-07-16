@@ -162,9 +162,10 @@ export default function NewOrderPage() {
     return entry?.price_per_unit ?? 0
   }
 
-  // Frozen at line-creation time: the gap vs the customer's reference price list,
-  // used later at promotion to bill the Service & Marketing invoice without
-  // re-querying (and thus without drifting if the reference list changes later).
+  // Frozen at line-creation time: the gap vs the customer's reference price list, used later
+  // at promotion without re-querying (avoids drift if the reference list changes later).
+  // Positive gap (reference > client price) bills the shortfall as a Service & Marketing
+  // invoice; negative gap (client price > reference) becomes a Credit Note owed to the client.
   const getFrozenGap = (sku: string): number | null => {
     if (priceIsZero) return null
     const customer = (customers as any[]).find((c: any) => c.id === customerId)
@@ -174,7 +175,7 @@ export default function NewOrderPage() {
     const referenceEntry = (priceEntries as any[]).find((e: any) => e.sku === sku && e.price_list === customer.reference_price_list)
     if (!referenceEntry) return null
     const gap = Number(referenceEntry.price_per_unit) - Number(negotiated.price_per_unit)
-    return gap > 0.0001 ? gap : null
+    return Math.abs(gap) > 0.0001 ? gap : null
   }
 
   const addLine = (product: any) => {

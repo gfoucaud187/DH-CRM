@@ -221,22 +221,17 @@ export async function POST(request: NextRequest) {
 
       if (diffLines.length > 0) {
         const totalDiff = diffLines.reduce((s: number, l: any) => s + l.line_total, 0)
-        // Client price > SPECIAL (declared) price: DH owes the client that extra (it offsets
-        // logistics costs Fixmer bills later) — a Credit Note, not an invoice to Fixmer.
-        // Client price < SPECIAL price: DH owes Fixmer the shortfall — invoice as before.
-        const isCredit = totalDiff > 0
-        const absDiff = Math.abs(totalDiff)
 
-        const { data: linkedDocNum } = await supabase.rpc('fn_generate_doc_number', {
-          p_doc_type: isCredit ? 'credit_note' : 'invoice',
+        const { data: linkedInvNum } = await supabase.rpc('fn_generate_doc_number', {
+          p_doc_type: 'invoice',
           p_is_foc: false,
         })
 
         const { data: linkedInvoice, error: linkedErr } = await supabase
           .from('sales_orders')
           .insert({
-            order_number:    isCredit ? linkedDocNum : `${linkedDocNum} LINKED`,
-            document_type:   isCredit ? 'credit_note' : 'invoice',
+            order_number:    `${linkedInvNum} LINKED`,
+            document_type:   'invoice',
             is_foc:          false,
             is_tt_order:     true,
             promoted_from:   so.id,
@@ -247,14 +242,12 @@ export async function POST(request: NextRequest) {
             currency:        so.currency,
             status:          'draft',
             warehouse:       so.warehouse,
-            total_amount:    absDiff,
+            total_amount:    totalDiff,
             total_units:     so.total_units,
             total_packs:     so.total_packs,
             incoterms:       so.incoterms,
             payment_terms:   so.payment_terms,
-            notes:           isCredit
-              ? `Credit owed to client for ${so.order_number} (offsets later logistics costs)`
-              : `Price difference for ${so.order_number}`,
+            notes:           `Price difference for ${so.order_number}`,
             order_date:      so.order_date,
             shipment_date:   so.shipment_date,
           })
@@ -272,8 +265,8 @@ export async function POST(request: NextRequest) {
               units_per_pack:   l.units_per_pack,
               quantity_packs:   l.quantity_packs,
               quantity_units:   l.quantity_units,
-              price_per_unit:   isCredit ? Math.abs(l.price_per_unit) : l.price_per_unit,
-              line_total:       isCredit ? Math.abs(l.line_total) : l.line_total,
+              price_per_unit:   l.price_per_unit,
+              line_total:       l.line_total,
               fixmer_reference: l.fixmer_reference ?? null,
             }))
           )
@@ -281,12 +274,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ─── Manual pricing: invoice "Service & Marketing" pour combler l'écart vs la liste de référence ──
-    // Le gap (diff_price_per_unit) est figé à la création de la ligne de commande, pas recalculé ici —
-    // ça évite toute dérive si la liste de référence change entre la commande et la promotion.
+    // ─── Manual pricing: écart vs la liste de référence ──────────────────────────────────
+    // Le gap (diff_price_per_unit = reference - client) est figé à la création de la ligne,
+    // pas recalculé ici — ça évite toute dérive si la liste de référence change ensuite.
+    // Gap positif (reference > client, client sous-facturé) → invoice "Service & Marketing".
+    // Gap négatif (client > reference, client sur-facturé) → Credit Note due au client, pour
+    // compenser les coûts logistiques qui seront facturés séparément plus tard.
     if (customer?.manual_pricing_enabled && !isFocSource) {
-      const serviceLines = (so.lines ?? [])
-        .filter((l: any) => l.line_type === 'commercial' && l.diff_price_per_unit != null && Number(l.diff_price_per_unit) > 0.0001)
+      const gapLines = (so.lines ?? [])
+        .filter((l: any) => l.line_type === 'commercial' && l.diff_price_per_unit != null && Math.abs(Number(l.diff_price_per_unit)) > 0.0001)
         .map((l: any) => {
           const gap = Number(l.diff_price_per_unit)
           return {
@@ -301,6 +297,9 @@ export async function POST(request: NextRequest) {
             fixmer_reference: l.fixmer_reference ?? null,
           }
         })
+
+      const serviceLines = gapLines.filter((l: any) => l.line_total > 0)
+      const creditLines  = gapLines.filter((l: any) => l.line_total < 0)
 
       if (serviceLines.length > 0) {
         const totalGap = serviceLines.reduce((s: number, l: any) => s + l.line_total, 0)
@@ -350,6 +349,59 @@ export async function POST(request: NextRequest) {
               quantity_units:   l.quantity_units,
               price_per_unit:   l.price_per_unit,
               line_total:       l.line_total,
+              fixmer_reference: l.fixmer_reference ?? null,
+            }))
+          )
+        }
+      }
+
+      if (creditLines.length > 0) {
+        const totalCredit = Math.abs(creditLines.reduce((s: number, l: any) => s + l.line_total, 0))
+
+        const { data: cnNum } = await supabase.rpc('fn_generate_doc_number', {
+          p_doc_type: 'credit_note',
+          p_is_foc: false,
+        })
+
+        const { data: creditNote, error: cnErr } = await supabase
+          .from('sales_orders')
+          .insert({
+            order_number:     cnNum,
+            document_type:    'credit_note',
+            is_foc:           false,
+            promoted_from:    so.id,
+            linked_order_id:  invoice.id,
+            customer_id:      so.customer_id,
+            customer_name:    so.customer_name,
+            price_list:       so.price_list,
+            currency:         so.currency,
+            status:           'draft',
+            warehouse:        so.warehouse,
+            total_amount:     totalCredit,
+            total_units:      so.total_units,
+            total_packs:      so.total_packs,
+            incoterms:        so.incoterms,
+            payment_terms:    so.payment_terms,
+            notes:            `Credit owed to client for ${so.order_number} (offsets later logistics costs)`,
+            order_date:       so.order_date,
+            shipment_date:    so.shipment_date,
+          })
+          .select()
+          .single()
+
+        if (!cnErr && creditNote) {
+          await supabase.from('sales_order_lines').insert(
+            creditLines.map((l: any) => ({
+              order_id:         creditNote.id,
+              line_type:        'commercial',
+              sku:              l.sku,
+              product_name:     l.product_name,
+              brand:            l.brand,
+              units_per_pack:   l.units_per_pack,
+              quantity_packs:   l.quantity_packs,
+              quantity_units:   l.quantity_units,
+              price_per_unit:   Math.abs(l.price_per_unit),
+              line_total:       Math.abs(l.line_total),
               fixmer_reference: l.fixmer_reference ?? null,
             }))
           )
