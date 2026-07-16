@@ -313,7 +313,7 @@ export default function ExportBundleModal() {
         // Failures here don't abort the whole run — one bad reference shouldn't block everything
         // else that's otherwise downloadable.
         try {
-          const res = await fetch(`/api/documents/file?path=${encodeURIComponent(row.file.file_path)}`)
+          const res = await fetch(`/api/documents/file?id=${row.file.id}`)
           if (!res.ok) throw new Error(`HTTP ${res.status}`)
           const blob = await res.blob()
           zip.file(row.file.file_name, blob)
