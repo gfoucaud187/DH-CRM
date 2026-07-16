@@ -189,12 +189,20 @@ export default function OrdersPage() {
     if (!confirm('Cancel this order?')) return
     await supabase.from('sales_orders').update({ status: 'cancelled' }).eq('id', id)
     queryClient.invalidateQueries({ queryKey: ['orders'] })
+    queryClient.invalidateQueries({ queryKey: ['order', id] })
+    queryClient.invalidateQueries({ queryKey: ['order-linked-invoices'] })
+    queryClient.invalidateQueries({ queryKey: ['order-so-invoices'] })
+    queryClient.invalidateQueries({ queryKey: ['documents'] })
   }
 
   const handleRestore = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
     await supabase.from('sales_orders').update({ status: 'draft' }).eq('id', id)
     queryClient.invalidateQueries({ queryKey: ['orders'] })
+    queryClient.invalidateQueries({ queryKey: ['order', id] })
+    queryClient.invalidateQueries({ queryKey: ['order-linked-invoices'] })
+    queryClient.invalidateQueries({ queryKey: ['order-so-invoices'] })
+    queryClient.invalidateQueries({ queryKey: ['documents'] })
   }
 
   const OrderRow = ({ o, depth = 0, isLast = false, cancelled = false }: { o: any; depth?: number; isLast?: boolean; cancelled?: boolean }) => (
