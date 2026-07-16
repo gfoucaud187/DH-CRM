@@ -437,6 +437,7 @@ export default function OrderDetailPage() {
     : { label: 'Pending Payment', color: 'bg-red-100 text-red-600' }
 
   const getDocLabel = () => {
+    if (order.document_type === 'credit_note') return 'CREDIT NOTE'
     if (order.document_type === 'client_return') return 'RETURN'
     if (isInt) return 'SO(INT)'
     if (order.is_foc && isInvoice) return 'INV(DO)'

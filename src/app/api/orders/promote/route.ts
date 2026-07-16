@@ -221,17 +221,22 @@ export async function POST(request: NextRequest) {
 
       if (diffLines.length > 0) {
         const totalDiff = diffLines.reduce((s: number, l: any) => s + l.line_total, 0)
+        // Client price > SPECIAL (declared) price: DH owes the client that extra (it offsets
+        // logistics costs Fixmer bills later) — a Credit Note, not an invoice to Fixmer.
+        // Client price < SPECIAL price: DH owes Fixmer the shortfall — invoice as before.
+        const isCredit = totalDiff > 0
+        const absDiff = Math.abs(totalDiff)
 
-        const { data: linkedInvNum } = await supabase.rpc('fn_generate_doc_number', {
-          p_doc_type: 'invoice',
+        const { data: linkedDocNum } = await supabase.rpc('fn_generate_doc_number', {
+          p_doc_type: isCredit ? 'credit_note' : 'invoice',
           p_is_foc: false,
         })
 
         const { data: linkedInvoice, error: linkedErr } = await supabase
           .from('sales_orders')
           .insert({
-            order_number:    `${linkedInvNum} LINKED`,
-            document_type:   'invoice',
+            order_number:    isCredit ? linkedDocNum : `${linkedDocNum} LINKED`,
+            document_type:   isCredit ? 'credit_note' : 'invoice',
             is_foc:          false,
             is_tt_order:     true,
             promoted_from:   so.id,
@@ -242,12 +247,14 @@ export async function POST(request: NextRequest) {
             currency:        so.currency,
             status:          'draft',
             warehouse:       so.warehouse,
-            total_amount:    totalDiff,
+            total_amount:    absDiff,
             total_units:     so.total_units,
             total_packs:     so.total_packs,
             incoterms:       so.incoterms,
             payment_terms:   so.payment_terms,
-            notes:           `Price difference for ${so.order_number}`,
+            notes:           isCredit
+              ? `Credit owed to client for ${so.order_number} (offsets later logistics costs)`
+              : `Price difference for ${so.order_number}`,
             order_date:      so.order_date,
             shipment_date:   so.shipment_date,
           })
@@ -265,8 +272,8 @@ export async function POST(request: NextRequest) {
               units_per_pack:   l.units_per_pack,
               quantity_packs:   l.quantity_packs,
               quantity_units:   l.quantity_units,
-              price_per_unit:   l.price_per_unit,
-              line_total:       l.line_total,
+              price_per_unit:   isCredit ? Math.abs(l.price_per_unit) : l.price_per_unit,
+              line_total:       isCredit ? Math.abs(l.line_total) : l.line_total,
               fixmer_reference: l.fixmer_reference ?? null,
             }))
           )

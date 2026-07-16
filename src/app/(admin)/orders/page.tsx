@@ -25,6 +25,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const getDocLabel = (o: any) => {
+  if (o.document_type === 'credit_note') return 'CREDIT NOTE'
   if (o.document_type === 'client_return') return 'RETURN'
   if (o.document_type === 'po') return 'PO'
   if (o.is_service_invoice) return 'INV(SVC)'
@@ -39,6 +40,7 @@ const getDocLabel = (o: any) => {
 }
 
 const getDocColor = (o: any) => {
+  if (o.document_type === 'credit_note') return 'bg-teal-100 text-teal-800'
   if (o.document_type === 'client_return') return 'bg-pink-100 text-pink-700'
   if (o.document_type === 'po') return 'bg-orange-100 text-orange-700'
   if (o.is_service_invoice) return 'bg-indigo-100 text-indigo-700'

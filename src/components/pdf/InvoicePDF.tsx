@@ -30,7 +30,8 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
   // orange the moment the order is modified afterward (a save now would create a new version).
   useEffect(() => {
     let cancelled = false
-    const docType = order.document_type === 'invoice' ? 'invoice' : (order.is_foc ? 'so_do' : 'so')
+    const docType = order.document_type === 'credit_note' ? 'credit_note'
+      : order.document_type === 'invoice' ? 'invoice' : (order.is_foc ? 'so_do' : 'so')
     const checkSaveStatus = async () => {
       const supabase = createClient()
       const { data } = await supabase
@@ -50,6 +51,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
   }, [order.id, order.updated_at, order.document_type, order.is_foc])
 
   const isLinked = order.order_number?.includes('LINKED')
+  const isCreditNote = order.document_type === 'credit_note'
   const skusKey = lines.map((l: any) => l.sku).join(',')
 
   // FOC lines are stored at price_per_unit=0 (the order really is free) — for display on
@@ -158,7 +160,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
   }
 
   // ─── Détermine le dossier et le nom de fichier ───────────────────────────────
-  const getDocNames = async (supabase: any): Promise<{ folderName: string; fileName: string; docType: 'so' | 'invoice' | 'so_do'; version: number } | null> => {
+  const getDocNames = async (supabase: any): Promise<{ folderName: string; fileName: string; docType: 'so' | 'invoice' | 'so_do' | 'credit_note'; version: number } | null> => {
     const isInvoice = order.document_type === 'invoice'
     const isFoc = order.is_foc
     let rootSO = order
@@ -194,8 +196,8 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
           rootSO = src
         }
       }
-    } else if (isInvoice && isLinked && order.linked_order_id) {
-      // Invoice LINKED → remonter via l'invoice principale → SO racine
+    } else if ((isInvoice && isLinked || isCreditNote) && order.linked_order_id) {
+      // Invoice LINKED / Credit Note → remonter via l'invoice principale → SO racine
       const { data: mainInv } = await supabase
         .from('sales_orders')
         .select('promoted_from, order_number, customer_name, warehouse, created_at')
@@ -238,6 +240,11 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
         : order
       const fileName = getInvoiceFileName(invoiceForNaming, srcDoc, version)
       return { folderName, fileName, docType: 'invoice' as const, version }
+    } else if (isCreditNote) {
+      const srcDoc = sourceDoc ?? rootSO
+      const version = await getNextVersion(supabase, order.id, 'credit_note')
+      const fileName = getInvoiceFileName(order, srcDoc, version)
+      return { folderName, fileName, docType: 'credit_note' as const, version }
     } else if (isFoc) {
       const version = await getNextVersion(supabase, order.id, 'so_do')
       const fileName = getSOFileName(order, version)
@@ -492,8 +499,10 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
   }
 
   // ─── Layout LINKED simplifié ─────────────────────────────────────────────────
-  if (isLinked) {
+  if (isLinked || isCreditNote) {
     const linkedTotal = Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const creditRecipientName = customer?.legal_name ?? order.customer_name
+    const creditRecipientContact = salesContactLine
     return (
       <div>
         <div className="flex items-center gap-3">
@@ -530,7 +539,7 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
                   <img src="https://soaemvmboawhjfzhhumi.supabase.co/storage/v1/object/public/customer-logos/DH-Logo/Logo_DH_signature_color_white_background.png" alt="DH Signature" style={{ height: '72px', width: 'auto' }} />
                 </div>
                 <div className="header-right">
-                  <div className="doc-eyebrow">Invoice — Price Difference</div>
+                  <div className="doc-eyebrow">{isCreditNote ? 'Credit Note' : 'Invoice — Price Difference'}</div>
                   <div className="doc-number">{order.order_number}</div>
                   <div className="doc-date">{docDate}</div>
                 </div>
@@ -539,15 +548,25 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
               {/* Parties */}
               <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
-                  <div className="party-eyebrow">Invoice To</div>
-                  <div className="party-name">{fixmerName}</div>
-                  <div className="party-contact">{fixmerContactLine}</div>
-                  {endCustomerName && (
-                    <div className="co-block">
-                      <div className="party-eyebrow">C/O — End Customer</div>
-                      <div className="party-name">{endCustomerName}</div>
-                      {salesContactLine && <div className="party-contact">{salesContactLine}</div>}
-                    </div>
+                  {isCreditNote ? (
+                    <>
+                      <div className="party-eyebrow">Credit To</div>
+                      <div className="party-name">{creditRecipientName}</div>
+                      {creditRecipientContact && <div className="party-contact">{creditRecipientContact}</div>}
+                    </>
+                  ) : (
+                    <>
+                      <div className="party-eyebrow">Invoice To</div>
+                      <div className="party-name">{fixmerName}</div>
+                      <div className="party-contact">{fixmerContactLine}</div>
+                      {endCustomerName && (
+                        <div className="co-block">
+                          <div className="party-eyebrow">C/O — End Customer</div>
+                          <div className="party-name">{endCustomerName}</div>
+                          {salesContactLine && <div className="party-contact">{salesContactLine}</div>}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 <div style={{ display: 'flex', gap: '28px', borderLeft: '1px solid #E6E0D5', paddingLeft: '40px' }}>
@@ -583,24 +602,26 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
 
               {/* Total */}
               <div className="bottom-row">
-                <div className="payment-card">
-                  <div className="payment-title">Payment Details</div>
-                  <div className="payment-grid">
-                    <span className="payment-key">Beneficiary</span>
-                    <span>{appSettings?.payment_beneficiary ?? 'Nadir y Bohue Pte. Ltd. · 20C Sea Avenue · Singapore 424243'}</span>
-                    <span className="payment-key">Account</span>
-                    <span className="mono">{appSettings?.payment_account ?? '048-904845-0'}</span>
-                    <span className="payment-key">Swift/BIC</span>
-                    <span className="mono">{appSettings?.payment_swift ?? 'DBSSSGSG'}</span>
-                    <span className="payment-key">Bank</span>
-                    <span>{appSettings?.payment_bank ?? 'DBS Bank Ltd · 12 Marina Blvd · MBFC Tower 3 · Singapore 018982'}</span>
+                {isCreditNote ? <div style={{ flex: 1 }} /> : (
+                  <div className="payment-card">
+                    <div className="payment-title">Payment Details</div>
+                    <div className="payment-grid">
+                      <span className="payment-key">Beneficiary</span>
+                      <span>{appSettings?.payment_beneficiary ?? 'Nadir y Bohue Pte. Ltd. · 20C Sea Avenue · Singapore 424243'}</span>
+                      <span className="payment-key">Account</span>
+                      <span className="mono">{appSettings?.payment_account ?? '048-904845-0'}</span>
+                      <span className="payment-key">Swift/BIC</span>
+                      <span className="mono">{appSettings?.payment_swift ?? 'DBSSSGSG'}</span>
+                      <span className="payment-key">Bank</span>
+                      <span>{appSettings?.payment_bank ?? 'DBS Bank Ltd · 12 Marina Blvd · MBFC Tower 3 · Singapore 018982'}</span>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div style={{ flex: 1 }} />
                 <div className="totals-block">
                   <hr className="total-hr" />
                   <div className="grand-row">
-                    <span className="grand-label">Amount Due</span>
+                    <span className="grand-label">{isCreditNote ? 'Amount Owed to Client' : 'Amount Due'}</span>
                     <span className="grand-value">{order.currency} {linkedTotal}</span>
                   </div>
                 </div>
