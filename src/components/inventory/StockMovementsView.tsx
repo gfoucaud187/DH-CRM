@@ -169,6 +169,12 @@ export default function StockMovementsView() {
 
   const grandTotal = skus.reduce((s, sku) => s + rowTotal(sku), 0)
 
+  const closingTotal = skus.reduce((s, sku) => {
+    const st = stockMap[sku]
+    return s + (unit === 'units' ? (st?.units_total ?? 0) : (st?.packs_total ?? 0))
+  }, 0)
+  const openingTotal = closingTotal + grandTotal
+
   // Row-level search — filters which SKUs are shown, doesn't affect column/footer totals
   const filteredSkus = skus.filter(sku => {
     if (!search) return true
@@ -419,8 +425,12 @@ export default function StockMovementsView() {
                   <td className="px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-900 bg-gray-200">
                     {grandTotal.toLocaleString('en-US')}
                   </td>
-                  <td className="bg-gray-100" />
-                  <td className="bg-gray-100" />
+                  <td className="px-3 py-2.5 text-right font-mono text-xs font-bold text-blue-700 bg-blue-100">
+                    {openingTotal.toLocaleString('en-US')}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono text-xs font-bold text-green-700 bg-green-100">
+                    {closingTotal.toLocaleString('en-US')}
+                  </td>
                 </tr>
               </tfoot>
             </table>
