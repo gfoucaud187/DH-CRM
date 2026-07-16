@@ -8,15 +8,18 @@ interface ExportTypeDef {
   key: string
   label: string
   fileType: string
-  soDocType?: string
+  // Only for sales-linked types — matches against the joined sales_orders row, since
+  // document_files.document_type alone can't disambiguate (so/so_int share 'so'; SO(DO) is
+  // really sales_orders.document_type='so' + is_foc=true, never a literal 'so_do' value there).
+  matchesOrder?: (so: any) => boolean
 }
 
 const EXPORT_TYPES: ExportTypeDef[] = [
-  { key: 'so', label: 'SO', fileType: 'so', soDocType: 'so' },
-  { key: 'so_int', label: 'Internal Transfer', fileType: 'so', soDocType: 'so_int' },
-  { key: 'so_do', label: 'SO(DO)', fileType: 'so_do', soDocType: 'so_do' },
-  { key: 'invoice', label: 'Invoice', fileType: 'invoice', soDocType: 'invoice' },
-  { key: 'client_return', label: 'Client Return', fileType: 'client_return', soDocType: 'client_return' },
+  { key: 'so', label: 'SO', fileType: 'so', matchesOrder: so => so.document_type === 'so' && !so.is_foc },
+  { key: 'so_int', label: 'Internal Transfer', fileType: 'so', matchesOrder: so => so.document_type === 'so_int' },
+  { key: 'so_do', label: 'SO(DO)', fileType: 'so_do', matchesOrder: so => so.document_type === 'so' && so.is_foc },
+  { key: 'invoice', label: 'Invoice', fileType: 'invoice', matchesOrder: so => so.document_type === 'invoice' },
+  { key: 'client_return', label: 'Client Return', fileType: 'client_return', matchesOrder: so => so.document_type === 'client_return' },
   { key: 'po', label: 'Purchase Order', fileType: 'po' },
   { key: 'stock_inbound', label: 'Stock Inbound', fileType: 'stock_inbound' },
   { key: 'stocktake_diff', label: 'Stocktake', fileType: 'stocktake_diff' },
@@ -276,7 +279,7 @@ export default function ExportBundleModal() {
           if (d < from || d > to) continue
           if (customerId && SALES_LINKED_FILE_TYPES.has(fileType) && so.customer_id !== customerId) continue
 
-          const def = matchingDefs.find(t => t.soDocType === so.document_type)
+          const def = matchingDefs.find(t => t.matchesOrder?.(so))
           if (!def) continue
 
           const latest = group.reduce((a, b) => (Number(b.version) > Number(a.version) ? b : a))
