@@ -234,7 +234,8 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
         .select('is_european, track_trace_enabled, eu_compliance_type')
         .eq('id', order.customer_id)
         .single()
-      const isTTInvoice = !!(cust?.is_european && (cust?.track_trace_enabled || cust?.eu_compliance_type === 'TT'))
+      // T&T only applies to Central-warehouse shipments, not T1.
+      const isTTInvoice = !!(cust?.is_european && (cust?.track_trace_enabled || cust?.eu_compliance_type === 'TT') && order.warehouse === 'Central')
       const invoiceForNaming = isTTInvoice
         ? { ...order, customer_name: 'Fixmer' }
         : order
@@ -328,7 +329,9 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
   const isInvoice = order.document_type === 'invoice'
   const isFoc     = order.is_foc
   const isSample  = order.is_sample
-  const isTT      = (order.is_tt_order || (customer?.is_european && (customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT'))) && isInvoice
+  // T&T (Fixmer billing) only applies to Central-warehouse shipments — T1 goods aren't
+  // routed through Fixmer regardless of the customer's compliance type.
+  const isTT      = (order.is_tt_order || (customer?.is_european && (customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT'))) && isInvoice && order.warehouse === 'Central'
   const isInt     = order.document_type === 'so_int'
   const isDO      = order.is_foc && !isInvoice && !isInt
   // SO(DO) and INV(DO): show the real commercial value per line, then zero it out with an

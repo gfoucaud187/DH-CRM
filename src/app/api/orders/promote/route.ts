@@ -94,7 +94,9 @@ export async function POST(request: NextRequest) {
       .eq('id', so.customer_id)
       .single()
 
-    const isTT = !!(customer?.is_european && (customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT'))
+    // T&T (EMCS/duty-suspended) only applies to Central-warehouse shipments — T1 goods
+    // aren't routed through Fixmer regardless of the customer's compliance type.
+    const isTT = !!(customer?.is_european && (customer?.track_trace_enabled || customer?.eu_compliance_type === 'TT') && so.warehouse === 'Central')
 
     // Pour T&T: récupère les prix SPECIAL
     let specialPriceMap: Record<string, number> = {}
