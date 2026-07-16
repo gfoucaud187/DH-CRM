@@ -26,7 +26,7 @@ const getDocLabel = (o: any) => {
 // Movement types that INCREASE stock — everything else (out, transfer_out, *_reversed) decreases it.
 // Used to sign the pivot so the Opening/Closing stock math (opening = current + net change) stays correct
 // now that inbound movements (Stock Inbound, Client Return, Stocktake surplus) show up alongside sales.
-const INBOUND_MOVEMENT_TYPES = new Set(['in', 'stock_inbound', 'client_return_in', 'stocktake_in', 'transformation_in'])
+const INBOUND_MOVEMENT_TYPES = new Set(['in', 'stock_inbound', 'client_return_in', 'stocktake_in', 'transformation_in', 'transfer_in'])
 
 const getDocColor = (o: any) => {
   if (o.document_type === 'stock_inbound') return '#0891b2'
@@ -61,7 +61,6 @@ export default function StockMovementsView() {
         .select('*')
         .gte('created_at', dateFrom + 'T00:00:00')
         .lte('created_at', dateTo + 'T23:59:59')
-        .neq('movement_type', 'transfer_in')
         .order('created_at', { ascending: true })
 
       if (warehouse !== 'All') q = q.eq('warehouse', warehouse)
