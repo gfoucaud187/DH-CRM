@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { order_id, target_type } = await request.json()
+    const { order_id, target_type, invoice_number_override } = await request.json()
     const supabase = createClient()
 
     const { data: so, error: soErr } = await supabase
@@ -129,10 +129,14 @@ export async function POST(request: NextRequest) {
     const servicesTotal = isFocSource ? 0 : (so.services ?? []).reduce((s: number, sv: any) => s + Number(sv.price), 0)
     const invoiceTotalAmount = isFocSource ? 0 : invoiceLines.reduce((s: number, l: any) => s + Number(l.line_total), 0) + servicesTotal
 
-    const { data: invNum } = await supabase.rpc('fn_generate_doc_number', {
-      p_doc_type: 'invoice',
-      p_is_foc: isFocSource,
-    })
+    let invNum = invoice_number_override?.trim() || null
+    if (!invNum) {
+      const { data } = await supabase.rpc('fn_generate_doc_number', {
+        p_doc_type: 'invoice',
+        p_is_foc: isFocSource,
+      })
+      invNum = data
+    }
 
     const { data: invoice, error: invErr } = await supabase
       .from('sales_orders')

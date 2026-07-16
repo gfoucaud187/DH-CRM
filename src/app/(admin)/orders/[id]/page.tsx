@@ -271,6 +271,10 @@ export default function OrderDetailPage() {
     enabled: !!id
   })
 
+  // Temporary: lets historical 2026 orders be re-entered under their real invoice number
+  // instead of the next auto-generated one — remove once the historical backfill is done.
+  const [invoiceNumberOverride, setInvoiceNumberOverride] = useState('')
+
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentCurrency, setPaymentCurrency] = useState('')
@@ -361,7 +365,7 @@ export default function OrderDetailPage() {
     const res = await fetch('/api/orders/promote', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_id: id }),
+      body: JSON.stringify({ order_id: id, invoice_number_override: invoiceNumberOverride.trim() || undefined }),
     })
     const data = await res.json()
     if (data.success) {
@@ -638,6 +642,9 @@ export default function OrderDetailPage() {
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-1">Generate Invoice</h2>
               <p className="text-xs text-gray-500 mb-3">Creates INV linked to {order.order_number}.</p>
+              <input type="text" value={invoiceNumberOverride} onChange={e => setInvoiceNumberOverride(e.target.value)}
+                placeholder="Override invoice number (optional, e.g. INV-1234)"
+                className="w-full h-9 rounded-md border border-gray-300 px-3 text-sm font-mono mb-2 focus:outline-none focus:ring-1 focus:ring-gray-400" />
               <button onClick={handlePromote}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
                 <FileText className="h-4 w-4" /> Generate Invoice
@@ -649,6 +656,9 @@ export default function OrderDetailPage() {
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-1">Generate Invoice (FOC)</h2>
               <p className="text-xs text-gray-500 mb-3">Creates INV(DO) with total 0 USD.</p>
+              <input type="text" value={invoiceNumberOverride} onChange={e => setInvoiceNumberOverride(e.target.value)}
+                placeholder="Override invoice number (optional, e.g. INV-1234)"
+                className="w-full h-9 rounded-md border border-gray-300 px-3 text-sm font-mono mb-2 focus:outline-none focus:ring-1 focus:ring-gray-400" />
               <button onClick={handlePromote}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition-colors">
                 <FileText className="h-4 w-4" /> Generate Invoice (FOC)
