@@ -61,22 +61,17 @@ export default function DashboardPage() {
     }
   })
 
-  const now = new Date()
-  const startOfYear = new Date(now.getFullYear(), 0, 1)
-
-  const activeOrders   = orders.filter((o: any) => !['completed','cancelled'].includes(o.status) && o.document_type !== 'po')
+  const activeOrders   = orders.filter((o: any) => o.document_type === 'so' && !['completed','cancelled'].includes(o.status))
   const pendingPOs     = orders.filter((o: any) => o.document_type === 'po' && o.status === 'pending_approval')
   const allInvoices    = orders.filter((o: any) => o.document_type === 'invoice' && !o.is_foc)
+  const allCreditNotes = orders.filter((o: any) => o.document_type === 'credit_note')
 
-  const invoicesYTD    = allInvoices.filter((o: any) => {
-    const d = new Date(o.order_date ?? o.created_at)
-    return d >= startOfYear && d <= now
-  })
-
-  const revenueYTD     = invoicesYTD.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-  const pendingPayment = allInvoices
-    .filter((o: any) => ['draft','sent_to_customer'].includes(o.status))
-    .reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  // Revenue: the whole set of invoices issued, not date-restricted — many are re-entered
+  // historical orders whose order_date predates when they were entered into the system.
+  const revenueYTD     = allInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  const totalReceived  = allInvoices.reduce((s: number, o: any) => s + (o.amount_received ?? 0), 0)
+  const totalCredited  = allCreditNotes.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
+  const pendingPayment = revenueYTD - totalCredited - totalReceived
   const readyToShip    = orders.filter((o: any) => o.status === 'ready_for_shipment').length
 
   const recent = orders
@@ -93,9 +88,9 @@ export default function DashboardPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
         {[
-          { icon: TrendingUp,   label: 'Revenue YTD',     value: fmt(revenueYTD),    sub: `${invoicesYTD.length} invoices this year`,  color: 'text-blue-600',   bg: 'bg-blue-50' },
+          { icon: TrendingUp,   label: 'Revenue YTD',     value: fmt(revenueYTD),    sub: `${allInvoices.length} invoices issued`,      color: 'text-blue-600',   bg: 'bg-blue-50' },
           { icon: ShoppingCart, label: 'Active orders',   value: activeOrders.length, sub: `${readyToShip} ready to ship`,              color: 'text-purple-600', bg: 'bg-purple-50' },
-          { icon: AlertCircle,  label: 'Pending payment', value: fmt(pendingPayment), sub: 'outstanding invoices',                       color: 'text-amber-600',  bg: 'bg-amber-50' },
+          { icon: AlertCircle,  label: 'Pending payment', value: fmt(pendingPayment), sub: 'invoiced − credited − received',            color: 'text-amber-600',  bg: 'bg-amber-50' },
           { icon: Package,      label: 'POs awaiting',    value: pendingPOs.length,   sub: 'purchase orders to review',                  color: 'text-orange-600', bg: 'bg-orange-50' },
         ].map(({ icon: Icon, label, value, sub, color, bg }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-3 md:p-4">
