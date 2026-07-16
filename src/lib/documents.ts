@@ -20,6 +20,15 @@ function extractNumeric(orderNumber: string): string {
   return match ? match[1] : orderNumber
 }
 
+// Document numbers embed their own 2-digit year (e.g. "SO25-061", "PO26-014") — that's the
+// year the folder should follow, not created_at (which is just when the row was inserted,
+// and can be much later than the document's own year when re-entering historical records).
+function extractYear(docNumber: string, fallbackDate: string): number {
+  const match = docNumber.match(/(\d{2})-/)
+  if (match) return 2000 + parseInt(match[1], 10)
+  return new Date(fallbackDate).getFullYear()
+}
+
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr)
   const y = d.getFullYear()
@@ -70,7 +79,7 @@ export function getFolderName(so: {
   created_at: string
 }): string {
   if (!so || !so.order_number) return 'unknown'
-  const year = new Date(so.created_at).getFullYear()
+  const year = extractYear(so.order_number, so.created_at)
   const num = extractNumeric(so.order_number)
   const customer = (so.customer_name ?? 'Unknown').trim()
   const warehouse = so.warehouse ?? ''
@@ -127,7 +136,7 @@ export function getFilePath(folderName: string, fileName: string): string {
  * Dossier distinct de celui des Orders (clients)
  */
 export function getStockInboundFolderName(po: { po_number: string; partner_name: string; created_at: string }): string {
-  const year = new Date(po.created_at).getFullYear()
+  const year = extractYear(po.po_number, po.created_at)
   return `${year}-${po.po_number} from ${po.partner_name}`.trim()
 }
 
@@ -148,7 +157,7 @@ export function getPurchaseOrderFileName(po: { po_number: string; partner_name: 
  * Client Return — avoir/retour lié à un SO ou Invoice d'origine
  */
 export function getClientReturnFolderName(ret: { order_number: string; customer_name: string; created_at: string }): string {
-  const year = new Date(ret.created_at).getFullYear()
+  const year = extractYear(ret.order_number, ret.created_at)
   const num = extractNumeric(ret.order_number)
   return `${year}-${num} return from ${ret.customer_name}`.trim()
 }
@@ -162,7 +171,7 @@ export function getClientReturnFileName(ret: { order_number: string; customer_na
  * Stocktake Difference — session de comptage physique
  */
 export function getStocktakeFolderName(ev: { event_number: string; warehouse: string; created_at: string }): string {
-  const year = new Date(ev.created_at).getFullYear()
+  const year = extractYear(ev.event_number, ev.created_at)
   return `${year}-${ev.event_number} stocktake ${ev.warehouse}`.trim()
 }
 
@@ -172,7 +181,7 @@ export function getStocktakeFileName(ev: { event_number: string; warehouse: stri
 }
 
 export function getTransformationFolderName(tr: { transformation_number: string; warehouse: string; created_at: string }): string {
-  const year = new Date(tr.created_at).getFullYear()
+  const year = extractYear(tr.transformation_number, tr.created_at)
   return `${year}-${tr.transformation_number} transformation ${tr.warehouse}`.trim()
 }
 
