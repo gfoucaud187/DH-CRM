@@ -216,6 +216,23 @@ export default function OrderDetailPage() {
     enabled: !!id && !order?.is_foc
   })
 
+  // Credit Note(s) promoted FROM this SO — owed to the client (manual-pricing gap where the
+  // client's price exceeds the reference price list). Separate from linkedInvoices since it
+  // shouldn't affect the "already has invoice" check.
+  const { data: linkedCreditNotes = [] } = useQuery({
+    queryKey: ['order-linked-credit-notes', id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('sales_orders')
+        .select('id, order_number, total_amount, currency')
+        .eq('promoted_from', id)
+        .eq('document_type', 'credit_note')
+        .order('created_at', { ascending: true })
+      return data ?? []
+    },
+    enabled: !!id && !order?.is_foc
+  })
+
   const { data: sourceDoc } = useQuery({
     queryKey: ['order-source', order?.promoted_from],
     queryFn: async () => {
@@ -550,7 +567,7 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {(sourceDoc || (linkedInvoices as any[]).length > 0 || allFocOrders.length > 0 || clientReturns.length > 0) && (
+          {(sourceDoc || (linkedInvoices as any[]).length > 0 || (linkedCreditNotes as any[]).length > 0 || allFocOrders.length > 0 || clientReturns.length > 0) && (
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 space-y-2">
               <h2 className="font-semibold text-blue-800 text-sm">Linked Documents</h2>
               {sourceDoc && (
@@ -563,6 +580,12 @@ export default function OrderDetailPage() {
                 <button key={inv.id} onClick={() => router.push('/orders/' + inv.id)}
                   className="w-full text-left text-sm text-blue-700 hover:underline flex items-center gap-1">
                   <span className="text-blue-400">→</span> {inv.order_number}
+                </button>
+              ))}
+              {(linkedCreditNotes as any[]).map((cn: any) => (
+                <button key={cn.id} onClick={() => router.push('/orders/' + cn.id)}
+                  className="w-full text-left text-sm text-teal-700 hover:underline flex items-center gap-1">
+                  <span className="text-teal-400">→</span> {cn.order_number} (Credit Note, {cn.currency} {Number(cn.total_amount).toFixed(2)})
                 </button>
               ))}
               {(clientReturns as any[]).map((ret: any) => (

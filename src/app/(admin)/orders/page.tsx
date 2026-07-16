@@ -163,6 +163,10 @@ export default function OrdersPage() {
         filtered
           .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'invoice' && !d.is_foc)
           .forEach((d: any) => addToChain(d, depth + 1))
+        // Credit Note promoted from this doc (depth+1)
+        filtered
+          .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'credit_note')
+          .forEach((d: any) => addToChain(d, depth + 1))
         // Client Return registered against this doc (depth+1)
         filtered
           .filter((d: any) => d.promoted_from === doc.id && d.document_type === 'client_return')
