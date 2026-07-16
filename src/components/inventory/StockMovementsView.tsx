@@ -332,9 +332,18 @@ export default function StockMovementsView() {
                       </th>
                     )
                   })}
-                  <th className="px-3 py-2 text-right min-w-24 bg-gray-100 font-semibold text-gray-700">TOTAL</th>
-                  <th className="px-3 py-2 text-right min-w-24 bg-blue-50 font-semibold text-blue-700">OPENING</th>
-                  <th className="px-3 py-2 text-right min-w-24 bg-green-50 font-semibold text-green-700">CLOSING</th>
+                  <th className="px-3 py-2 text-right min-w-24 bg-gray-100">
+                    <div className="font-semibold text-gray-700">TOTAL</div>
+                    <div className="font-mono text-xs font-bold text-gray-900">{grandTotal.toLocaleString('en-US')}</div>
+                  </th>
+                  <th className="px-3 py-2 text-right min-w-24 bg-blue-50">
+                    <div className="font-semibold text-blue-700">OPENING</div>
+                    <div className="font-mono text-xs font-bold text-blue-700">{openingTotal.toLocaleString('en-US')}</div>
+                  </th>
+                  <th className="px-3 py-2 text-right min-w-24 bg-green-50">
+                    <div className="font-semibold text-green-700">CLOSING</div>
+                    <div className="font-mono text-xs font-bold text-green-700">{closingTotal.toLocaleString('en-US')}</div>
+                  </th>
                 </tr>
                 {/* Row 2: order numbers */}
                 <tr className="bg-gray-50 border-b border-gray-200">
@@ -425,12 +434,8 @@ export default function StockMovementsView() {
                   <td className="px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-900 bg-gray-200">
                     {grandTotal.toLocaleString('en-US')}
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono text-xs font-bold text-blue-700 bg-blue-100">
-                    {openingTotal.toLocaleString('en-US')}
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-mono text-xs font-bold text-green-700 bg-green-100">
-                    {closingTotal.toLocaleString('en-US')}
-                  </td>
+                  <td className="bg-gray-100" />
+                  <td className="bg-gray-100" />
                 </tr>
               </tfoot>
             </table>
