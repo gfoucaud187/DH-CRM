@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { buildFileContentBlocks } from '@/lib/ocr-content'
+import { callAnthropic } from '@/lib/anthropic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,14 +13,7 @@ export async function POST(request: NextRequest) {
 
     const fileBlocks = await buildFileContentBlocks(file)
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
+    const response = await callAnthropic(apiKey, {
         model: 'claude-sonnet-5',
         max_tokens: 4000,
         messages: [{
@@ -49,8 +43,7 @@ the JSON array.`,
             },
           ],
         }],
-      }),
-    })
+      })
 
     if (!response.ok) {
       const err = await response.text()

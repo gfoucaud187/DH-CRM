@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { callAnthropic } from '@/lib/anthropic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,14 +14,7 @@ export async function POST(request: NextRequest) {
     const base64 = Buffer.from(bytes).toString('base64')
     const mediaType = file.type || 'image/jpeg'
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
+    const response = await callAnthropic(apiKey, {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 500,
         messages: [{
@@ -46,8 +40,7 @@ Return only the JSON, no other text.`,
             },
           ],
         }],
-      }),
-    })
+      })
 
     if (!response.ok) {
       const err = await response.text()

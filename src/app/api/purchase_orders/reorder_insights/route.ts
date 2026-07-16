@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { callAnthropic } from '@/lib/anthropic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,14 +11,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
+    const response = await callAnthropic(apiKey, {
         model: 'claude-sonnet-5',
         max_tokens: 2000,
         messages: [{
@@ -31,8 +25,7 @@ Return ONLY a JSON array, no other text, one entry per flagged line (omit lines 
 [{ "sku": "...", "comment": "short reason, one sentence" }]
 If nothing looks concerning, return [].`,
         }],
-      }),
-    })
+      })
 
     if (!response.ok) {
       const err = await response.text()
