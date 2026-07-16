@@ -402,7 +402,7 @@ export default function NewOrderPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Sparkles className="h-4 w-4" /> Extract from Existing Document</h2>
           <div className="flex items-center gap-2 flex-wrap">
-            <input type="file" accept="application/pdf,image/*"
+            <input type="file" accept="application/pdf,image/*,.xlsx,.xls,.csv"
               onChange={e => setOcrFile(e.target.files?.[0] ?? null)}
               className="flex-1 min-w-64 text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700 file:text-sm" />
             <button onClick={handleOcrExtract} disabled={!ocrFile || ocrLoading}

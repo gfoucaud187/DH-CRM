@@ -220,7 +220,7 @@ export default function NewStocktakePage() {
             className="h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none">
             {WAREHOUSES.map(w => <option key={w} value={w}>{warehouseLabel(w)}</option>)}
           </select>
-          <input type="file" accept="application/pdf,image/*"
+          <input type="file" accept="application/pdf,image/*,.xlsx,.xls,.csv"
             onChange={e => setOcrFile(e.target.files?.[0] ?? null)}
             className="flex-1 min-w-64 text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700 file:text-sm" />
           <button onClick={handleOcrExtract} disabled={!ocrFile || ocrLoading}

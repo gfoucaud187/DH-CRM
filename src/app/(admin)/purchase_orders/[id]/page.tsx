@@ -349,7 +349,7 @@ export default function PurchaseOrderDetailPage() {
               Upload the supplier's invoice or packing list (PDF or photo) — lines are extracted for you to review, correct, and add below before saving.
             </p>
             <div className="flex items-center gap-2">
-              <input type="file" accept="application/pdf,image/*"
+              <input type="file" accept="application/pdf,image/*,.xlsx,.xls,.csv"
                 onChange={e => setOcrFile(e.target.files?.[0] ?? null)}
                 className="flex-1 text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700 file:text-sm" />
               <button onClick={handleOcrExtract} disabled={!ocrFile || ocrLoading}

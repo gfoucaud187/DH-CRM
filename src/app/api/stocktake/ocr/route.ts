@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { buildFileContentBlocks } from '@/lib/ocr-content'
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,10 +10,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
 
-    const bytes = await file.arrayBuffer()
-    const base64 = Buffer.from(bytes).toString('base64')
-    const mediaType = file.type || 'application/pdf'
-    const isPdf = mediaType === 'application/pdf'
+    const fileBlocks = await buildFileContentBlocks(file)
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -27,10 +25,7 @@ export async function POST(request: NextRequest) {
         messages: [{
           role: 'user',
           content: [
-            {
-              type: isPdf ? 'document' : 'image',
-              source: { type: 'base64', media_type: mediaType, data: base64 },
-            },
+            ...fileBlocks,
             {
               type: 'text',
               text: `This is a warehouse physical stocktake / count sheet listing counted box quantities per product. Extract every line item.
