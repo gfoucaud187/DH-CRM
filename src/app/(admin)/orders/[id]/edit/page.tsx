@@ -46,6 +46,7 @@ export default function EditOrderPage() {
   const supabase = createClient()
   const queryClient = useQueryClient()
 
+  const [orderNumber, setOrderNumber] = useState('')
   const [warehouse, setWarehouse] = useState('')
   const [warehouseDestination, setWarehouseDestination] = useState('')
   const [incoterms, setIncoterms] = useState('')
@@ -116,6 +117,7 @@ export default function EditOrderPage() {
 
   useEffect(() => {
     if (order) {
+      setOrderNumber(order.order_number ?? '')
       setWarehouse(order.warehouse ?? 'T1')
       setWarehouseDestination(order.warehouse_destination ?? 'Central')
       setIncoterms(order.incoterms ?? '')
@@ -229,13 +231,18 @@ export default function EditOrderPage() {
       alert('FROM and TO warehouses must be different')
       return
     }
+    if (!orderNumber.trim()) {
+      alert('Order number cannot be empty')
+      return
+    }
     setSaving(true)
     try {
       const totalUnits = lines.reduce((s, l) => s + l.quantity_units, 0)
       const totalPacks = lines.reduce((s, l) => s + l.quantity_packs, 0)
       const totalAmount = isInt ? 0 : lines.reduce((s, l) => s + l.line_total, 0) + servicesTotal
 
-      await supabase.from('sales_orders').update({
+      const { error: orderUpdateError } = await supabase.from('sales_orders').update({
+        order_number: orderNumber.trim(),
         warehouse,
         warehouse_destination: isInt ? warehouseDestination : null,
         incoterms: isInt ? null : incoterms,
@@ -246,6 +253,12 @@ export default function EditOrderPage() {
         client_received_date: isInt ? null : (clientReceivedDate || null),
         total_amount: totalAmount, total_units: totalUnits, total_packs: totalPacks,
       }).eq('id', id as string)
+
+      if (orderUpdateError) {
+        alert('Error: ' + orderUpdateError.message + (orderUpdateError.message.includes('duplicate') ? ' — that order number is already in use.' : ''))
+        setSaving(false)
+        return
+      }
 
       await supabase.from('sales_order_lines').delete().eq('order_id', id as string)
       if (lines.length > 0) {
@@ -317,8 +330,11 @@ export default function EditOrderPage() {
         action: 'update_order',
         entityType: 'order',
         entityId: id as string,
-        entityRef: order.order_number,
-        metadata: { type: order.document_type, customer: order.customer_name },
+        entityRef: orderNumber.trim(),
+        metadata: {
+          type: order.document_type, customer: order.customer_name,
+          ...(orderNumber.trim() !== order.order_number ? { renumbered_from: order.order_number, renumbered_to: orderNumber.trim() } : {}),
+        },
       })
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
@@ -371,6 +387,13 @@ export default function EditOrderPage() {
         <div className="col-span-1 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
             <h2 className="font-semibold text-gray-900">{isInt ? 'Transfer Details' : 'Order Details'}</h2>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Document Number</label>
+              <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)}
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              <p className="text-xs text-gray-400 mt-1">Override the auto-generated number — e.g. to backdate a document or fix a numbering gap. Must stay unique.</p>
+            </div>
 
             {isInt ? (
               <>
