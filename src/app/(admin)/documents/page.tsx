@@ -54,12 +54,13 @@ function formatDate(dateStr: string): string {
   })
 }
 
-// Groups a folder's files by document identity (file name minus the " V<n>.pdf" suffix) and
-// splits each group into its latest version (shown at top level) and older ones (archived).
+// Groups a folder's files by document identity (order_id — stable even if the order number
+// itself gets renamed between saves, unlike the file name) and splits each group into its
+// latest version (shown at top level) and older ones (archived).
 function splitLatestAndArchive(files: DocumentFile[]): { latest: DocumentFile[]; archived: DocumentFile[] } {
   const groups: Record<string, DocumentFile[]> = {}
   for (const file of files) {
-    const key = file.file_name.replace(/ V\d+\.pdf$/, '')
+    const key = file.order_id ?? file.file_name.replace(/ V\d+\.pdf$/, '')
     if (!groups[key]) groups[key] = []
     groups[key].push(file)
   }
