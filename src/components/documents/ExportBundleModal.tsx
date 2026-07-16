@@ -36,7 +36,8 @@ interface Row {
   refNumber: string
   date: string
   party: string
-  quantityDisplay: string
+  packs: number | null
+  units: number | null
   valueDisplay: string
   valueAmount: number | null
   currency: string | null
@@ -93,9 +94,10 @@ async function generateSummaryPdf(rows: Row[], meta: { from: string; to: string;
   const cols = [
     { key: 'refNumber', label: 'Document', w: 45 },
     { key: 'typeLabel', label: 'Type', w: 32 },
-    { key: 'party', label: 'Customer / Partner', w: 60 },
-    { key: 'date', label: 'Date', w: 25 },
-    { key: 'quantityDisplay', label: 'Quantity', w: 40 },
+    { key: 'party', label: 'Customer / Partner', w: 55 },
+    { key: 'date', label: 'Date', w: 22 },
+    { key: 'packsDisplay', label: 'Boxes (SKU)', w: 22 },
+    { key: 'unitsDisplay', label: 'Cigars', w: 22 },
     { key: 'valueDisplay', label: 'Value', w: 40 },
   ]
   const drawHeader = () => {
@@ -114,8 +116,13 @@ async function generateSummaryPdf(rows: Row[], meta: { from: string; to: string;
   for (const row of rows) {
     if (y > pageH - 25) { pdf.addPage(); y = 18; drawHeader() }
     let x = marginX
+    const display: Record<string, any> = {
+      ...row,
+      packsDisplay: row.packs != null ? String(row.packs) : '—',
+      unitsDisplay: row.units != null ? String(row.units) : '—',
+    }
     cols.forEach(c => {
-      const raw = String((row as any)[c.key] ?? '')
+      const raw = String(display[c.key] ?? '')
       const val = raw.length > 38 ? raw.slice(0, 35) + '...' : raw
       pdf.text(val, x, y)
       x += c.w
@@ -123,14 +130,28 @@ async function generateSummaryPdf(rows: Row[], meta: { from: string; to: string;
     y += 6
   }
 
+  // Totals row, aligned under the Boxes/Cigars columns specifically
+  const totalPacks = rows.reduce((s, r) => s + (r.packs ?? 0), 0)
+  const totalUnits = rows.reduce((s, r) => s + (r.units ?? 0), 0)
+  y += 4
+  pdf.setDrawColor(180)
+  pdf.line(marginX, y, pageW - marginX, y)
+  y += 6
+  pdf.setFont('helvetica', 'bold')
+  {
+    let x = marginX
+    cols.forEach(c => {
+      if (c.key === 'refNumber') pdf.text('TOTAL', x, y)
+      else if (c.key === 'packsDisplay') pdf.text(String(totalPacks), x, y)
+      else if (c.key === 'unitsDisplay') pdf.text(String(totalUnits), x, y)
+      x += c.w
+    })
+  }
+  y += 8
+
   const totalsByCurrency: Record<string, number> = {}
   rows.forEach(r => { if (r.currency && r.valueAmount != null) totalsByCurrency[r.currency] = (totalsByCurrency[r.currency] ?? 0) + r.valueAmount })
   if (Object.keys(totalsByCurrency).length > 0) {
-    y += 4
-    pdf.setDrawColor(180)
-    pdf.line(marginX, y, pageW - marginX, y)
-    y += 6
-    pdf.setFont('helvetica', 'bold')
     Object.entries(totalsByCurrency).forEach(([cur, amt]) => {
       if (y > pageH - 20) { pdf.addPage(); y = 18 }
       pdf.text(`Total (${cur}): ${fmtMoney(amt, cur)}`, marginX, y)
@@ -206,7 +227,7 @@ export default function ExportBundleModal() {
             if (d < from || d > to) continue
             rows.push({
               file: f, typeLabel: 'External', refNumber: f.file_name, date: d,
-              party: '—', quantityDisplay: '—', valueDisplay: '—', valueAmount: null, currency: null,
+              party: '—', packs: null, units: null, valueDisplay: '—', valueAmount: null, currency: null,
             })
           }
           continue
@@ -234,7 +255,7 @@ export default function ExportBundleModal() {
             rows.push({
               file: latest, typeLabel: fileType === 'po' ? 'Purchase Order' : 'Stock Inbound',
               refNumber: po.po_number, date: d, party: po.partner_name,
-              quantityDisplay: '—', valueDisplay: fmtMoney(po.total_amount ?? 0, po.currency ?? 'USD'),
+              packs: null, units: null, valueDisplay: fmtMoney(po.total_amount ?? 0, po.currency ?? 'USD'),
               valueAmount: Number(po.total_amount ?? 0), currency: po.currency ?? 'USD',
             })
           }
@@ -255,7 +276,7 @@ export default function ExportBundleModal() {
             const latest = group.reduce((a, b) => (Number(b.version) > Number(a.version) ? b : a))
             rows.push({
               file: latest, typeLabel: 'Stocktake', refNumber: ev.event_number, date: d,
-              party: '—', quantityDisplay: '—', valueDisplay: '—', valueAmount: null, currency: null,
+              party: '—', packs: null, units: null, valueDisplay: '—', valueAmount: null, currency: null,
             })
           }
           continue
@@ -286,7 +307,7 @@ export default function ExportBundleModal() {
           rows.push({
             file: latest, typeLabel: def.label, refNumber: so.order_number, date: d,
             party: so.customer_name,
-            quantityDisplay: `${so.total_packs ?? 0} pk / ${so.total_units ?? 0} u`,
+            packs: Number(so.total_packs ?? 0), units: Number(so.total_units ?? 0),
             valueDisplay: so.is_foc ? 'FOC' : fmtMoney(so.total_amount ?? 0, so.currency ?? 'USD'),
             valueAmount: so.is_foc ? null : Number(so.total_amount ?? 0),
             currency: so.is_foc ? null : (so.currency ?? 'USD'),
