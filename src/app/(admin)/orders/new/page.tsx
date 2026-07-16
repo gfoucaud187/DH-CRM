@@ -67,8 +67,10 @@ export default function NewOrderPage() {
   const [currency, setCurrency] = useState('USD')
   const [incoterms, setIncoterms] = useState('EXW')
   const [paymentTerms, setPaymentTerms] = useState('Net 30')
+  const [paymentTermsDays, setPaymentTermsDays] = useState('30')
   const [notes, setNotes] = useState('')
   const [shipmentDate, setShipmentDate] = useState('')
+  const [orderReceivedDate, setOrderReceivedDate] = useState('')
   const [lines, setLines] = useState<OrderLine[]>([])
   const [services, setServices] = useState<OrderService[]>([])
   const [saving, setSaving] = useState(false)
@@ -129,6 +131,9 @@ export default function NewOrderPage() {
     setCurrency(c.currency ?? 'USD')
     setIncoterms(c.incoterms ?? 'EXW')
     setPaymentTerms(c.payment_terms ?? 'Net 30')
+    // Best-effort default from the free-text terms — that field isn't a controlled vocabulary,
+    // so this is just a starting point the user can adjust.
+    setPaymentTermsDays(c.payment_terms?.match(/\d+/)?.[0] ?? '30')
     if (c.track_trace_enabled || (c.is_european && c.eu_compliance_type === 'TT')) setWarehouse('Central')
     else if (c.is_european && c.eu_compliance_type === 'PR') setWarehouse('T1')
   }
@@ -236,8 +241,10 @@ export default function NewOrderPage() {
             warehouse_destination: isInt ? warehouseDestination : null,
             incoterms:             isInt ? 'EXW' : incoterms,
             payment_terms:         isInt ? '—' : paymentTerms,
+            payment_terms_days:    isInt ? null : (paymentTermsDays ? parseInt(paymentTermsDays) : null),
             notes,
             shipment_date:         shipmentDate || null,
+            order_received_date:   isInt ? null : (orderReceivedDate || null),
             price_list:            priceIsZero ? null : getCustomerPriceList(),
             total_amount:          0,
             total_units:           totalUnits,
@@ -400,6 +407,18 @@ export default function NewOrderPage() {
                 <div>
                   <label className="text-xs font-medium text-gray-500 uppercase">Payment Terms</label>
                   <input type="text" value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Payment Terms (days)</label>
+                  <input type="number" min="0" value={paymentTermsDays} onChange={e => setPaymentTermsDays(e.target.value)}
+                    placeholder="e.g. 30"
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+                  <p className="text-xs text-gray-400 mt-1">Payment is due this many days after the Shipment Date</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Order Received Date</label>
+                  <input type="date" value={orderReceivedDate} onChange={e => setOrderReceivedDate(e.target.value)}
                     className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
                 </div>
                 <div>

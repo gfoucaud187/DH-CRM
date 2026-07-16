@@ -52,6 +52,9 @@ export default function EditOrderPage() {
   const [paymentTerms, setPaymentTerms] = useState('')
   const [notes, setNotes] = useState('')
   const [shipmentDate, setShipmentDate] = useState('')
+  const [orderReceivedDate, setOrderReceivedDate] = useState('')
+  const [clientReceivedDate, setClientReceivedDate] = useState('')
+  const [paymentTermsDays, setPaymentTermsDays] = useState('')
   const [lines, setLines] = useState<OrderLine[]>([])
   const [services, setServices] = useState<OrderService[]>([])
   const [saving, setSaving] = useState(false)
@@ -119,6 +122,12 @@ export default function EditOrderPage() {
       setPaymentTerms(order.payment_terms ?? '')
       setNotes(order.notes ?? '')
       setShipmentDate(order.shipment_date ?? '')
+      setOrderReceivedDate(order.order_received_date ?? '')
+      setClientReceivedDate(order.client_received_date ?? '')
+      // Best-effort default from the free-text payment terms (e.g. "Net 30") if not already set —
+      // that field isn't a controlled vocabulary, so this is just a starting point to adjust.
+      const parsedDays = order.payment_terms?.match(/\d+/)?.[0]
+      setPaymentTermsDays(order.payment_terms_days != null ? String(order.payment_terms_days) : (parsedDays ?? ''))
       setLines(
         (order.lines ?? []).map((l: any) => ({
           sku: l.sku, product_name: l.product_name, brand: l.brand,
@@ -231,7 +240,10 @@ export default function EditOrderPage() {
         warehouse_destination: isInt ? warehouseDestination : null,
         incoterms: isInt ? null : incoterms,
         payment_terms: isInt ? null : paymentTerms,
+        payment_terms_days: isInt ? null : (paymentTermsDays ? parseInt(paymentTermsDays) : null),
         notes, shipment_date: shipmentDate || null,
+        order_received_date: isInt ? null : (orderReceivedDate || null),
+        client_received_date: isInt ? null : (clientReceivedDate || null),
         total_amount: totalAmount, total_units: totalUnits, total_packs: totalPacks,
       }).eq('id', id as string)
 
@@ -408,8 +420,25 @@ export default function EditOrderPage() {
                     className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
                 </div>
                 <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Payment Terms (days)</label>
+                  <input type="number" min="0" value={paymentTermsDays} onChange={e => setPaymentTermsDays(e.target.value)}
+                    placeholder="e.g. 30"
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+                  <p className="text-xs text-gray-400 mt-1">Payment is due this many days after the Shipment Date</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Order Received Date</label>
+                  <input type="date" value={orderReceivedDate} onChange={e => setOrderReceivedDate(e.target.value)}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+                </div>
+                <div>
                   <label className="text-xs font-medium text-gray-500 uppercase">Shipment Date</label>
                   <input type="date" value={shipmentDate} onChange={e => setShipmentDate(e.target.value)}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Received by Client</label>
+                  <input type="date" value={clientReceivedDate} onChange={e => setClientReceivedDate(e.target.value)}
                     className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
                 </div>
               </>

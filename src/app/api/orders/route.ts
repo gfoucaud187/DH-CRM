@@ -54,9 +54,11 @@ export async function POST(request: NextRequest) {
         foc_total_packs:  focPacks,
         incoterms:        order.incoterms,
         payment_terms:    order.payment_terms,
+        payment_terms_days: order.payment_terms_days ?? null,
         notes:            order.notes,
         order_date:       new Date().toISOString().split('T')[0],
         shipment_date:    order.shipment_date,
+        order_received_date: order.order_received_date ?? null,
       })
       .select()
       .single()

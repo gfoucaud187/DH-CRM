@@ -3,12 +3,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Package, Truck, CheckCircle, XCircle, FileText, Edit, Send, ArrowRight } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowLeft, Package, Truck, CheckCircle, XCircle, FileText, Edit, Send, ArrowRight, CreditCard, Plus, Trash2 } from 'lucide-react'
 import { warehouseLabel } from '@/lib/warehouse'
 import Link from 'next/link'
 import InvoicePDF from '@/components/pdf/InvoicePDF'
 import ClientReturnPDF from '@/components/pdf/ClientReturnPDF'
 import { logActivity } from '@/lib/log-activity'
+
+function addDays(dateStr: string, days: number): Date {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + days)
+  return d
+}
 
 const SO_STATUSES = [
   { value: 'draft',               label: 'Draft',               icon: FileText,    color: 'bg-gray-100 text-gray-600' },
@@ -195,6 +202,82 @@ export default function OrderDetailPage() {
         .eq('key', 'main')
         .single()
       return data
+    }
+  })
+
+  const { data: payments = [] } = useQuery({
+    queryKey: ['order-payments', id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('sales_order_id', id)
+        .order('payment_date', { ascending: false })
+      return data ?? []
+    },
+    enabled: !!id
+  })
+
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentCurrency, setPaymentCurrency] = useState('')
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
+  const [paymentMethod, setPaymentMethod] = useState('')
+  const [paymentReference, setPaymentReference] = useState('')
+  const [paymentNotes, setPaymentNotes] = useState('')
+
+  const openPaymentModal = () => {
+    setPaymentAmount('')
+    setPaymentCurrency(order?.currency ?? 'USD')
+    setPaymentDate(new Date().toISOString().split('T')[0])
+    setPaymentMethod('')
+    setPaymentReference('')
+    setPaymentNotes('')
+    setShowPaymentModal(true)
+  }
+
+  const { mutate: recordPayment, isPending: recordingPayment } = useMutation({
+    mutationFn: async () => {
+      const amount = parseFloat(paymentAmount)
+      if (!amount || amount <= 0) throw new Error('Enter a valid amount')
+      const { error } = await supabase.from('payments').insert({
+        sales_order_id: id,
+        amount,
+        currency: paymentCurrency || order?.currency || 'USD',
+        payment_date: paymentDate,
+        method: paymentMethod || null,
+        reference: paymentReference || null,
+        notes: paymentNotes || null,
+      })
+      if (error) throw error
+      await logActivity({
+        action: 'record_payment', entityType: 'order', entityId: id as string, entityRef: order?.order_number,
+        metadata: { amount, currency: paymentCurrency || order?.currency, payment_date: paymentDate },
+      })
+    },
+    onSuccess: () => {
+      setShowPaymentModal(false)
+      queryClient.invalidateQueries({ queryKey: ['order-payments', id] })
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+    onError: (err: any) => alert('Error: ' + err.message)
+  })
+
+  const { mutate: deletePayment } = useMutation({
+    mutationFn: async (paymentId: string) => {
+      const payment = (payments as any[]).find(p => p.id === paymentId)
+      const { error } = await supabase.from('payments').delete().eq('id', paymentId)
+      if (error) throw error
+      await logActivity({
+        action: 'delete_payment', entityType: 'order', entityId: id as string, entityRef: order?.order_number,
+        metadata: { amount: payment?.amount, currency: payment?.currency, payment_date: payment?.payment_date },
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order-payments', id] })
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
     }
   })
 
@@ -543,7 +626,13 @@ export default function OrderDetailPage() {
                 { label: 'Incoterms',     value: order.incoterms },
                 { label: 'Payment',       value: order.payment_terms },
                 { label: 'Order Date',    value: order.order_date ? new Date(order.order_date).toLocaleDateString() : '—' },
-                { label: 'Shipment Date', value: order.shipment_date ? new Date(order.shipment_date).toLocaleDateString() : '—' },
+                ...((isSO || isInvoice) ? [
+                  { label: 'Order Received',   value: order.order_received_date ? new Date(order.order_received_date).toLocaleDateString() : '—' },
+                  { label: 'Shipment Date',    value: order.shipment_date ? new Date(order.shipment_date).toLocaleDateString() : '—' },
+                  { label: 'Received by Client', value: order.client_received_date ? new Date(order.client_received_date).toLocaleDateString() : '—' },
+                ] : [
+                  { label: 'Shipment Date', value: order.shipment_date ? new Date(order.shipment_date).toLocaleDateString() : '—' },
+                ]),
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between text-sm">
                   <span className="text-gray-500">{label}</span>
@@ -558,6 +647,78 @@ export default function OrderDetailPage() {
               </div>
             )}
           </div>
+
+          {(isSO || isInvoice) && !order.is_foc && !order.is_sample && (() => {
+            const amountReceived = Number(order.amount_received ?? 0)
+            const totalAmount = Number(order.total_amount ?? 0)
+            const balance = totalAmount - amountReceived
+            const isFullyPaid = balance <= 0.005
+            const dueDate = (order.shipment_date && order.payment_terms_days != null)
+              ? addDays(order.shipment_date, order.payment_terms_days) : null
+            const today = new Date(); today.setHours(0, 0, 0, 0)
+            const daysDiff = dueDate ? Math.round((today.getTime() - dueDate.getTime()) / 86400000) : null
+            const dueStatus = isFullyPaid
+              ? { label: 'Fully Paid', color: 'bg-green-100 text-green-700' }
+              : dueDate == null
+                ? { label: 'No due date set', color: 'bg-gray-100 text-gray-500' }
+                : daysDiff! > 0
+                  ? { label: `Overdue by ${daysDiff} day${daysDiff !== 1 ? 's' : ''}`, color: 'bg-red-100 text-red-600' }
+                  : { label: `Due in ${-daysDiff!} day${-daysDiff! !== 1 ? 's' : ''}`, color: 'bg-amber-100 text-amber-700' }
+
+            return (
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-semibold text-gray-900 flex items-center gap-2"><CreditCard className="h-4 w-4" /> Payments</h2>
+                  <span className={'px-2 py-1 rounded-full text-xs font-medium ' + dueStatus.color}>{dueStatus.label}</span>
+                </div>
+                <div className="space-y-1 mb-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Total Amount</span>
+                    <span className="font-medium text-gray-900">{order.currency} {totalAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Amount Received</span>
+                    <span className="font-medium text-green-700">{order.currency} {amountReceived.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Balance Due</span>
+                    <span className="font-semibold text-gray-900">{order.currency} {Math.max(0, balance).toFixed(2)}</span>
+                  </div>
+                  {dueDate && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Payment Due Date</span>
+                      <span className="font-medium text-gray-900">{dueDate.toLocaleDateString()}</span>
+                    </div>
+                  )}
+                </div>
+
+                {(payments as any[]).length > 0 && (
+                  <div className="space-y-1 mb-3 pt-2 border-t border-gray-100">
+                    {(payments as any[]).map((p: any) => (
+                      <div key={p.id} className="flex items-center justify-between text-xs py-1">
+                        <div>
+                          <span className="font-medium text-gray-700">{new Date(p.payment_date).toLocaleDateString()}</span>
+                          <span className="text-gray-400 ml-2">{p.method || p.reference || ''}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">{p.currency} {Number(p.amount).toFixed(2)}</span>
+                          <button onClick={() => { if (confirm('Delete this payment?')) deletePayment(p.id) }}
+                            className="text-gray-300 hover:text-red-500">
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button onClick={openPaymentModal}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+                  <Plus className="h-4 w-4" /> Record Payment
+                </button>
+              </div>
+            )
+          })()}
 
           {!isPO && order.document_type !== 'client_return' && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -739,6 +900,49 @@ export default function OrderDetailPage() {
           )}
         </div>
       </div>
+
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowPaymentModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="font-semibold text-gray-900 mb-4">Record Payment</h2>
+
+            <label className="text-xs font-medium text-gray-500 uppercase">Amount</label>
+            <div className="flex gap-2 mt-1 mb-3">
+              <input type="number" step="0.01" min="0" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)}
+                placeholder="0.00"
+                className="flex-1 h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+              <input type="text" value={paymentCurrency} onChange={e => setPaymentCurrency(e.target.value)}
+                className="w-20 h-9 rounded-md border border-gray-200 px-2 text-sm text-center focus:outline-none" />
+            </div>
+
+            <label className="text-xs font-medium text-gray-500 uppercase">Payment Date</label>
+            <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
+              className="mt-1 mb-3 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+
+            <label className="text-xs font-medium text-gray-500 uppercase">Method (optional)</label>
+            <input type="text" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
+              placeholder="e.g. Wire transfer"
+              className="mt-1 mb-3 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+
+            <label className="text-xs font-medium text-gray-500 uppercase">Reference (optional)</label>
+            <input type="text" value={paymentReference} onChange={e => setPaymentReference(e.target.value)}
+              placeholder="Bank ref / transaction ID"
+              className="mt-1 mb-3 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+
+            <label className="text-xs font-medium text-gray-500 uppercase">Notes (optional)</label>
+            <textarea value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} rows={2}
+              className="mt-1 mb-4 w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none resize-none" />
+
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowPaymentModal(false)} className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={() => recordPayment()} disabled={recordingPayment}
+                className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
+                {recordingPayment ? 'Saving...' : 'Record Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

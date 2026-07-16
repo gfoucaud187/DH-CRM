@@ -11,6 +11,8 @@ export type LogAction =
   | 'create_client_return'
   | 'create_stocktake'
   | 'update_stocktake'
+  | 'record_payment'
+  | 'delete_payment'
   | 'create_customer'
   | 'update_customer'
   | 'approve_po'
