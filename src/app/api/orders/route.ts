@@ -8,11 +8,16 @@ export async function POST(request: NextRequest) {
     const supabase = createClient()
     const hasFoc = foc_lines && foc_lines.length > 0
 
-    // 1. Generate document numbers
-    const { data: docNum } = await supabase.rpc('fn_generate_doc_number', {
-      p_doc_type: order.document_type,
-      p_is_foc: order.is_foc ?? false,
-    })
+    // 1. Generate document numbers (unless a specific number is supplied — e.g. re-entering
+    // an existing historical order via OCR, where the original document number must be kept)
+    let docNum = order.order_number_override?.trim() || null
+    if (!docNum) {
+      const { data } = await supabase.rpc('fn_generate_doc_number', {
+        p_doc_type: order.document_type,
+        p_is_foc: order.is_foc ?? false,
+      })
+      docNum = data
+    }
 
     let focDocNum = null
     if (hasFoc) {

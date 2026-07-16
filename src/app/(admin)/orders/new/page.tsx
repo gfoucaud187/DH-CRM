@@ -256,7 +256,12 @@ export default function NewOrderPage() {
         matched++
         const packs = Number(l.quantity_packs)
         const units = packs * (product.units_per_pack ?? 1)
-        const price = l.unit_price != null ? Number(l.unit_price) : getPrice(product.sku)
+        // Prefer deriving price from the line total (line_total_guess / units) using the
+        // catalogue's known units_per_pack — more reliable than trusting the model's own
+        // unit_price arithmetic, which has been observed to divide by packs instead of units.
+        const price = l.line_total_guess != null && units > 0
+          ? Number(l.line_total_guess) / units
+          : l.unit_price != null ? Number(l.unit_price) : getPrice(product.sku)
         newLines.push({
           sku: product.sku,
           product_name: product.full_name,
@@ -314,6 +319,7 @@ export default function NewOrderPage() {
         body: JSON.stringify({
           order: {
             document_type:         cfg.docType,
+            order_number_override: ocrDetectedNumber.trim() || undefined,
             is_foc:                isFoc,
             is_sample:             isSample,
             customer_id:           isInt ? null : customerId,
@@ -413,9 +419,15 @@ export default function NewOrderPage() {
           <p className="text-xs text-gray-400 mt-2">Upload an existing SO/Invoice (PDF or photo) — pre-fills the customer, warehouse, date, and matched product lines below. Useful when re-entering historical orders.</p>
           {ocrError && <p className="text-xs text-red-500 mt-2">{ocrError}</p>}
           {ocrDetectedNumber && (
-            <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-2">
-              Detected original document number: <span className="font-mono font-medium">{ocrDetectedNumber}</span> — set this after creating the order via its Edit page.
-            </p>
+            <div className="flex items-center gap-2 bg-amber-50 rounded px-2 py-1 mt-2">
+              <label className="text-xs text-amber-700 whitespace-nowrap">Original document number (will be used instead of auto-numbering):</label>
+              <input
+                type="text"
+                value={ocrDetectedNumber}
+                onChange={e => setOcrDetectedNumber(e.target.value)}
+                className="text-xs font-mono font-medium border border-amber-200 rounded px-2 py-0.5 bg-white"
+              />
+            </div>
           )}
         </div>
       )}
