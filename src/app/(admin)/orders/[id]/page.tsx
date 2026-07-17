@@ -176,6 +176,7 @@ export default function OrderDetailPage() {
         .eq('promoted_from', id)
         .eq('document_type', 'invoice')
         .eq('is_foc', false)
+        .neq('status', 'cancelled')
       return data ?? []
     },
     enabled: !!id && order?.document_type === 'so' && !order?.is_foc
@@ -443,7 +444,7 @@ export default function OrderDetailPage() {
   const currentStatus = statuses.find((s: any) => s.value === order.status) ?? statuses[0]
   const commercialLines = (order.lines ?? []).filter((l: any) => l.line_type === 'commercial' || l.line_type === 'foc')
   const hasMixedWarehouses = !isInt && new Set(commercialLines.map((l: any) => l.warehouse ?? order.warehouse)).size > 1
-  const alreadyHasInvoice = isSO && (linkedInvoices as any[]).length > 0
+  const alreadyHasInvoice = isSO && (linkedInvoices as any[]).some((inv: any) => inv.status !== 'cancelled')
   const alreadyHasFoc = false // Multiple SO(DO) always allowed
 
   // SO-level payment tag — aggregated from its invoice(s), net of client returns. The SO itself
@@ -652,7 +653,7 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {isSO && order.is_foc && !(docInvoices as any[]).find((inv: any) => inv.promoted_from === order.id) && (
+          {isSO && order.is_foc && !(docInvoices as any[]).some((inv: any) => inv.promoted_from === order.id && inv.status !== 'cancelled') && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h2 className="font-semibold text-gray-900 mb-1">Generate Invoice (FOC)</h2>
               <p className="text-xs text-gray-500 mb-3">Creates INV(DO) with total 0 USD.</p>
