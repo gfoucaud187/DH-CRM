@@ -417,33 +417,31 @@ export default function NewOrderPage() {
         })}
       </div>
 
-      {!isInt && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Sparkles className="h-4 w-4" /> Extract from Existing Document</h2>
-          <div className="flex items-center gap-2 flex-wrap">
-            <input type="file" accept="application/pdf,image/*,.xlsx,.xls,.csv"
-              onChange={e => setOcrFile(e.target.files?.[0] ?? null)}
-              className="flex-1 min-w-64 text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700 file:text-sm" />
-            <button onClick={handleOcrExtract} disabled={!ocrFile || ocrLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors whitespace-nowrap">
-              {ocrLoading ? 'Extracting...' : 'Extract & Fill'}
-            </button>
-          </div>
-          <p className="text-xs text-gray-400 mt-2">Upload an existing SO/Invoice (PDF or photo) — pre-fills the customer, warehouse, date, and matched product lines below. Useful when re-entering historical orders.</p>
-          {ocrError && <p className="text-xs text-red-500 mt-2">{ocrError}</p>}
-          {ocrDetectedNumber && (
-            <div className="flex items-center gap-2 bg-amber-50 rounded px-2 py-1 mt-2">
-              <label className="text-xs text-amber-700 whitespace-nowrap">Original document number (will be used instead of auto-numbering):</label>
-              <input
-                type="text"
-                value={ocrDetectedNumber}
-                onChange={e => setOcrDetectedNumber(e.target.value)}
-                className="text-xs font-mono font-medium border border-amber-200 rounded px-2 py-0.5 bg-white"
-              />
-            </div>
-          )}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+        <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Sparkles className="h-4 w-4" /> Extract from Existing Document</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input type="file" accept="application/pdf,image/*,.xlsx,.xls,.csv"
+            onChange={e => setOcrFile(e.target.files?.[0] ?? null)}
+            className="flex-1 min-w-64 text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700 file:text-sm" />
+          <button onClick={handleOcrExtract} disabled={!ocrFile || ocrLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors whitespace-nowrap">
+            {ocrLoading ? 'Extracting...' : 'Extract & Fill'}
+          </button>
         </div>
-      )}
+        <p className="text-xs text-gray-400 mt-2">Upload an existing SO/Invoice (PDF or photo) — pre-fills the customer, warehouse, date, and matched product lines below. Useful when re-entering historical orders.</p>
+        {ocrError && <p className="text-xs text-red-500 mt-2">{ocrError}</p>}
+        {ocrDetectedNumber && (
+          <div className="flex items-center gap-2 bg-amber-50 rounded px-2 py-1 mt-2">
+            <label className="text-xs text-amber-700 whitespace-nowrap">Original document number (will be used instead of auto-numbering):</label>
+            <input
+              type="text"
+              value={ocrDetectedNumber}
+              onChange={e => setOcrDetectedNumber(e.target.value)}
+              className="text-xs font-mono font-medium border border-amber-200 rounded px-2 py-0.5 bg-white"
+            />
+          </div>
+        )}
+      </div>
 
       {isSample && (
         <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
@@ -513,6 +511,15 @@ export default function NewOrderPage() {
                 <span className="px-3 py-1.5 bg-teal-100 text-teal-800 rounded-lg text-sm font-semibold">{warehouseLabel(warehouse)}</span>
                 <ArrowRight className="h-5 w-5 text-teal-600" />
                 <span className="px-3 py-1.5 bg-teal-100 text-teal-800 rounded-lg text-sm font-semibold">{warehouseLabel(warehouseDestination)}</span>
+              </div>
+            )}
+
+            {isInt && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase">Order Date</label>
+                <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)}
+                  className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none" />
+                <p className="text-xs text-gray-400 mt-1">Defaults to today — backdate when re-entering a historical transfer</p>
               </div>
             )}
 
