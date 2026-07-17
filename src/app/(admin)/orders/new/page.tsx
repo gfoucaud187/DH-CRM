@@ -203,6 +203,12 @@ export default function NewOrderPage() {
     }))
   }
 
+  const updateLinePrice = (idx: number, price: number) => {
+    setLines(prev => prev.map((l, i) =>
+      i !== idx ? l : { ...l, price_per_unit: price, line_total: l.quantity_units * price }
+    ))
+  }
+
   const updateLineWarehouse = (idx: number, wh: string) => {
     setLines(prev => prev.map((l, i) => i === idx ? { ...l, warehouse: wh } : l))
   }
@@ -720,7 +726,11 @@ export default function NewOrderPage() {
                       <td className="px-3 py-3 text-center text-gray-600">{line.quantity_units}</td>
                       {!priceIsZero && (
                         <>
-                          <td className="px-3 py-3 text-right text-gray-600">{Number(line.price_per_unit).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                          <td className="px-3 py-3 text-right">
+                            <input type="number" min={0} step="0.01" value={line.price_per_unit}
+                              onChange={e => updateLinePrice(idx, parseFloat(e.target.value) || 0)}
+                              className="w-24 h-8 rounded border border-gray-200 px-2 text-right text-sm" />
+                          </td>
                           <td className="px-3 py-3 text-right font-medium">{Number(line.line_total).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                         </>
                       )}
