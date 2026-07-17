@@ -503,6 +503,16 @@ export default function NewOrderPage() {
               </div>
             )}
 
+            {!isInt && !priceIsZero && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase">Price List</label>
+                <div className="mt-1 h-9 flex items-center px-3 rounded-md border border-gray-100 bg-gray-50 text-sm text-gray-700">
+                  {customerId ? getCustomerPriceList() : '—'}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Set on the customer's profile — not editable per order</p>
+              </div>
+            )}
+
             <div>
               <label className="text-xs font-medium text-gray-500 uppercase">
                 {isInt ? 'From Warehouse' : 'Warehouse'}
