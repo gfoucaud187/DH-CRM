@@ -49,7 +49,12 @@ export async function callAnthropicForJson(
     const data = await response.json()
     const text = data.content?.find((b: any) => b.type === 'text')?.text ?? ''
     const match = text.match(pattern)
-    if (!match) { lastError = 'No JSON found in the model response'; continue }
+    if (!match) {
+      lastError = data.stop_reason === 'max_tokens'
+        ? 'The document has too many lines for the model to finish in one response — try splitting it into smaller documents.'
+        : 'No JSON found in the model response'
+      continue
+    }
 
     try {
       return { ok: true, parsed: JSON.parse(match[0]) }

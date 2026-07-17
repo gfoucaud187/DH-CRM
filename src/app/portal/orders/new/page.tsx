@@ -196,7 +196,8 @@ export default function PortalNewOrderPage() {
     !productSearch ||
     p.full_name?.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.sku?.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.brand?.toLowerCase().includes(productSearch.toLowerCase())
+    p.brand?.toLowerCase().includes(productSearch.toLowerCase()) ||
+    p.fixmer_reference?.toLowerCase().includes(productSearch.toLowerCase())
   )
 
   if (submitted) {
@@ -305,7 +306,7 @@ export default function PortalNewOrderPage() {
             <h3 className="font-medium text-gray-900 mb-3">
               Add Products <span className="text-xs text-gray-400 font-normal">{(products as any[]).length} available</span>
             </h3>
-            <input type="text" placeholder="Search by name, SKU or brand..."
+            <input type="text" placeholder="Search by name, SKU, brand, or Fixmer code..."
               value={productSearch} onChange={e => setProductSearch(e.target.value)}
               className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none mb-3" />
             <div className="max-h-96 overflow-y-auto divide-y divide-gray-100 border border-gray-100 rounded-lg">

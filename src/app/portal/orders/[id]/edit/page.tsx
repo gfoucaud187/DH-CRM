@@ -221,7 +221,8 @@ export default function PortalEditOrderPage() {
     !productSearch ||
     p.full_name?.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.sku?.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.brand?.toLowerCase().includes(productSearch.toLowerCase())
+    p.brand?.toLowerCase().includes(productSearch.toLowerCase()) ||
+    p.fixmer_reference?.toLowerCase().includes(productSearch.toLowerCase())
   )
 
   if (!order) return <div className="flex items-center justify-center h-48 text-gray-400">Loading...</div>
@@ -316,7 +317,7 @@ export default function PortalEditOrderPage() {
         <div className="col-span-2 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="font-medium text-gray-900 mb-3">Add / Edit Products</h3>
-            <input type="text" placeholder="Search products..."
+            <input type="text" placeholder="Search products... (name, SKU, or Fixmer code)"
               value={productSearch} onChange={e => setProductSearch(e.target.value)}
               className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none mb-3" />
             <div className="max-h-48 overflow-y-auto divide-y divide-gray-100 border border-gray-100 rounded-lg">

@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     const result = await callAnthropicForJson(apiKey, {
         model: 'claude-sonnet-5',
-        max_tokens: 4000,
+        max_tokens: 8000,
         messages: [{
           role: 'user',
           content: [
