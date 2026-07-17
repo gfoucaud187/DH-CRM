@@ -65,8 +65,8 @@ export default function DashboardPage() {
 
   const activeOrders   = orders.filter((o: any) => o.document_type === 'so' && !['completed','cancelled'].includes(o.status))
   const pendingPOs     = orders.filter((o: any) => o.document_type === 'po' && o.status === 'pending_approval')
-  const allInvoices    = orders.filter((o: any) => o.document_type === 'invoice' && !o.is_foc)
-  const allCreditNotes = orders.filter((o: any) => o.document_type === 'credit_note')
+  const allInvoices    = orders.filter((o: any) => o.document_type === 'invoice' && !o.is_foc && o.status !== 'cancelled')
+  const allCreditNotes = orders.filter((o: any) => o.document_type === 'credit_note' && o.status !== 'cancelled')
 
   // Revenue: invoices issued (created_at) this year — not order_date, which for re-entered
   // historical orders reflects the original document's date, not when it entered the system.
