@@ -56,7 +56,7 @@ export default function DashboardPage() {
       const { data } = await supabase
         .from('sales_orders')
         .select('*')
-        .order('order_date', { ascending: false })
+        .order('created_at', { ascending: false })
       return data ?? []
     }
   })
