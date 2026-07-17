@@ -72,22 +72,48 @@ export default function StockMovementsView() {
   // Order data is now embedded in each movement row via the view
   const orders: any[] = []
 
-  // Fetch current stock levels
-  const { data: currentStock = [] } = useQuery({
-    queryKey: ['inventory-current'],
+  // Opening must be a fixed anchor (the 2026-01-01 initial stock load) that never shifts when the
+  // date filter changes — everything from that load forward to dateTo is then applied to derive
+  // Closing, instead of backing it out from today's live stock (which used to make Opening drift
+  // with both the filter and the passage of time).
+  const { data: balanceMovements = [] } = useQuery({
+    queryKey: ['stock-movements-balance', dateTo, warehouse],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('v_inventory_by_warehouse')
-        .select('sku, packs_total, units_total, packs_t1, packs_central, packs_aged, packs_sample, packs_private')
+      let q = supabase
+        .from('v_stock_movements_full')
+        .select('sku, warehouse, movement_type, quantity_packs, quantity_units, reason, created_at')
+        .lte('created_at', dateTo + 'T23:59:59')
+
+      if (warehouse !== 'All') q = q.eq('warehouse', warehouse)
+      const { data } = await q
       return data ?? []
     }
   })
 
-  const stockMap = useMemo(() => {
-    const m: Record<string, any> = {}
-    ;(currentStock as any[]).forEach((r: any) => { m[r.sku] = r })
-    return m
-  }, [currentStock])
+  const { openingBySku, closingBySku, stockOutBySku, stockInBySku } = useMemo(() => {
+    const opening: Record<string, number> = {}
+    const closing: Record<string, number> = {}
+    const stockOut: Record<string, number> = {}
+    const stockIn: Record<string, number> = {}
+
+    ;(balanceMovements as any[]).forEach((m: any) => {
+      const qty = unit === 'units' ? m.quantity_units : m.quantity_packs
+      if (m.reason?.startsWith('Initial stock as of 2026-01-01')) {
+        opening[m.sku] = (opening[m.sku] ?? 0) + qty
+      } else if (INBOUND_MOVEMENT_TYPES.has(m.movement_type)) {
+        stockIn[m.sku] = (stockIn[m.sku] ?? 0) + qty
+      } else {
+        stockOut[m.sku] = (stockOut[m.sku] ?? 0) + qty
+      }
+    })
+    // Opening - Stock Out + Stock In = Closing
+    const allSkus = new Set([...Object.keys(opening), ...Object.keys(stockOut), ...Object.keys(stockIn)])
+    allSkus.forEach(sku => {
+      closing[sku] = (opening[sku] ?? 0) - (stockOut[sku] ?? 0) + (stockIn[sku] ?? 0)
+    })
+
+    return { openingBySku: opening, closingBySku: closing, stockOutBySku: stockOut, stockInBySku: stockIn }
+  }, [balanceMovements, unit])
 
   // Fetch products for SKU names
   const { data: products = [] } = useQuery({
@@ -168,11 +194,10 @@ export default function StockMovementsView() {
 
   const grandTotal = skus.reduce((s, sku) => s + rowTotal(sku), 0)
 
-  const closingTotal = skus.reduce((s, sku) => {
-    const st = stockMap[sku]
-    return s + (unit === 'units' ? (st?.units_total ?? 0) : (st?.packs_total ?? 0))
-  }, 0)
-  const openingTotal = closingTotal + grandTotal
+  const openingTotal = skus.reduce((s, sku) => s + (openingBySku[sku] ?? 0), 0)
+  const closingTotal = skus.reduce((s, sku) => s + (closingBySku[sku] ?? 0), 0)
+  const stockOutTotal = skus.reduce((s, sku) => s + (stockOutBySku[sku] ?? 0), 0)
+  const stockInTotal = skus.reduce((s, sku) => s + (stockInBySku[sku] ?? 0), 0)
 
   // Row-level search — filters which SKUs are shown, doesn't affect column/footer totals
   const filteredSkus = skus.filter(sku => {
@@ -339,6 +364,14 @@ export default function StockMovementsView() {
                     <div className="font-semibold text-blue-700">OPENING</div>
                     <div className="font-mono text-xs font-bold text-blue-700">{openingTotal.toLocaleString('en-US')}</div>
                   </th>
+                  <th className="px-3 py-2 text-right min-w-24 bg-red-50">
+                    <div className="font-semibold text-red-700">STOCK OUT</div>
+                    <div className="font-mono text-xs font-bold text-red-700">−{stockOutTotal.toLocaleString('en-US')}</div>
+                  </th>
+                  <th className="px-3 py-2 text-right min-w-24 bg-cyan-50">
+                    <div className="font-semibold text-cyan-700">STOCK IN</div>
+                    <div className="font-mono text-xs font-bold text-cyan-700">+{stockInTotal.toLocaleString('en-US')}</div>
+                  </th>
                   <th className="px-3 py-2 text-right min-w-24 bg-green-50">
                     <div className="font-semibold text-green-700">CLOSING</div>
                     <div className="font-mono text-xs font-bold text-green-700">{closingTotal.toLocaleString('en-US')}</div>
@@ -354,11 +387,14 @@ export default function StockMovementsView() {
                       <th key={col} className="px-3 py-1.5 text-center border-r border-gray-100">
                         <div className="font-mono text-xs text-gray-700 font-semibold">{o?.order_number ?? '—'}</div>
                         <div className="text-xs text-gray-400 truncate max-w-28">{o?.customer_name ?? ''}</div>
+                        <div className="font-mono text-xs font-bold text-gray-900 mt-0.5">{Math.abs(colTotal(col)).toLocaleString('en-US')}</div>
                       </th>
                     )
                   })}
                   <th className="bg-gray-100" />
                   <th className="bg-blue-50" />
+                  <th className="bg-red-50" />
+                  <th className="bg-cyan-50" />
                   <th className="bg-green-50" />
                 </tr>
                 {/* Row 3: dates */}
@@ -375,6 +411,8 @@ export default function StockMovementsView() {
                   })}
                   <th className="bg-gray-100" />
                   <th className="bg-blue-50 px-3 py-1.5 text-xs text-blue-400 font-normal text-right">start</th>
+                  <th className="bg-red-50" />
+                  <th className="bg-cyan-50" />
                   <th className="bg-green-50 px-3 py-1.5 text-xs text-green-400 font-normal text-right">end</th>
                 </tr>
               </thead>
@@ -404,18 +442,17 @@ export default function StockMovementsView() {
                       <td className="px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-900 bg-gray-50">
                         {total.toLocaleString('en-US')}
                       </td>
-                      <td className="px-3 py-2.5 text-right font-mono text-xs font-semibold text-blue-600 bg-blue-50/50">
-                        {(() => {
-                          const s = stockMap[sku]
-                          const cur = unit === 'units' ? (s?.units_total ?? 0) : (s?.packs_total ?? 0)
-                          return (cur + total).toLocaleString('en-US')
-                        })()}
+                      <td className="px-3 py-2.5 text-right font-mono text-xs font-semibold text-blue-700 bg-blue-50/50">
+                        {(openingBySku[sku] ?? 0).toLocaleString('en-US')}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono text-xs font-semibold text-red-700 bg-red-50/50">
+                        {(stockOutBySku[sku] ?? 0) ? '−' + (stockOutBySku[sku] ?? 0).toLocaleString('en-US') : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono text-xs font-semibold text-cyan-700 bg-cyan-50/50">
+                        {(stockInBySku[sku] ?? 0) ? '+' + (stockInBySku[sku] ?? 0).toLocaleString('en-US') : '—'}
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono text-xs font-semibold text-green-700 bg-green-50/50">
-                        {(() => {
-                          const s = stockMap[sku]
-                          return unit === 'units' ? (s?.units_total ?? 0).toLocaleString('en-US') : (s?.packs_total ?? 0).toLocaleString('en-US')
-                        })()}
+                        {(closingBySku[sku] ?? 0).toLocaleString('en-US')}
                       </td>
                     </tr>
                   )
@@ -427,14 +464,24 @@ export default function StockMovementsView() {
                   <td className="sticky left-48 z-10 bg-gray-100 border-r border-gray-200" />
                   {orderedCols.map(col => (
                     <td key={col} className="px-3 py-2.5 text-right font-mono text-xs font-bold text-gray-900 border-r border-gray-200">
-                      {colTotal(col).toLocaleString('en-US')}
+                      {Math.abs(colTotal(col)).toLocaleString('en-US')}
                     </td>
                   ))}
                   <td className="px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-900 bg-gray-200">
                     {grandTotal.toLocaleString('en-US')}
                   </td>
-                  <td className="bg-gray-100" />
-                  <td className="bg-gray-100" />
+                  <td className="px-3 py-2.5 text-right font-mono text-xs font-bold text-blue-700 bg-blue-100">
+                    {openingTotal.toLocaleString('en-US')}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono text-xs font-bold text-red-700 bg-red-100">
+                    −{stockOutTotal.toLocaleString('en-US')}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono text-xs font-bold text-cyan-700 bg-cyan-100">
+                    +{stockInTotal.toLocaleString('en-US')}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono text-xs font-bold text-green-700 bg-green-100">
+                    {closingTotal.toLocaleString('en-US')}
+                  </td>
                 </tr>
               </tfoot>
             </table>
