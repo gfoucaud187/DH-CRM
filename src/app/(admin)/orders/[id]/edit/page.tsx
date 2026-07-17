@@ -241,10 +241,10 @@ export default function EditOrderPage() {
       const totalPacks = lines.reduce((s, l) => s + l.quantity_packs, 0)
       const totalAmount = isInt ? 0 : lines.reduce((s, l) => s + l.line_total, 0) + servicesTotal
 
+      // Everything except the warehouse fields is safe to update up front — in particular this
+      // surfaces a duplicate order_number error before anything destructive happens below.
       const { error: orderUpdateError } = await supabase.from('sales_orders').update({
         order_number: orderNumber.trim(),
-        warehouse,
-        warehouse_destination: isInt ? warehouseDestination : null,
         incoterms: isInt ? null : incoterms,
         payment_terms: isInt ? null : paymentTerms,
         payment_terms_days: isInt ? null : (paymentTermsDays ? parseInt(paymentTermsDays) : null),
@@ -260,7 +260,20 @@ export default function EditOrderPage() {
         return
       }
 
+      // The stock trigger reads the order's warehouse/warehouse_destination fresh from
+      // sales_orders at the moment each line changes. Deleting the old lines BEFORE updating
+      // those fields means the reversal still sees the OLD warehouse pair (correctly crediting
+      // back where the stock actually came from); updating the header first would make the
+      // reversal read the NEW warehouse pair instead and silently strand stock in the old
+      // warehouse. So lines are deleted first, then warehouse/warehouse_destination are updated,
+      // then the new lines are inserted against the now-current warehouse pair.
       await supabase.from('sales_order_lines').delete().eq('order_id', id as string)
+
+      await supabase.from('sales_orders').update({
+        warehouse,
+        warehouse_destination: isInt ? warehouseDestination : null,
+      }).eq('id', id as string)
+
       if (lines.length > 0) {
         await supabase.from('sales_order_lines').insert(
           lines.map(l => ({
