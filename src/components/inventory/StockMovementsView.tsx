@@ -81,7 +81,7 @@ export default function StockMovementsView() {
     queryFn: async () => {
       let q = supabase
         .from('v_stock_movements_full')
-        .select('sku, warehouse, movement_type, quantity_packs, quantity_units, reason, created_at')
+        .select('id, sku, warehouse, movement_type, quantity_packs, quantity_units, reference_id, reason, created_at')
         .lte('created_at', dateTo + 'T23:59:59')
 
       if (warehouse !== 'All') q = q.eq('warehouse', warehouse)
@@ -92,21 +92,37 @@ export default function StockMovementsView() {
 
   const { openingBySku, closingBySku, stockOutBySku, stockInBySku } = useMemo(() => {
     const opening: Record<string, number> = {}
-    const closing: Record<string, number> = {}
-    const stockOut: Record<string, number> = {}
-    const stockIn: Record<string, number> = {}
+    // Net signed total per (sku, source document) — grouping by document before classifying
+    // in/out avoids counting edit noise (e.g. a line moved from one warehouse to another goes
+    // through a delete-then-reinsert that logs a reversal 'in' alongside the original 'out' for
+    // the very same order) as if it were two separate real movements. Netted per document first,
+    // an order that nets to zero for this warehouse contributes to neither bucket, exactly like
+    // the per-column "Total" already does — only genuinely one-directional documents (a PO
+    // receipt, a real sale, a real transfer) end up counted.
+    const netByCol: Record<string, Record<string, number>> = {}
 
     ;(balanceMovements as any[]).forEach((m: any) => {
       const qty = unit === 'units' ? m.quantity_units : m.quantity_packs
       if (m.reason?.startsWith('Initial stock as of 2026-01-01')) {
         opening[m.sku] = (opening[m.sku] ?? 0) + qty
-      } else if (INBOUND_MOVEMENT_TYPES.has(m.movement_type)) {
-        stockIn[m.sku] = (stockIn[m.sku] ?? 0) + qty
-      } else {
-        stockOut[m.sku] = (stockOut[m.sku] ?? 0) + qty
+        return
       }
+      const key = m.reference_id ?? m.id
+      if (!netByCol[m.sku]) netByCol[m.sku] = {}
+      netByCol[m.sku][key] = (netByCol[m.sku][key] ?? 0) + (INBOUND_MOVEMENT_TYPES.has(m.movement_type) ? -qty : qty)
     })
+
+    const stockOut: Record<string, number> = {}
+    const stockIn: Record<string, number> = {}
+    Object.entries(netByCol).forEach(([sku, cols]) => {
+      Object.values(cols).forEach(net => {
+        if (net > 0) stockOut[sku] = (stockOut[sku] ?? 0) + net
+        else if (net < 0) stockIn[sku] = (stockIn[sku] ?? 0) + (-net)
+      })
+    })
+
     // Opening - Stock Out + Stock In = Closing
+    const closing: Record<string, number> = {}
     const allSkus = new Set([...Object.keys(opening), ...Object.keys(stockOut), ...Object.keys(stockIn)])
     allSkus.forEach(sku => {
       closing[sku] = (opening[sku] ?? 0) - (stockOut[sku] ?? 0) + (stockIn[sku] ?? 0)
@@ -184,11 +200,16 @@ export default function StockMovementsView() {
     return { skus, orderedCols, pivot: data }
   }, [movements, orderMap, productMap, unit])
 
+  // "Total" is scoped to real client sales (SO + SO(DO)) only — SO(INT) transfers, PO receipts,
+  // returns, transformations and stocktake adjustments are not sales and would otherwise mix
+  // internal stock movement with actual sales volume in the same number.
+  const isSalesCol = (col: string) => orderMap[col]?.document_type === 'so'
+
   // Row totals
   const rowTotal = (sku: string) =>
-    orderedCols.reduce((s, col) => s + (pivot[sku]?.[col] ?? 0), 0)
+    orderedCols.filter(isSalesCol).reduce((s, col) => s + (pivot[sku]?.[col] ?? 0), 0)
 
-  // Col totals
+  // Col totals — unrestricted, this is the per-order column sum shown in its own header cell
   const colTotal = (col: string) =>
     skus.reduce((s, sku) => s + (pivot[sku]?.[col] ?? 0), 0)
 
@@ -357,7 +378,7 @@ export default function StockMovementsView() {
                     )
                   })}
                   <th className="px-3 py-2 text-right min-w-24 bg-gray-100">
-                    <div className="font-semibold text-gray-700">TOTAL</div>
+                    <div className="font-semibold text-gray-700">SALES TOTAL</div>
                     <div className="font-mono text-xs font-bold text-gray-900">{grandTotal.toLocaleString('en-US')}</div>
                   </th>
                   <th className="px-3 py-2 text-right min-w-24 bg-blue-50">
