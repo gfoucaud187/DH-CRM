@@ -218,8 +218,14 @@ export default function NewOrderPage() {
     return list.find(c => c.legal_name?.toLowerCase().includes(needle) || needle.includes(c.legal_name?.toLowerCase() ?? ' ')) ?? null
   }
 
-  const guessProduct = (skuGuess: string | null, description: string | null): any | null => {
+  const guessProduct = (skuGuess: string | null, description: string | null, fixmerGuess: string | null = null): any | null => {
     const list = products as any[]
+    // Fixmer code is the most reliable match: many source documents reference cigars by their
+    // Fixmer catalogue code rather than DH's internal SKU, so it's checked first.
+    if (fixmerGuess) {
+      const exact = list.find(p => p.fixmer_reference?.toLowerCase() === fixmerGuess.toLowerCase())
+      if (exact) return exact
+    }
     if (skuGuess) {
       const exact = list.find(p => p.sku.toLowerCase() === skuGuess.toLowerCase())
       if (exact) return exact
@@ -255,7 +261,7 @@ export default function NewOrderPage() {
       // duplicate rows.
       const newLinesBySku = new Map<string, OrderLine>()
       for (const l of (data.lines ?? [])) {
-        const product = guessProduct(l.sku_guess, l.description)
+        const product = guessProduct(l.sku_guess, l.description, l.fixmer_code_guess)
         if (!product || !l.quantity_packs) continue
         matched++
         const packs = Number(l.quantity_packs)
@@ -381,7 +387,8 @@ export default function NewOrderPage() {
     !productSearch ||
     p.full_name?.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.sku?.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.brand?.toLowerCase().includes(productSearch.toLowerCase())
+    p.brand?.toLowerCase().includes(productSearch.toLowerCase()) ||
+    p.fixmer_reference?.toLowerCase().includes(productSearch.toLowerCase())
   )
 
   const availableWarehouses = isInt
@@ -645,7 +652,7 @@ export default function NewOrderPage() {
               Add Product — {(products as any[]).length} available
               {priceIsZero && <span className="ml-2 text-xs text-gray-400 font-normal">No price for this document type</span>}
             </h3>
-            <input type="text" placeholder="Search products..."
+            <input type="text" placeholder="Search products... (name, SKU, or Fixmer code)"
               value={productSearch} onChange={e => setProductSearch(e.target.value)}
               className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm focus:outline-none mb-3" />
             <div className="max-h-48 overflow-y-auto divide-y divide-gray-100 border border-gray-100 rounded-lg">
@@ -658,6 +665,7 @@ export default function NewOrderPage() {
                     <div>
                       <span className="font-medium">{p.full_name}</span>
                       <span className="ml-2 text-xs text-gray-400 font-mono">{p.sku}</span>
+                      {p.fixmer_reference && <span className="ml-2 text-xs text-gray-400 font-mono">Fixmer: {p.fixmer_reference}</span>}
                     </div>
                     <div className="flex items-center gap-3">
                       {!priceIsZero && price > 0 && <span className="text-xs text-gray-500">{Number(price).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} {currency}</span>}

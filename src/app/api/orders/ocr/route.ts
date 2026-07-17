@@ -32,6 +32,7 @@ new system. Extract its header info and every line item. Return ONLY a JSON obje
   "incoterms_guess": "e.g. EXW, FOB, CIF, DAP, DDP if shown, else null",
   "lines": [
     {
+      "fixmer_code_guess": "the Fixmer reference code for this product, exactly as written, or null",
       "sku_guess": "the product code/reference for this line, exactly as written, or null",
       "description": "product name/description as written on the document",
       "quantity_packs": number (quantity of boxes on this line — the count, not a weight or price),
@@ -40,6 +41,11 @@ new system. Extract its header info and every line item. Return ONLY a JSON obje
     }
   ]
 }
+Many of these documents reference each cigar product by its Fixmer catalogue code rather than DH's
+own internal SKU — when a line shows a product code, check whether it looks like a Fixmer-style
+reference (this is the code most likely to be present and is the most reliable way to identify the
+exact product) and put it in "fixmer_code_guess". If the document also separately shows DH's own SKU,
+put that in "sku_guess" too; either or both may be present, and either may be null if not shown.
 Numbers on these documents are sometimes written with a comma as the decimal separator (e.g. "5,520"
 meaning 5.52, not five thousand five hundred twenty) instead of a decimal point. Use context to tell
 which convention a given document uses — cross-check unit_price against line_total_guess and
