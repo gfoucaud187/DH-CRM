@@ -119,14 +119,25 @@ export default function NewOrderPage() {
     }
   })
 
+  // Scoped to just the lists the selected customer can actually price against — a blanket
+  // fetch of all price lists combined risks silently truncating on Supabase's row cap as the
+  // catalogue grows (SPECIAL entries disappearing from orders was exactly this).
+  const selectedCustomerForPricing = (customers as any[]).find((c: any) => c.id === customerId)
+  const neededPriceLists = Array.from(new Set([
+    selectedCustomerForPricing?.assigned_price_list || 'G',
+    ...(selectedCustomerForPricing?.manual_pricing_enabled && selectedCustomerForPricing?.reference_price_list
+      ? [selectedCustomerForPricing.reference_price_list] : []),
+  ]))
+
   const { data: priceEntries = [] } = useQuery({
-    queryKey: ['price-entries-all'],
+    queryKey: ['price-entries', neededPriceLists.join(',')],
     queryFn: async () => {
       const { data } = await supabase
         .from('price_list_entries')
-        .select('sku, price_list, price_per_unit').limit(1000)
+        .select('sku, price_list, price_per_unit')
+        .in('price_list', neededPriceLists)
       return data ?? []
-    }
+    },
   })
 
   const handleCustomerChange = (id: string) => {

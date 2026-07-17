@@ -85,16 +85,6 @@ export default function EditOrderPage() {
     }
   })
 
-  const { data: priceEntries = [] } = useQuery({
-    queryKey: ['price-entries-edit'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('price_list_entries')
-        .select('sku, price_list, price_per_unit').limit(1000)
-      return data ?? []
-    }
-  })
-
   const { data: customer } = useQuery({
     queryKey: ['order-customer', order?.customer_id],
     queryFn: async () => {
@@ -103,6 +93,25 @@ export default function EditOrderPage() {
       return data
     },
     enabled: !!order?.customer_id,
+  })
+
+  // Scoped to just the lists this order can actually price against — a blanket fetch of all
+  // price lists combined risks silently truncating on Supabase's row cap as the catalogue
+  // grows (SPECIAL entries disappearing from orders was exactly this).
+  const neededPriceLists = Array.from(new Set([
+    order?.price_list || 'G',
+    ...(customer?.manual_pricing_enabled && customer?.reference_price_list ? [customer.reference_price_list] : []),
+  ]))
+
+  const { data: priceEntries = [] } = useQuery({
+    queryKey: ['price-entries-edit', neededPriceLists.join(',')],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('price_list_entries')
+        .select('sku, price_list, price_per_unit')
+        .in('price_list', neededPriceLists)
+      return data ?? []
+    },
   })
 
   const { data: negotiatedPrices = [] } = useQuery({
