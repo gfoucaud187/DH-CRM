@@ -195,11 +195,25 @@ export default function OrdersPage() {
     if (!confirm('Cancel this order?')) return
     const order = allOrders.find((o: any) => o.id === id)
     // Free up the order_number so a new document can reuse it immediately — a cancelled order
-    // otherwise keeps its number forever and blocks recreation with a duplicate-key error.
-    const suffixedNumber = order?.order_number && !order.order_number.endsWith('-CANCELLED')
-      ? order.order_number + '-CANCELLED'
-      : order?.order_number
-    await supabase.from('sales_orders').update({ status: 'cancelled', order_number: suffixedNumber }).eq('id', id)
+    // otherwise keeps its number forever and blocks recreation with a duplicate-key error. A
+    // document can go through cancel→recreate more than once, so -CANCELLED alone isn't always
+    // free either — keep numbering (-CANCELLED-2, -3, ...) until an unused one is found.
+    let suffixedNumber = order?.order_number
+    if (suffixedNumber && !/-CANCELLED(-\d+)?$/.test(suffixedNumber)) {
+      const taken = new Set(allOrders.map((o: any) => o.order_number))
+      let candidate = suffixedNumber + '-CANCELLED'
+      let n = 2
+      while (taken.has(candidate)) {
+        candidate = suffixedNumber + '-CANCELLED-' + n
+        n++
+      }
+      suffixedNumber = candidate
+    }
+    const { error } = await supabase.from('sales_orders').update({ status: 'cancelled', order_number: suffixedNumber }).eq('id', id)
+    if (error) {
+      alert('Error: ' + error.message)
+      return
+    }
     queryClient.invalidateQueries({ queryKey: ['orders'] })
     queryClient.invalidateQueries({ queryKey: ['order', id] })
     queryClient.invalidateQueries({ queryKey: ['order-linked-invoices'] })
@@ -210,9 +224,7 @@ export default function OrdersPage() {
   const handleRestore = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
     const order = allOrders.find((o: any) => o.id === id)
-    const restoredNumber = order?.order_number?.endsWith('-CANCELLED')
-      ? order.order_number.slice(0, -'-CANCELLED'.length)
-      : order?.order_number
+    const restoredNumber = order?.order_number?.replace(/-CANCELLED(-\d+)?$/, '') || order?.order_number
     const { error } = await supabase.from('sales_orders').update({ status: 'draft', order_number: restoredNumber }).eq('id', id)
     if (error) {
       alert('Error: ' + error.message + (error.message.includes('duplicate') ? ' — another document already uses ' + restoredNumber + '. Rename it manually before restoring.' : ''))
