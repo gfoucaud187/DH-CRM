@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Save, Trash2, Plus, Package, Wrench, Box } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, Plus, Package, Wrench, Box, RotateCcw } from 'lucide-react'
 import Link from 'next/link'
 import { logActivity } from '@/lib/log-activity'
 import { warehouseLabel } from '@/lib/warehouse'
@@ -59,6 +59,14 @@ export default function PurchaseOrderDetailPage() {
         .eq('id', id)
         .single()
       return data
+    }
+  })
+
+  const { data: allPoNumbers = [] } = useQuery({
+    queryKey: ['po-numbers'],
+    queryFn: async () => {
+      const { data } = await supabase.from('purchase_orders').select('po_number')
+      return (data ?? []).map((p: any) => p.po_number)
     }
   })
 
@@ -208,6 +216,9 @@ export default function PurchaseOrderDetailPage() {
     queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
   }
 
+  // Hard delete is only ever offered for drafts (see the button below) — nothing has touched
+  // stock yet at that point. Anything that has moved past draft goes through Cancel/Restore so a
+  // received PO's stock credit can never be silently erased by an accidental delete again.
   const handleDelete = async () => {
     if (!confirm('Delete this purchase order?')) return
     await logActivity({
@@ -220,6 +231,51 @@ export default function PurchaseOrderDetailPage() {
     await supabase.from('purchase_orders').delete().eq('id', id as string)
     queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
     router.push('/purchase_orders')
+  }
+
+  const handleCancel = async () => {
+    if (!confirm('Cancel this purchase order?')) return
+    const taken = new Set(allPoNumbers as string[])
+    let candidate = po.po_number + '-CANCELLED'
+    let n = 2
+    while (taken.has(candidate)) { candidate = po.po_number + '-CANCELLED-' + n; n++ }
+    const oldStatus = po.status
+    const { error } = await supabase.from('purchase_orders')
+      .update({ status: 'cancelled', pre_cancel_status: oldStatus, po_number: candidate })
+      .eq('id', id as string)
+    if (error) { alert('Error: ' + error.message); return }
+    await logActivity({
+      action: 'update_purchase_order_status',
+      entityType: 'purchase_order',
+      entityId: id as string,
+      entityRef: po?.po_number,
+      oldValue: { status: oldStatus },
+      newValue: { status: 'cancelled' },
+    })
+    queryClient.invalidateQueries({ queryKey: ['purchase_order', id] })
+    queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
+  }
+
+  const handleRestore = async () => {
+    const restoredNumber = po.po_number.replace(/-CANCELLED(-\d+)?$/, '')
+    const restoredStatus = po.pre_cancel_status ?? 'draft'
+    const { error } = await supabase.from('purchase_orders')
+      .update({ status: restoredStatus, pre_cancel_status: null, po_number: restoredNumber })
+      .eq('id', id as string)
+    if (error) {
+      alert('Error: ' + error.message + (error.message.includes('duplicate') ? ' — another PO already uses ' + restoredNumber + '.' : ''))
+      return
+    }
+    await logActivity({
+      action: 'update_purchase_order_status',
+      entityType: 'purchase_order',
+      entityId: id as string,
+      entityRef: restoredNumber,
+      oldValue: { status: 'cancelled' },
+      newValue: { status: restoredStatus },
+    })
+    queryClient.invalidateQueries({ queryKey: ['purchase_order', id] })
+    queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
   }
 
   if (isLoading) return <div className="flex items-center justify-center h-48 text-gray-400">Loading...</div>
@@ -244,10 +300,12 @@ export default function PurchaseOrderDetailPage() {
           <p className="text-gray-500 text-sm mt-0.5">{po.partner_name}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleDelete}
-            className="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 transition-colors">
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {po.status === 'draft' && (
+            <button onClick={handleDelete} title="Delete"
+              className="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 transition-colors">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
           <button onClick={handleSave} disabled={saving}
             className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
             <Save className="h-4 w-4" />{saving ? 'Saving...' : 'Save'}
@@ -260,29 +318,39 @@ export default function PurchaseOrderDetailPage() {
         {/* Status stepper */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="font-semibold text-gray-900 mb-4">Status</h2>
-          <div className="flex items-center gap-1">
-            {STATUS_FLOW.filter(s => s !== 'cancelled').map((s, i, arr) => (
-              <div key={s} className="flex items-center gap-1 flex-1">
-                <button onClick={() => handleStatusChange(s)}
-                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors text-center ${
-                    po.status === s
-                      ? 'bg-gray-900 text-white'
-                      : STATUS_FLOW.indexOf(po.status) > STATUS_FLOW.indexOf(s)
-                        ? 'bg-gray-100 text-gray-500'
-                        : 'border border-gray-200 text-gray-400 hover:bg-gray-50'
-                  }`}>
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
-                </button>
-                {i < arr.length - 1 && <div className="w-4 h-px bg-gray-200 flex-shrink-0" />}
-              </div>
-            ))}
-            <button onClick={() => handleStatusChange('cancelled')}
-              className={`ml-2 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
-                po.status === 'cancelled' ? 'bg-red-600 text-white' : 'border border-red-200 text-red-400 hover:bg-red-50'
-              }`}>
-              Cancel
-            </button>
-          </div>
+          {po.status === 'cancelled' ? (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500">
+                Cancelled{po.pre_cancel_status ? ` (was ${po.pre_cancel_status})` : ''} — restoring re-applies its stock effect if it was received.
+              </p>
+              <button onClick={handleRestore}
+                className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors">
+                <RotateCcw className="h-3.5 w-3.5" /> Restore
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              {STATUS_FLOW.filter(s => s !== 'cancelled').map((s, i, arr) => (
+                <div key={s} className="flex items-center gap-1 flex-1">
+                  <button onClick={() => handleStatusChange(s)}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors text-center ${
+                      po.status === s
+                        ? 'bg-gray-900 text-white'
+                        : STATUS_FLOW.indexOf(po.status) > STATUS_FLOW.indexOf(s)
+                          ? 'bg-gray-100 text-gray-500'
+                          : 'border border-gray-200 text-gray-400 hover:bg-gray-50'
+                    }`}>
+                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                  {i < arr.length - 1 && <div className="w-4 h-px bg-gray-200 flex-shrink-0" />}
+                </div>
+              ))}
+              <button onClick={handleCancel}
+                className="ml-2 py-1.5 px-3 rounded-lg text-xs font-medium border border-red-200 text-red-400 hover:bg-red-50 transition-colors">
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Details */}

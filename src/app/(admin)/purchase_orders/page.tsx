@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Plus, Package, Wrench, Box, Trash2, Sparkles } from 'lucide-react'
+import { Plus, Package, Wrench, Box, Trash2, Sparkles, XCircle, RotateCcw } from 'lucide-react'
 import { useT } from '@/lib/i18n/LanguageProvider'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -42,9 +42,37 @@ export default function PurchaseOrdersPage() {
     }
   })
 
+  // Hard delete stays available only for drafts — nothing has ever touched stock at that point,
+  // so there's nothing to lose. Anything past draft goes through Cancel/Restore instead, so a
+  // received PO's stock credit can never be silently erased by an accidental delete again.
   const handleDelete = async (id: string, poNumber: string) => {
     if (!confirm(`Delete ${poNumber}?`)) return
     await supabase.from('purchase_orders').delete().eq('id', id)
+    queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
+  }
+
+  const handleCancel = async (id: string, poNumber: string, currentStatus: string) => {
+    if (!confirm(`Cancel ${poNumber}?`)) return
+    const taken = new Set((pos ?? []).map((p: any) => p.po_number))
+    let candidate = poNumber + '-CANCELLED'
+    let n = 2
+    while (taken.has(candidate)) { candidate = poNumber + '-CANCELLED-' + n; n++ }
+    const { error } = await supabase.from('purchase_orders')
+      .update({ status: 'cancelled', pre_cancel_status: currentStatus, po_number: candidate })
+      .eq('id', id)
+    if (error) { alert('Error: ' + error.message); return }
+    queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
+  }
+
+  const handleRestore = async (id: string, poNumber: string, preCancelStatus: string | null) => {
+    const restoredNumber = poNumber.replace(/-CANCELLED(-\d+)?$/, '')
+    const { error } = await supabase.from('purchase_orders')
+      .update({ status: preCancelStatus ?? 'draft', pre_cancel_status: null, po_number: restoredNumber })
+      .eq('id', id)
+    if (error) {
+      alert('Error: ' + error.message + (error.message.includes('duplicate') ? ' — another PO already uses ' + restoredNumber + '.' : ''))
+      return
+    }
     queryClient.invalidateQueries({ queryKey: ['purchase_orders'] })
   }
 
@@ -125,10 +153,22 @@ export default function PurchaseOrdersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button onClick={() => handleDelete(po.id, po.po_number)}
-                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {po.status === 'cancelled' ? (
+                        <button onClick={() => handleRestore(po.id, po.po_number, po.pre_cancel_status)} title="Restore"
+                          className="p-1.5 text-gray-300 hover:text-green-600 hover:bg-green-50 rounded transition-colors">
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                      ) : po.status === 'draft' ? (
+                        <button onClick={() => handleDelete(po.id, po.po_number)} title="Delete"
+                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : (
+                        <button onClick={() => handleCancel(po.id, po.po_number, po.status)} title="Cancel"
+                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                          <XCircle className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 )
