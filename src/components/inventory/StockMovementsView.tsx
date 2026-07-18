@@ -40,6 +40,23 @@ const getDocColor = (o: any) => {
   return '#2563eb'
 }
 
+// Supabase/PostgREST caps any unpaginated response at 1000 rows — with 1000+ movements logged
+// this year alone, an unfiltered ("All" warehouse) query silently lost everything past the first
+// page. This walks .range() until a page comes back short, so every row is always fetched
+// regardless of how large the table grows.
+async function fetchAllRows(build: (from: number, to: number) => any): Promise<any[]> {
+  const pageSize = 1000
+  let from = 0
+  let all: any[] = []
+  while (true) {
+    const { data } = await build(from, from + pageSize - 1)
+    all = all.concat(data ?? [])
+    if (!data || data.length < pageSize) break
+    from += pageSize
+  }
+  return all
+}
+
 export default function StockMovementsView() {
   const supabase = createClient()
   const t = useT()
@@ -55,18 +72,18 @@ export default function StockMovementsView() {
   // Fetch stock movements in date range — joined with order data via view
   const { data: movements = [], isLoading } = useQuery({
     queryKey: ['stock-movements-range', dateFrom, dateTo, warehouse],
-    queryFn: async () => {
+    queryFn: () => fetchAllRows((from, to) => {
       let q = supabase
         .from('v_stock_movements_full')
         .select('*')
         .gte('created_at', dateFrom + 'T00:00:00')
         .lte('created_at', dateTo + 'T23:59:59')
         .order('created_at', { ascending: true })
+        .range(from, to)
 
       if (warehouse !== 'All') q = q.eq('warehouse', warehouse)
-      const { data } = await q
-      return data ?? []
-    }
+      return q
+    })
   })
 
   // Order data is now embedded in each movement row via the view
@@ -78,16 +95,17 @@ export default function StockMovementsView() {
   // with both the filter and the passage of time).
   const { data: balanceMovements = [] } = useQuery({
     queryKey: ['stock-movements-balance', dateTo, warehouse],
-    queryFn: async () => {
+    queryFn: () => fetchAllRows((from, to) => {
       let q = supabase
         .from('v_stock_movements_full')
         .select('id, sku, warehouse, movement_type, quantity_packs, quantity_units, reference_id, reason, created_at')
         .lte('created_at', dateTo + 'T23:59:59')
+        .order('id', { ascending: true })
+        .range(from, to)
 
       if (warehouse !== 'All') q = q.eq('warehouse', warehouse)
-      const { data } = await q
-      return data ?? []
-    }
+      return q
+    })
   })
 
   const { openingBySku, closingBySku, stockOutBySku, stockInBySku } = useMemo(() => {
