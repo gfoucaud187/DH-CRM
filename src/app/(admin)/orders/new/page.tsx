@@ -272,6 +272,16 @@ export default function NewOrderPage() {
       if (data.incoterms_guess) setIncoterms(data.incoterms_guess)
       if (data.order_number_guess) setOcrDetectedNumber(data.order_number_guess)
 
+      // getPrice() reads customerId from state, which handleCustomerChange just above hasn't
+      // actually updated yet (setState is async) — a document with no prices on it would fall
+      // through to that stale lookup and silently price every line off whatever customer (or
+      // none) was selected before this extraction, not the one just matched. Resolve the price
+      // list from matchedCustomer directly instead, so it's correct within this same call.
+      const ocrCustomer = matchedCustomer ?? (customers as any[]).find((c: any) => c.id === customerId)
+      const ocrPriceList = ocrCustomer?.assigned_price_list ?? 'G'
+      const getPriceForOcr = (sku: string) =>
+        (priceEntries as any[]).find((e: any) => e.sku === sku && e.price_list === ocrPriceList)?.price_per_unit ?? 0
+
       let matched = 0
       // Keyed by SKU: if the document (or the model) lists the same product on more than
       // one line, merge them into a single line with combined quantity instead of creating
@@ -288,7 +298,7 @@ export default function NewOrderPage() {
         // unit_price arithmetic, which has been observed to divide by packs instead of units.
         const price = l.line_total_guess != null && units > 0
           ? Number(l.line_total_guess) / units
-          : l.unit_price != null ? Number(l.unit_price) : getPrice(product.sku)
+          : l.unit_price != null ? Number(l.unit_price) : getPriceForOcr(product.sku)
 
         const existing = newLinesBySku.get(product.sku)
         if (existing) {
