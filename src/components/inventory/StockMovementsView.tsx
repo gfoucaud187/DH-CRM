@@ -116,6 +116,31 @@ export default function StockMovementsView() {
   // Order data is now embedded in each movement row via the view
   const orders: any[] = []
 
+  const soIntOrderIds = useMemo(() => {
+    const ids = new Set<string>()
+    ;(movements as any[]).forEach((m: any) => { if (m.document_type === 'so_int' && m.reference_id) ids.add(m.reference_id) })
+    return Array.from(ids).sort()
+  }, [movements])
+
+  // SO(INT) transfer quantities are read straight from the order's current lines, not the
+  // stock_movements ledger — every edit re-logs a transfer_out/transfer_in pair at BOTH warehouses
+  // (the delete side of the edit's reversal uses the opposite type at the same warehouse), and
+  // one-off manual corrections (e.g. "destination credit was silently dropped by a trigger bug")
+  // add further entries on top. None of that nets back to the real transferred quantity, so the
+  // order's current lines — the one number that's always right — are used instead. See the pivot
+  // useMemo below for how this is combined with the ledger for every other document type.
+  const { data: soIntMeta = [] } = useQuery({
+    queryKey: ['stock-movements-so-int-lines', soIntOrderIds],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('sales_orders')
+        .select('id, warehouse, warehouse_destination, lines:sales_order_lines(sku, quantity_units, quantity_packs)')
+        .in('id', soIntOrderIds)
+      return data ?? []
+    },
+    enabled: soIntOrderIds.length > 0,
+  })
+
   // Opening must be a fixed anchor (the 2026-01-01 initial stock load) that never shifts when the
   // date filter changes — everything from that load forward to dateTo is then applied to derive
   // Closing, instead of backing it out from today's live stock (which used to make Opening drift
@@ -222,14 +247,6 @@ export default function StockMovementsView() {
     // logs a reversal 'in' alongside the new 'out' for the same order; without netting, a regular
     // sale edited once shows a bogus out/in split instead of its real net quantity.
     const data: Record<string, Record<string, { transferOut: number; transferIn: number; net: number }>> = {}
-    // Raw transfer_out/transfer_in movements, kept per physical warehouse (not yet per sku/col) —
-    // an edited SO(INT) goes through the same delete-then-reinsert cycle as any other order, and
-    // each cycle re-logs a transfer_out/transfer_in pair at BOTH warehouses (the delete's reversal
-    // uses the opposite type at the SAME warehouse to cancel the prior insert). Summing raw type
-    // counts across warehouses hugely overcounts; netting inside each warehouse first cancels that
-    // edit noise and leaves the real leg — positive net at a warehouse is a real outbound leg,
-    // negative is a real inbound leg.
-    const transferNet: Record<string, Record<string, Record<string, number>>> = {}
     // Which leg(s) of a transfer this column actually has, so the badge can say STOCK IN / STOCK
     // OUT instead of the generic SO(INT) label once a single warehouse (not "All") isolates it to
     // one direction.
@@ -243,12 +260,9 @@ export default function StockMovementsView() {
       const qty = unit === 'units' ? m.quantity_units : m.quantity_packs
       const cell = data[m.sku][m.reference_id]
 
-      if (m.movement_type === 'transfer_out' || m.movement_type === 'transfer_in') {
-        if (!transferNet[m.sku]) transferNet[m.sku] = {}
-        if (!transferNet[m.sku][m.reference_id]) transferNet[m.sku][m.reference_id] = {}
-        const whMap = transferNet[m.sku][m.reference_id]
-        whMap[m.warehouse] = (whMap[m.warehouse] ?? 0) + (m.movement_type === 'transfer_out' ? qty : -qty)
-      } else {
+      // so_int transfer_out/transfer_in rows are pure ledger noise (see soIntMeta above) — skip
+      // them here, their real quantity is filled in from the order's lines below.
+      if (m.movement_type !== 'transfer_out' && m.movement_type !== 'transfer_in') {
         cell.net += INBOUND_MOVEMENT_TYPES.has(m.movement_type) ? -qty : qty
       }
 
@@ -258,12 +272,19 @@ export default function StockMovementsView() {
       }
     })
 
-    Object.entries(transferNet).forEach(([sku, cols]) => {
-      Object.entries(cols).forEach(([col, whMap]) => {
-        let out = 0, inn = 0
-        Object.values(whMap).forEach(net => { if (net > 0) out += net; else if (net < 0) inn += -net })
-        data[sku][col].transferOut = out
-        data[sku][col].transferIn = inn
+    // SO(INT) transfer quantities, straight from the order's current lines. Symmetric at "All"
+    // warehouses (both legs shown); single-sided once the selected warehouse isolates the source
+    // or the destination.
+    ;(soIntMeta as any[]).forEach((o: any) => {
+      const showOut = warehouse === 'All' || warehouse === o.warehouse
+      const showIn = warehouse === 'All' || warehouse === o.warehouse_destination
+      ;(o.lines as any[]).forEach((l: any) => {
+        const qty = unit === 'units' ? l.quantity_units : l.quantity_packs
+        skuSet.add(l.sku)
+        if (!data[l.sku]) data[l.sku] = {}
+        if (!data[l.sku][o.id]) data[l.sku][o.id] = { transferOut: 0, transferIn: 0, net: 0 }
+        data[l.sku][o.id].transferOut += showOut ? qty : 0
+        data[l.sku][o.id].transferIn += showIn ? qty : 0
       })
     })
 
@@ -289,7 +310,7 @@ export default function StockMovementsView() {
     })
 
     return { skus, orderedCols, pivot: data, colDirection }
-  }, [movements, orderMap, productMap, unit])
+  }, [movements, orderMap, productMap, unit, soIntMeta, warehouse])
 
   // A real transfer leg wins over the netted figure — a normal sale/return/etc. never has
   // transferOut/transferIn set, so this falls straight through to `net` (already immune to edit
