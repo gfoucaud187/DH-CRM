@@ -465,15 +465,7 @@ export default function NewOrderPage() {
         <p className="text-xs text-gray-400 mt-2">Upload an existing SO/Invoice (PDF or photo) — pre-fills the customer, warehouse, date, and matched product lines below. Useful when re-entering historical orders.</p>
         {ocrError && <p className="text-xs text-red-500 mt-2">{ocrError}</p>}
         {ocrDetectedNumber && (
-          <div className="flex items-center gap-2 bg-amber-50 rounded px-2 py-1 mt-2">
-            <label className="text-xs text-amber-700 whitespace-nowrap">Original document number (will be used instead of auto-numbering):</label>
-            <input
-              type="text"
-              value={ocrDetectedNumber}
-              onChange={e => setOcrDetectedNumber(e.target.value)}
-              className="text-xs font-mono font-medium border border-amber-200 rounded px-2 py-0.5 bg-white"
-            />
-          </div>
+          <p className="text-xs text-amber-700 mt-2">Detected document number "{ocrDetectedNumber}" — set in Order Number below, edit there if needed.</p>
         )}
       </div>
 
@@ -512,6 +504,14 @@ export default function NewOrderPage() {
                 </div>
               </div>
             )}
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Order Number (optional)</label>
+              <input type="text" value={ocrDetectedNumber} onChange={e => setOcrDetectedNumber(e.target.value)}
+                placeholder="Leave blank to auto-number"
+                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-3 text-sm font-mono focus:outline-none" />
+              <p className="text-xs text-gray-400 mt-1">Overrides the auto-generated number — useful for re-entering a historical document with a known number.</p>
+            </div>
 
             {!isInt && !priceIsZero && (
               <div>
