@@ -62,6 +62,21 @@ const getDocOrder = (o: any) => {
   return 5
 }
 
+// Sortable numeric value for an order_number, not created_at (when the row was inserted) —
+// during backfill, documents got entered in whatever order was convenient, not their numbering
+// sequence, so sorting by insertion time scrambled the list relative to the order numbers.
+// Most prefixes embed a 2-digit year right before the sequence ("SO26-048", "CN26-003") — that
+// year has to be weighted in, or e.g. SO25-999 would sort above SO26-001. Numbers can also carry
+// a -CANCELLED(-N) suffix (stripped first) and inconsistent padding ("SO26-47" vs "SO26-048").
+// Invoice numbers (INV-1751) have no embedded year and fall back to their raw sequence.
+const numericPart = (orderNumber: string | null | undefined) => {
+  const stripped = (orderNumber ?? '').replace(/-CANCELLED(-\d+)?$/, '')
+  const yearSeq = stripped.match(/(\d{2})-(\d+)$/)
+  if (yearSeq) return parseInt(yearSeq[1], 10) * 100000 + parseInt(yearSeq[2], 10)
+  const match = stripped.match(/(\d+)(?!.*\d)/)
+  return match ? parseInt(match[1], 10) : -1
+}
+
 const DOC_FILTER_OPTIONS = [
   { label: 'All',        value: 'all' },
   { label: 'SO',         value: 'so' },
@@ -127,7 +142,7 @@ export default function OrdersPage() {
     const visited = new Set<string>()
 
     const sorted = [...filtered].sort((a: any, b: any) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      numericPart(b.order_number) - numericPart(a.order_number)
     )
 
     sorted.forEach((o: any) => {
@@ -319,6 +334,7 @@ export default function OrdersPage() {
 
   const allPOs = [...pendingPOs, ...rejectedPOs]
   const filteredCancelled = applyFilters(cancelled)
+    .sort((a: any, b: any) => numericPart(b.order_number) - numericPart(a.order_number))
 
   return (
     <div>
