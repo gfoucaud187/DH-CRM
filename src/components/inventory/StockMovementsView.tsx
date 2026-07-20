@@ -10,6 +10,29 @@ const WAREHOUSES = ['All', 'T1', 'Central', 'Aged', 'Sample', 'Private']
 // "Aged" stays the DB/data key — only the on-screen label changes
 const WAREHOUSE_LABELS: Record<string, string> = { Aged: 'Central Ageing' }
 
+const DOC_FILTER_OPTIONS = [
+  { label: 'All',           value: 'all' },
+  { label: 'SO',            value: 'so' },
+  { label: 'SO(DO)',        value: 'foc' },
+  { label: 'SO(SAMPLE)',    value: 'so_sample' },
+  { label: 'SO(INT)',       value: 'so_int' },
+  { label: 'INV',           value: 'invoice' },
+  { label: 'INV(DO)',       value: 'inv_foc' },
+  { label: 'Proforma',      value: 'proforma' },
+  { label: 'Stock In (PO)', value: 'stock_inbound' },
+  { label: 'Return',        value: 'client_return' },
+  { label: 'Transform',     value: 'transformation' },
+  { label: 'Stocktake',     value: 'stocktake_diff' },
+]
+
+const matchesDocFilter = (o: any, docFilter: string) =>
+  docFilter === 'all' ? true :
+  docFilter === 'foc' ? (o.is_foc && o.document_type !== 'invoice') :
+  docFilter === 'inv_foc' ? (o.is_foc && o.document_type === 'invoice') :
+  docFilter === 'so' ? (o.document_type === 'so' && !o.is_foc) :
+  docFilter === 'invoice' ? (o.document_type === 'invoice' && !o.is_foc) :
+  o.document_type === docFilter
+
 // direction is only meaningful for so_int: which way this order's movements go in the currently
 // selected single warehouse ('in' = receiving, 'out' = sending). Undefined when viewing "All"
 // warehouses at once (both legs present) or for any other document type.
@@ -69,6 +92,7 @@ export default function StockMovementsView() {
   const [dateFrom, setDateFrom] = useState(startOfYear)
   const [dateTo, setDateTo]     = useState(today)
   const [warehouse, setWarehouse] = useState('All')
+  const [docFilter, setDocFilter] = useState('all')
   const [unit, setUnit]           = useState<'units' | 'packs'>('units')
   const [search, setSearch]       = useState('')
 
@@ -193,12 +217,16 @@ export default function StockMovementsView() {
   const { skus, orderedCols, pivot, colDirection } = useMemo(() => {
     const skuSet = new Set<string>()
     const orderSet = new Set<string>()
-    // Out/in are tallied separately per (sku, order) instead of netted into one signed number —
-    // an internal transfer (SO(INT)) logs both a transfer_out and a matching transfer_in for the
-    // very same order, and with warehouse="All" selected both legs land in the same cell. Netting
-    // them would cancel a transfer to exactly 0 (mathematically correct for "did total company
-    // stock change" but reads as "nothing happened" for a specific transfer that clearly did).
-    const data: Record<string, Record<string, { out: number; in: number }>> = {}
+    // Transfer legs (transfer_out / transfer_in) are tallied separately instead of netted — an
+    // internal transfer (SO(INT)) logs both for the very same order, and with warehouse="All"
+    // selected both legs land in the same cell. Netting them would cancel a transfer to exactly 0
+    // (mathematically correct for "did total company stock change" but reads as "nothing
+    // happened" for a specific transfer that clearly did).
+    // Every other movement type is netted signed into `net`, same as the Opening/Closing calc
+    // below — a draft order edited after creation goes through a delete-then-reinsert that logs a
+    // reversal 'in' alongside the new 'out' for the same order; without netting, a regular sale
+    // edited once shows a bogus 2:1 out/in split instead of its real net quantity.
+    const data: Record<string, Record<string, { transferOut: number; transferIn: number; net: number }>> = {}
     // Which leg(s) of a transfer this column actually has, so the badge can say STOCK IN / STOCK
     // OUT instead of the generic SO(INT) label once a single warehouse (not "All") isolates it to
     // one direction.
@@ -208,10 +236,12 @@ export default function StockMovementsView() {
       skuSet.add(m.sku)
       if (m.reference_id) orderSet.add(m.reference_id)
       if (!data[m.sku]) data[m.sku] = {}
-      if (!data[m.sku][m.reference_id]) data[m.sku][m.reference_id] = { out: 0, in: 0 }
+      if (!data[m.sku][m.reference_id]) data[m.sku][m.reference_id] = { transferOut: 0, transferIn: 0, net: 0 }
       const qty = unit === 'units' ? m.quantity_units : m.quantity_packs
-      if (INBOUND_MOVEMENT_TYPES.has(m.movement_type)) data[m.sku][m.reference_id].in += qty
-      else data[m.sku][m.reference_id].out += qty
+      const cell = data[m.sku][m.reference_id]
+      if (m.movement_type === 'transfer_out') cell.transferOut += qty
+      else if (m.movement_type === 'transfer_in') cell.transferIn += qty
+      else cell.net += INBOUND_MOVEMENT_TYPES.has(m.movement_type) ? -qty : qty
 
       if (m.reference_id) {
         if (!colTypes[m.reference_id]) colTypes[m.reference_id] = new Set()
@@ -243,20 +273,27 @@ export default function StockMovementsView() {
     return { skus, orderedCols, pivot: data, colDirection }
   }, [movements, orderMap, productMap, unit])
 
-  // The gross, single-direction size of a cell: whichever leg is present (a normal sale only ever
-  // has "out", a PO receipt or return only ever has "in"). If a cell somehow has both — an
-  // internal transfer viewed across "All" warehouses — showing the outbound leg avoids double-
-  // counting the same transfer twice while still surfacing that it happened (not netting to 0).
+  // A real transfer leg wins over the netted figure — a normal sale/return/etc. never has
+  // transferOut/transferIn set, so this falls straight through to `net` (already immune to edit
+  // noise). Only an internal transfer viewed across "All" warehouses has a transfer leg at all;
+  // showing that leg (instead of transferOut - transferIn, which would cancel to 0) surfaces that
+  // stock genuinely moved without double-counting the same transfer twice.
   const cellValue = (sku: string, col: string) => {
     const cell = pivot[sku]?.[col]
     if (!cell) return 0
-    return cell.out > 0 ? cell.out : -cell.in
+    if (cell.transferOut > 0 || cell.transferIn > 0) return cell.transferOut > 0 ? cell.transferOut : -cell.transferIn
+    return cell.net
   }
 
   // "Total" is scoped to real client sales (SO + SO(DO)) only — SO(INT) transfers, PO receipts,
   // returns, transformations and stocktake adjustments are not sales and would otherwise mix
   // internal stock movement with actual sales volume in the same number.
   const isSalesCol = (col: string) => orderMap[col]?.document_type === 'so'
+
+  // Columns actually shown given the document-type filter — a display-only narrowing, kept
+  // separate from orderedCols so Sales Total / Opening / Closing keep reflecting everything
+  // regardless of which columns happen to be visible right now.
+  const visibleCols = orderedCols.filter(col => matchesDocFilter(orderMap[col], docFilter))
 
   // Row totals
   const rowTotal = (sku: string) =>
@@ -270,8 +307,8 @@ export default function StockMovementsView() {
   // both legs against the same order, so at warehouse="All" colTotal alone would show 0 (net) and
   // read as "nothing happened" even though stock genuinely moved. Showing both numbers instead of
   // one resolved/netted figure means nothing has to be guessed or hidden.
-  const colOutTotal = (col: string) => skus.reduce((s, sku) => s + (pivot[sku]?.[col]?.out ?? 0), 0)
-  const colInTotal = (col: string) => skus.reduce((s, sku) => s + (pivot[sku]?.[col]?.in ?? 0), 0)
+  const colOutTotal = (col: string) => skus.reduce((s, sku) => s + (pivot[sku]?.[col]?.transferOut ?? 0), 0)
+  const colInTotal = (col: string) => skus.reduce((s, sku) => s + (pivot[sku]?.[col]?.transferIn ?? 0), 0)
 
   const grandTotal = skus.reduce((s, sku) => s + rowTotal(sku), 0)
 
@@ -408,6 +445,15 @@ export default function StockMovementsView() {
             Packs
           </button>
         </div>
+        <div className="flex flex-wrap gap-1.5 w-full pt-3 border-t border-gray-100">
+          {DOC_FILTER_OPTIONS.map(opt => (
+            <button key={opt.value} onClick={() => setDocFilter(opt.value)}
+              className={'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ' +
+                (docFilter === opt.value ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50')}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Pivot Table */}
@@ -427,7 +473,7 @@ export default function StockMovementsView() {
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="sticky left-0 z-10 bg-gray-50 text-left px-4 py-2 font-medium text-gray-600 min-w-48 border-r border-gray-200">Product</th>
                   <th className="sticky left-48 z-10 bg-gray-50 text-left px-3 py-2 font-medium text-gray-600 min-w-24 border-r border-gray-200">SKU</th>
-                  {orderedCols.map(col => {
+                  {visibleCols.map(col => {
                     const o = orderMap[col]
                     const dir = colDirection[col]
                     return (
@@ -463,7 +509,7 @@ export default function StockMovementsView() {
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="sticky left-0 z-10 bg-gray-50 border-r border-gray-200" />
                   <th className="sticky left-48 z-10 bg-gray-50 border-r border-gray-200" />
-                  {orderedCols.map(col => {
+                  {visibleCols.map(col => {
                     const o = orderMap[col]
                     const out = colOutTotal(col)
                     const inn = colInTotal(col)
@@ -492,7 +538,7 @@ export default function StockMovementsView() {
                 <tr className="bg-gray-50 border-b border-gray-300">
                   <th className="sticky left-0 z-10 bg-gray-50 border-r border-gray-200 px-4 py-1.5 text-left text-xs text-gray-400">Brand · Vitola</th>
                   <th className="sticky left-48 z-10 bg-gray-50 border-r border-gray-200 px-3 py-1.5 text-xs text-gray-400">SKU</th>
-                  {orderedCols.map(col => {
+                  {visibleCols.map(col => {
                     const o = orderMap[col]
                     return (
                       <th key={col} className="px-3 py-1.5 text-center border-r border-gray-100 text-xs text-gray-400 font-normal">
@@ -522,7 +568,7 @@ export default function StockMovementsView() {
                         style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
                         {sku}
                       </td>
-                      {orderedCols.map(col => {
+                      {visibleCols.map(col => {
                         const val = cellValue(sku, col)
                         return (
                           <td key={col} className="px-3 py-2.5 text-right border-r border-gray-100 font-mono text-xs">
@@ -553,7 +599,7 @@ export default function StockMovementsView() {
                 <tr className="bg-gray-100 border-t-2 border-gray-300">
                   <td className="sticky left-0 z-10 bg-gray-100 px-4 py-2.5 font-bold text-gray-900 text-xs border-r border-gray-200">TOTAL</td>
                   <td className="sticky left-48 z-10 bg-gray-100 border-r border-gray-200" />
-                  {orderedCols.map(col => {
+                  {visibleCols.map(col => {
                     const out = colOutTotal(col)
                     const inn = colInTotal(col)
                     return (
