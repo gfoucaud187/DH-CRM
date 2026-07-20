@@ -10,12 +10,15 @@ const WAREHOUSES = ['All', 'T1', 'Central', 'Aged', 'Sample', 'Private']
 // "Aged" stays the DB/data key — only the on-screen label changes
 const WAREHOUSE_LABELS: Record<string, string> = { Aged: 'Central Ageing' }
 
-const getDocLabel = (o: any) => {
+// direction is only meaningful for so_int: which way this order's movements go in the currently
+// selected single warehouse ('in' = receiving, 'out' = sending). Undefined when viewing "All"
+// warehouses at once (both legs present) or for any other document type.
+const getDocLabel = (o: any, direction?: 'in' | 'out') => {
   if (o.document_type === 'stock_inbound') return 'STOCK IN'
   if (o.document_type === 'client_return') return 'RETURN'
   if (o.document_type === 'stocktake_diff') return 'STOCKTAKE'
   if (o.document_type === 'transformation') return 'TRANSFORM'
-  if (o.document_type === 'so_int') return 'SO(INT)'
+  if (o.document_type === 'so_int') return direction === 'in' ? 'STOCK IN' : direction === 'out' ? 'STOCK OUT' : 'SO(INT)'
   if (o.is_foc && o.document_type === 'invoice') return 'INV(DO)'
   if (o.is_foc) return 'SO(DO)'
   if (o.is_sample) return 'SO(SAMPLE)'
@@ -28,12 +31,12 @@ const getDocLabel = (o: any) => {
 // now that inbound movements (Stock Inbound, Client Return, Stocktake surplus) show up alongside sales.
 const INBOUND_MOVEMENT_TYPES = new Set(['in', 'stock_inbound', 'client_return_in', 'stocktake_in', 'transformation_in', 'transfer_in'])
 
-const getDocColor = (o: any) => {
+const getDocColor = (o: any, direction?: 'in' | 'out') => {
   if (o.document_type === 'stock_inbound') return '#0891b2'
   if (o.document_type === 'client_return') return '#db2777'
   if (o.document_type === 'stocktake_diff') return '#ca8a04'
   if (o.document_type === 'transformation') return '#4f46e5'
-  if (o.document_type === 'so_int') return '#0d9488'
+  if (o.document_type === 'so_int') return direction === 'in' ? '#0891b2' : direction === 'out' ? '#dc2626' : '#0d9488'
   if (o.is_foc) return '#16a34a'
   if (o.document_type === 'invoice') return '#7c3aed'
   if (o.is_sample) return '#d97706'
@@ -187,18 +190,40 @@ export default function StockMovementsView() {
   }, [products])
 
   // Build pivot: rows = SKUs, columns = orders
-  const { skus, orderedCols, pivot } = useMemo(() => {
+  const { skus, orderedCols, pivot, colDirection } = useMemo(() => {
     const skuSet = new Set<string>()
     const orderSet = new Set<string>()
-    const data: Record<string, Record<string, number>> = {}
+    // Out/in are tallied separately per (sku, order) instead of netted into one signed number —
+    // an internal transfer (SO(INT)) logs both a transfer_out and a matching transfer_in for the
+    // very same order, and with warehouse="All" selected both legs land in the same cell. Netting
+    // them would cancel a transfer to exactly 0 (mathematically correct for "did total company
+    // stock change" but reads as "nothing happened" for a specific transfer that clearly did).
+    const data: Record<string, Record<string, { out: number; in: number }>> = {}
+    // Which leg(s) of a transfer this column actually has, so the badge can say STOCK IN / STOCK
+    // OUT instead of the generic SO(INT) label once a single warehouse (not "All") isolates it to
+    // one direction.
+    const colTypes: Record<string, Set<string>> = {}
 
     ;(movements as any[]).forEach((m: any) => {
       skuSet.add(m.sku)
       if (m.reference_id) orderSet.add(m.reference_id)
       if (!data[m.sku]) data[m.sku] = {}
-      if (!data[m.sku][m.reference_id]) data[m.sku][m.reference_id] = 0
+      if (!data[m.sku][m.reference_id]) data[m.sku][m.reference_id] = { out: 0, in: 0 }
       const qty = unit === 'units' ? m.quantity_units : m.quantity_packs
-      data[m.sku][m.reference_id] += INBOUND_MOVEMENT_TYPES.has(m.movement_type) ? -qty : qty
+      if (INBOUND_MOVEMENT_TYPES.has(m.movement_type)) data[m.sku][m.reference_id].in += qty
+      else data[m.sku][m.reference_id].out += qty
+
+      if (m.reference_id) {
+        if (!colTypes[m.reference_id]) colTypes[m.reference_id] = new Set()
+        colTypes[m.reference_id].add(m.movement_type)
+      }
+    })
+
+    const colDirection: Record<string, 'in' | 'out' | undefined> = {}
+    Object.entries(colTypes).forEach(([col, types]) => {
+      const hasIn = types.has('transfer_in')
+      const hasOut = types.has('transfer_out')
+      colDirection[col] = hasIn && !hasOut ? 'in' : hasOut && !hasIn ? 'out' : undefined
     })
 
     // Sort orders by date
@@ -215,8 +240,18 @@ export default function StockMovementsView() {
       return pa.localeCompare(pb) || a.localeCompare(b)
     })
 
-    return { skus, orderedCols, pivot: data }
+    return { skus, orderedCols, pivot: data, colDirection }
   }, [movements, orderMap, productMap, unit])
+
+  // The gross, single-direction size of a cell: whichever leg is present (a normal sale only ever
+  // has "out", a PO receipt or return only ever has "in"). If a cell somehow has both — an
+  // internal transfer viewed across "All" warehouses — showing the outbound leg avoids double-
+  // counting the same transfer twice while still surfacing that it happened (not netting to 0).
+  const cellValue = (sku: string, col: string) => {
+    const cell = pivot[sku]?.[col]
+    if (!cell) return 0
+    return cell.out > 0 ? cell.out : -cell.in
+  }
 
   // "Total" is scoped to real client sales (SO + SO(DO)) only — SO(INT) transfers, PO receipts,
   // returns, transformations and stocktake adjustments are not sales and would otherwise mix
@@ -225,11 +260,18 @@ export default function StockMovementsView() {
 
   // Row totals
   const rowTotal = (sku: string) =>
-    orderedCols.filter(isSalesCol).reduce((s, col) => s + (pivot[sku]?.[col] ?? 0), 0)
+    orderedCols.filter(isSalesCol).reduce((s, col) => s + cellValue(sku, col), 0)
 
   // Col totals — unrestricted, this is the per-order column sum shown in its own header cell
   const colTotal = (col: string) =>
-    skus.reduce((s, sku) => s + (pivot[sku]?.[col] ?? 0), 0)
+    skus.reduce((s, sku) => s + cellValue(sku, col), 0)
+
+  // Separate out/in totals for a column's header display — an internal transfer (SO(INT)) logs
+  // both legs against the same order, so at warehouse="All" colTotal alone would show 0 (net) and
+  // read as "nothing happened" even though stock genuinely moved. Showing both numbers instead of
+  // one resolved/netted figure means nothing has to be guessed or hidden.
+  const colOutTotal = (col: string) => skus.reduce((s, sku) => s + (pivot[sku]?.[col]?.out ?? 0), 0)
+  const colInTotal = (col: string) => skus.reduce((s, sku) => s + (pivot[sku]?.[col]?.in ?? 0), 0)
 
   const grandTotal = skus.reduce((s, sku) => s + rowTotal(sku), 0)
 
@@ -387,10 +429,11 @@ export default function StockMovementsView() {
                   <th className="sticky left-48 z-10 bg-gray-50 text-left px-3 py-2 font-medium text-gray-600 min-w-24 border-r border-gray-200">SKU</th>
                   {orderedCols.map(col => {
                     const o = orderMap[col]
+                    const dir = colDirection[col]
                     return (
                       <th key={col} className="px-3 py-2 text-center min-w-32 border-r border-gray-100">
-                        <span className="text-xs px-1.5 py-0.5 rounded font-medium text-white" style={{ backgroundColor: o ? getDocColor(o) : '#6b7280' }}>
-                          {o ? getDocLabel(o) : '?'}
+                        <span className="text-xs px-1.5 py-0.5 rounded font-medium text-white" style={{ backgroundColor: o ? getDocColor(o, dir) : '#6b7280' }}>
+                          {o ? getDocLabel(o, dir) : '?'}
                         </span>
                       </th>
                     )
@@ -422,11 +465,20 @@ export default function StockMovementsView() {
                   <th className="sticky left-48 z-10 bg-gray-50 border-r border-gray-200" />
                   {orderedCols.map(col => {
                     const o = orderMap[col]
+                    const out = colOutTotal(col)
+                    const inn = colInTotal(col)
                     return (
                       <th key={col} className="px-3 py-1.5 text-center border-r border-gray-100">
                         <div className="font-mono text-xs text-gray-700 font-semibold">{o?.order_number ?? '—'}</div>
                         <div className="text-xs text-gray-400 truncate max-w-28">{o?.customer_name ?? ''}</div>
-                        <div className="font-mono text-xs font-bold text-gray-900 mt-0.5">{Math.abs(colTotal(col)).toLocaleString('en-US')}</div>
+                        {out > 0 && inn > 0 ? (
+                          <div className="font-mono text-xs font-bold mt-0.5 flex justify-center gap-1.5">
+                            <span className="text-red-600">−{out.toLocaleString('en-US')}</span>
+                            <span className="text-cyan-600">+{inn.toLocaleString('en-US')}</span>
+                          </div>
+                        ) : (
+                          <div className="font-mono text-xs font-bold text-gray-900 mt-0.5">{Math.abs(colTotal(col)).toLocaleString('en-US')}</div>
+                        )}
                       </th>
                     )
                   })}
@@ -471,7 +523,7 @@ export default function StockMovementsView() {
                         {sku}
                       </td>
                       {orderedCols.map(col => {
-                        const val = pivot[sku]?.[col]
+                        const val = cellValue(sku, col)
                         return (
                           <td key={col} className="px-3 py-2.5 text-right border-r border-gray-100 font-mono text-xs">
                             {val ? <span className="text-gray-800 font-medium">{Math.abs(val).toLocaleString('en-US')}</span> : <span className="text-gray-200">—</span>}
@@ -501,11 +553,22 @@ export default function StockMovementsView() {
                 <tr className="bg-gray-100 border-t-2 border-gray-300">
                   <td className="sticky left-0 z-10 bg-gray-100 px-4 py-2.5 font-bold text-gray-900 text-xs border-r border-gray-200">TOTAL</td>
                   <td className="sticky left-48 z-10 bg-gray-100 border-r border-gray-200" />
-                  {orderedCols.map(col => (
-                    <td key={col} className="px-3 py-2.5 text-right font-mono text-xs font-bold text-gray-900 border-r border-gray-200">
-                      {Math.abs(colTotal(col)).toLocaleString('en-US')}
-                    </td>
-                  ))}
+                  {orderedCols.map(col => {
+                    const out = colOutTotal(col)
+                    const inn = colInTotal(col)
+                    return (
+                      <td key={col} className="px-3 py-2.5 text-right font-mono text-xs font-bold border-r border-gray-200">
+                        {out > 0 && inn > 0 ? (
+                          <span className="flex justify-end gap-1.5">
+                            <span className="text-red-600">−{out.toLocaleString('en-US')}</span>
+                            <span className="text-cyan-600">+{inn.toLocaleString('en-US')}</span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-900">{Math.abs(colTotal(col)).toLocaleString('en-US')}</span>
+                        )}
+                      </td>
+                    )
+                  })}
                   <td className="px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-900 bg-gray-200">
                     {grandTotal.toLocaleString('en-US')}
                   </td>
