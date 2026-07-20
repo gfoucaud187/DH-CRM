@@ -217,16 +217,19 @@ export default function StockMovementsView() {
   const { skus, orderedCols, pivot, colDirection } = useMemo(() => {
     const skuSet = new Set<string>()
     const orderSet = new Set<string>()
-    // Transfer legs (transfer_out / transfer_in) are tallied separately instead of netted — an
-    // internal transfer (SO(INT)) logs both for the very same order, and with warehouse="All"
-    // selected both legs land in the same cell. Netting them would cancel a transfer to exactly 0
-    // (mathematically correct for "did total company stock change" but reads as "nothing
-    // happened" for a specific transfer that clearly did).
-    // Every other movement type is netted signed into `net`, same as the Opening/Closing calc
-    // below — a draft order edited after creation goes through a delete-then-reinsert that logs a
-    // reversal 'in' alongside the new 'out' for the same order; without netting, a regular sale
-    // edited once shows a bogus 2:1 out/in split instead of its real net quantity.
+    // Every non-transfer movement type is netted signed into `net`, same as the Opening/Closing
+    // calc below — a draft order edited after creation goes through a delete-then-reinsert that
+    // logs a reversal 'in' alongside the new 'out' for the same order; without netting, a regular
+    // sale edited once shows a bogus out/in split instead of its real net quantity.
     const data: Record<string, Record<string, { transferOut: number; transferIn: number; net: number }>> = {}
+    // Raw transfer_out/transfer_in movements, kept per physical warehouse (not yet per sku/col) —
+    // an edited SO(INT) goes through the same delete-then-reinsert cycle as any other order, and
+    // each cycle re-logs a transfer_out/transfer_in pair at BOTH warehouses (the delete's reversal
+    // uses the opposite type at the SAME warehouse to cancel the prior insert). Summing raw type
+    // counts across warehouses hugely overcounts; netting inside each warehouse first cancels that
+    // edit noise and leaves the real leg — positive net at a warehouse is a real outbound leg,
+    // negative is a real inbound leg.
+    const transferNet: Record<string, Record<string, Record<string, number>>> = {}
     // Which leg(s) of a transfer this column actually has, so the badge can say STOCK IN / STOCK
     // OUT instead of the generic SO(INT) label once a single warehouse (not "All") isolates it to
     // one direction.
@@ -239,14 +242,29 @@ export default function StockMovementsView() {
       if (!data[m.sku][m.reference_id]) data[m.sku][m.reference_id] = { transferOut: 0, transferIn: 0, net: 0 }
       const qty = unit === 'units' ? m.quantity_units : m.quantity_packs
       const cell = data[m.sku][m.reference_id]
-      if (m.movement_type === 'transfer_out') cell.transferOut += qty
-      else if (m.movement_type === 'transfer_in') cell.transferIn += qty
-      else cell.net += INBOUND_MOVEMENT_TYPES.has(m.movement_type) ? -qty : qty
+
+      if (m.movement_type === 'transfer_out' || m.movement_type === 'transfer_in') {
+        if (!transferNet[m.sku]) transferNet[m.sku] = {}
+        if (!transferNet[m.sku][m.reference_id]) transferNet[m.sku][m.reference_id] = {}
+        const whMap = transferNet[m.sku][m.reference_id]
+        whMap[m.warehouse] = (whMap[m.warehouse] ?? 0) + (m.movement_type === 'transfer_out' ? qty : -qty)
+      } else {
+        cell.net += INBOUND_MOVEMENT_TYPES.has(m.movement_type) ? -qty : qty
+      }
 
       if (m.reference_id) {
         if (!colTypes[m.reference_id]) colTypes[m.reference_id] = new Set()
         colTypes[m.reference_id].add(m.movement_type)
       }
+    })
+
+    Object.entries(transferNet).forEach(([sku, cols]) => {
+      Object.entries(cols).forEach(([col, whMap]) => {
+        let out = 0, inn = 0
+        Object.values(whMap).forEach(net => { if (net > 0) out += net; else if (net < 0) inn += -net })
+        data[sku][col].transferOut = out
+        data[sku][col].transferIn = inn
+      })
     })
 
     const colDirection: Record<string, 'in' | 'out' | undefined> = {}
