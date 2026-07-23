@@ -114,7 +114,7 @@ export default function EditCustomerPage() {
     queryKey: ['products-simple-pricing'],
     queryFn: async () => {
       const { data } = await supabase.from('products')
-        .select('sku, full_name, brand')
+        .select('sku, full_name, brand, fixmer_reference')
         .in('product_role', ['original', 'aged']).eq('status', 'active').order('brand')
       return data ?? []
     }
@@ -568,7 +568,7 @@ export default function EditCustomerPage() {
                       .filter((p: any) => {
                         if (!pricingSearch) return true
                         const q = pricingSearch.toLowerCase()
-                        return p.sku?.toLowerCase().includes(q) || p.full_name?.toLowerCase().includes(q) || p.brand?.toLowerCase().includes(q)
+                        return p.sku?.toLowerCase().includes(q) || p.full_name?.toLowerCase().includes(q) || p.brand?.toLowerCase().includes(q) || p.fixmer_reference?.toLowerCase().includes(q)
                       })
                       .map((p: any) => {
                         const refPrice = getReferencePrice(p.sku)
