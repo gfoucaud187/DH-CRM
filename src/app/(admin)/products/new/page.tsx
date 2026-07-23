@@ -49,6 +49,7 @@ function SimplifiedForm({ productType }: { productType: 'accessory' | 'book' }) 
       sku,
       full_name: fullName,
       status,
+      brand: label,
       net_weight_g: weightG ? parseFloat(weightG) : null,
       units_per_pack: unitsPerPack ? parseInt(unitsPerPack) : null,
       pack_type: packType || null,
