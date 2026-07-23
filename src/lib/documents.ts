@@ -191,23 +191,50 @@ export function getTransformationFileName(tr: { transformation_number: string; w
 }
 
 /**
- * Récupère le prochain numéro de version pour un document
+ * Récupère le prochain numéro de version pour un document. Accepts either a single order id or
+ * a whole lineage of ids — cancelling and reissuing an invoice/credit-note/SO(DO) mints a brand
+ * new sales_orders row (new id) for what users consider the same logical document, so versioning
+ * has to look across every id in that lineage or it silently restarts at V1 and orphans the prior
+ * versions instead of continuing/superseding them. See getInvoiceVersionLineageIds.
  */
 export async function getNextVersion(
   supabase: any,
-  orderId: string,
+  orderId: string | string[],
   documentType: string
 ): Promise<number> {
+  const orderIds = Array.isArray(orderId) ? orderId : [orderId]
   const { data } = await supabase
     .from('document_files')
     .select('version')
-    .eq('order_id', orderId)
+    .in('order_id', orderIds)
     .eq('document_type', documentType)
     .order('version', { ascending: false })
     .limit(1)
     .maybeSingle()
 
   return data ? data.version + 1 : 1
+}
+
+/**
+ * Sibling sales_orders ids sharing the same promoted_from root and the same "linked" shape as
+ * `order` — i.e. every cancel-and-reissue cycle of the same logical invoice/credit-note/SO(DO).
+ * Falls back to just [order.id] when there's no promoted_from (a plain root SO, which isn't known
+ * to go through this new-id-per-reissue pattern).
+ */
+export async function getInvoiceVersionLineageIds(supabase: any, order: any): Promise<string[]> {
+  if (!order.promoted_from) return [order.id]
+  const isLinked = !!order.linked_order_id
+  const { data } = await supabase
+    .from('sales_orders')
+    .select('id, linked_order_id')
+    .eq('promoted_from', order.promoted_from)
+    .eq('document_type', order.document_type)
+
+  const siblings = ((data ?? []) as any[])
+    .filter(s => !!s.linked_order_id === isLinked)
+    .map(s => s.id)
+
+  return siblings.length > 0 ? siblings : [order.id]
 }
 
 /**

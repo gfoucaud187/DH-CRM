@@ -10,6 +10,7 @@ import {
   getInvoiceFileName,
   getFilePath,
   getNextVersion,
+  getInvoiceVersionLineageIds,
 } from '@/lib/documents'
 
 interface InvoicePDFProps {
@@ -227,7 +228,8 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
 
     if (isInvoice) {
       const srcDoc = sourceDoc ?? rootSO
-      const version = await getNextVersion(supabase, order.id, 'invoice')
+      const lineageIds = await getInvoiceVersionLineageIds(supabase, order)
+      const version = await getNextVersion(supabase, lineageIds, 'invoice')
       // Pour T&T: le destinataire est Fixmer, pas le client original
       const { data: cust } = await supabase
         .from('customers')
@@ -243,15 +245,18 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
       return { folderName, fileName, docType: 'invoice' as const, version }
     } else if (isCreditNote) {
       const srcDoc = sourceDoc ?? rootSO
-      const version = await getNextVersion(supabase, order.id, 'credit_note')
+      const lineageIds = await getInvoiceVersionLineageIds(supabase, order)
+      const version = await getNextVersion(supabase, lineageIds, 'credit_note')
       const fileName = getInvoiceFileName(order, srcDoc, version)
       return { folderName, fileName, docType: 'credit_note' as const, version }
     } else if (isFoc) {
-      const version = await getNextVersion(supabase, order.id, 'so_do')
+      const lineageIds = await getInvoiceVersionLineageIds(supabase, order)
+      const version = await getNextVersion(supabase, lineageIds, 'so_do')
       const fileName = getSOFileName(order, version)
       return { folderName, fileName, docType: 'so_do' as const, version }
     } else {
-      const version = await getNextVersion(supabase, order.id, 'so')
+      const lineageIds = await getInvoiceVersionLineageIds(supabase, order)
+      const version = await getNextVersion(supabase, lineageIds, 'so')
       const fileName = getSOFileName(order, version)
       return { folderName, fileName, docType: 'so' as const, version }
     }

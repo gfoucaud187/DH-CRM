@@ -17,6 +17,7 @@ interface DocumentFile {
   version: number
   file_size: number
   created_at: string
+  lineageKey?: string
 }
 
 interface FolderData {
@@ -54,13 +55,15 @@ function formatDate(dateStr: string): string {
   })
 }
 
-// Groups a folder's files by document identity (order_id — stable even if the order number
-// itself gets renamed between saves, unlike the file name) and splits each group into its
-// latest version (shown at top level) and older ones (archived).
+// Groups a folder's files by document identity — lineageKey when available (see loadDocuments:
+// it follows promoted_from across a cancel-and-reissue cycle, since that mints a brand new
+// order_id for what users consider the same logical invoice/credit-note/SO(DO)), falling back to
+// order_id, then the file name — and splits each group into its latest version (shown at top
+// level) and older ones (archived).
 function splitLatestAndArchive(files: DocumentFile[]): { latest: DocumentFile[]; archived: DocumentFile[] } {
   const groups: Record<string, DocumentFile[]> = {}
   for (const file of files) {
-    const key = file.order_id ?? file.file_name.replace(/ V\d+\.pdf$/, '')
+    const key = file.lineageKey ?? file.order_id ?? file.file_name.replace(/ V\d+\.pdf$/, '')
     if (!groups[key]) groups[key] = []
     groups[key].push(file)
   }
@@ -133,10 +136,22 @@ export default function DocumentsPage() {
     if (orderIds.length > 0) {
       const { data: orders } = await supabase
         .from('sales_orders')
-        .select('id, status')
+        .select('id, status, document_type, promoted_from, linked_order_id')
         .in('id', orderIds)
       const statusMap: Record<string, string> = {}
-      for (const o of (orders ?? []) as any[]) statusMap[o.id] = o.status
+      // Cancelling and reissuing an invoice/credit-note/SO(DO) mints a brand new sales_orders row
+      // (new id) sharing the same promoted_from root — group those together so the reissued file
+      // is recognized as superseding the cancelled one instead of showing up as its own "latest".
+      const lineageKeyMap: Record<string, string> = {}
+      for (const o of (orders ?? []) as any[]) {
+        statusMap[o.id] = o.status
+        lineageKeyMap[o.id] = o.promoted_from
+          ? `${o.promoted_from}:${o.document_type}:${!!o.linked_order_id}`
+          : o.id
+      }
+      for (const file of data as DocumentFile[]) {
+        if (file.order_id) file.lineageKey = lineageKeyMap[file.order_id]
+      }
       for (const folder of Object.values(folderMap)) {
         folder.hasCancelled = folder.files.some(f => statusMap[f.order_id] === 'cancelled')
       }
