@@ -263,7 +263,9 @@ export default function OrdersPage() {
               <ChevronRight className="h-3 w-3 text-gray-300 flex-shrink-0" />
             </div>
           )}
-          <span className="font-mono text-xs font-semibold text-gray-900">{o.order_number ?? 'Draft'}</span>
+          <span className="font-mono text-xs font-semibold text-gray-900">
+            {o.order_number ?? 'Draft'}{o.status === 'draft' && <span className="text-gray-400"> (DRAFT)</span>}
+          </span>
         </div>
       </td>
       <td className="px-4 py-3 font-medium text-gray-900 text-sm">

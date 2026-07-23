@@ -112,7 +112,7 @@ export default function NewOrderPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('products')
-        .select('sku, full_name, brand, units_per_pack, fixmer_reference')
+        .select('sku, full_name, brand, units_per_pack, fixmer_reference, product_role')
         .in('product_role', ['original', 'aged']).eq('status', 'active')
         .order('brand').limit(500)
       return data ?? []
@@ -202,7 +202,9 @@ export default function NewOrderPage() {
       line_total: 0,
       fixmer_reference: product.fixmer_reference ?? null,
       diff_price_per_unit: getFrozenGap(product.sku),
-      warehouse: isSample ? 'Sample' : warehouse,
+      // Aged stock only ever sits in the Central Ageing warehouse — defaulting to the order's
+      // general warehouse (T1/Central) would pick a location that never actually has this SKU.
+      warehouse: isSample ? 'Sample' : (product.product_role === 'aged' ? 'Aged' : warehouse),
     }])
   }
 
@@ -333,7 +335,10 @@ export default function NewOrderPage() {
             line_total: units * price,
             fixmer_reference: product.fixmer_reference ?? null,
             diff_price_per_unit: getFrozenGapForOcr(product.sku),
-            warehouse: isSample ? 'Sample' : (data.warehouse_guess && WAREHOUSES.includes(data.warehouse_guess) ? data.warehouse_guess : warehouse),
+            // Aged stock only exists in Central Ageing regardless of what warehouse the source
+            // document mentions — see the same check in addLine above.
+            warehouse: isSample ? 'Sample' : product.product_role === 'aged' ? 'Aged'
+              : (data.warehouse_guess && WAREHOUSES.includes(data.warehouse_guess) ? data.warehouse_guess : warehouse),
           })
         }
       }
@@ -369,10 +374,17 @@ export default function NewOrderPage() {
   const totalPacks = lines.reduce((s, l) => s + l.quantity_packs, 0)
   const totalUnits = lines.reduce((s, l) => s + l.quantity_units, 0)
 
-  const handleSubmit = async () => {
-    if (!isInt && !customerId) return alert('Please select a customer')
-    if (lines.length === 0) return alert('Please add at least one product')
-    if (isInt && warehouse === warehouseDestination) return alert('FROM and TO warehouses must be different')
+  // Saving as a draft skips the "ready to submit" checks below — the point is to let whatever
+  // has been entered so far (maybe just a customer, maybe just a couple of lines) persist instead
+  // of being lost to a closed tab or a crash, picked back up later from the order's edit page.
+  // The backend already creates every order with status 'draft' regardless, and already tolerates
+  // a null customer_id / zero lines, so there's nothing else to relax on that end.
+  const handleSubmit = async (asDraft = false) => {
+    if (!asDraft) {
+      if (!isInt && !customerId) return alert('Please select a customer')
+      if (lines.length === 0) return alert('Please add at least one product')
+      if (isInt && warehouse === warehouseDestination) return alert('FROM and TO warehouses must be different')
+    }
     setSaving(true)
     try {
       const res = await fetch('/api/orders', {
@@ -446,11 +458,18 @@ export default function NewOrderPage() {
           <h1 className="text-2xl font-bold text-gray-900">New Sales Document</h1>
           <p className="text-gray-500 text-sm mt-0.5">Select document type below</p>
         </div>
-        <button onClick={handleSubmit} disabled={saving || lines.length === 0}
-          className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
-          <ShoppingCart className="h-4 w-4" />
-          {saving ? 'Creating...' : cfg.btnLabel}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => handleSubmit(true)} disabled={saving}
+            title="Save whatever's filled in so far and come back to it later from the order's edit page"
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors">
+            {saving ? 'Saving...' : 'Save Draft'}
+          </button>
+          <button onClick={() => handleSubmit(false)} disabled={saving || lines.length === 0}
+            className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors">
+            <ShoppingCart className="h-4 w-4" />
+            {saving ? 'Creating...' : cfg.btnLabel}
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2 mb-6 flex-wrap">

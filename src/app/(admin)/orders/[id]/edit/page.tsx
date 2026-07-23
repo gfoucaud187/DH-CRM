@@ -78,7 +78,7 @@ export default function EditOrderPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('products')
-        .select('sku, full_name, brand, units_per_pack, fixmer_reference')
+        .select('sku, full_name, brand, units_per_pack, fixmer_reference, product_role')
         .in('product_role', ['original', 'aged']).eq('status', 'active')
         .order('brand').limit(500)
       return data ?? []
@@ -203,7 +203,8 @@ export default function EditOrderPage() {
       line_type: order.is_foc ? 'foc' : 'commercial',
       fixmer_reference: product.fixmer_reference ?? null,
       diff_price_per_unit: getFrozenGap(product.sku),
-      warehouse: order.is_sample ? 'Sample' : warehouse,
+      // Aged stock only exists in Central Ageing — see the same check in orders/new/page.tsx.
+      warehouse: order.is_sample ? 'Sample' : (product.product_role === 'aged' ? 'Aged' : warehouse),
     }])
   }
 
