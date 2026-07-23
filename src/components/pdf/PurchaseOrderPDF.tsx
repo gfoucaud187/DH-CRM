@@ -38,11 +38,14 @@ export default function PurchaseOrderPDF({ order, lines, customer }: PurchaseOrd
   const onAccent = '#C4B3E8'
 
   const salesContact = customer?.contacts?.find((c: any) => c.role === 'Sales') ?? customer?.contacts?.[0]
+  const salesContactPhone = salesContact?.phone
+    ? (salesContact.phone_dial ? `+${salesContact.phone_dial} ${salesContact.phone}` : salesContact.phone)
+    : null
   const salesContactLine = salesContact
     ? [
         [salesContact.first_name, salesContact.last_name].filter(Boolean).join(' '),
         salesContact.email,
-        salesContact.phone,
+        salesContactPhone,
       ].filter(Boolean).join(' | ')
     : null
 

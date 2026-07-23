@@ -350,8 +350,11 @@ export default function InvoicePDF({ order, lines, services = [], customer, appS
   const onAccent = isInvoice ? '#D9A6AC' : '#9FBDB0'
 
   const salesContact = customer?.contacts?.find((c: any) => c.role === 'Sales') ?? customer?.contacts?.[0]
+  const salesContactPhone = salesContact?.phone
+    ? (salesContact.phone_dial ? `+${salesContact.phone_dial} ${salesContact.phone}` : salesContact.phone)
+    : null
   const salesContactLine = salesContact
-    ? [[salesContact.first_name, salesContact.last_name].filter(Boolean).join(' '), salesContact.email, salesContact.phone].filter(Boolean).join(' | ')
+    ? [[salesContact.first_name, salesContact.last_name].filter(Boolean).join(' '), salesContact.email, salesContactPhone].filter(Boolean).join(' | ')
     : null
 
   const fixmerName        = appSettings?.tt_company   ?? 'Fixmer Belgium S.A.'
