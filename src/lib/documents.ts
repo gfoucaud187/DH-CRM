@@ -347,9 +347,13 @@ export async function getAllFolders(supabase: any) {
  * Génère une URL signée pour télécharger un fichier (1h)
  */
 export async function getSignedUrl(supabase: any, filePath: string): Promise<string | null> {
-  const { data } = await supabase.storage
+  // { download: true } is what actually makes the browser save the file — without it there's no
+  // Content-Disposition: attachment header, so the PDF just opens inline in the tab and nothing
+  // lands in the user's Downloads folder even though the request itself succeeds.
+  const { data, error } = await supabase.storage
     .from('documents')
-    .createSignedUrl(filePath, 3600)
+    .createSignedUrl(filePath, 3600, { download: true })
 
+  if (error) console.error('createSignedUrl error:', error.message, filePath)
   return data?.signedUrl ?? null
 }

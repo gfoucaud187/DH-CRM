@@ -182,12 +182,21 @@ export default function DocumentsPage() {
   const handleDownload = async (file: DocumentFile) => {
     setDownloading(file.id)
     const win = window.open('', '_blank')
+    if (!win) {
+      // Most browsers silently drop this window.open when popups are blocked — with nothing
+      // shown, a blocked click looks identical to a working one that's just slow, so the user
+      // has no way to tell they need to allow popups instead of clicking again.
+      alert('Download blocked by your browser\'s popup blocker. Please allow popups for this site and try again.')
+      setDownloading(null)
+      return
+    }
     try {
       const url = await getSignedUrl(supabase, file.file_path)
-      if (url && win) {
+      if (url) {
         win.location.href = url
       } else {
-        win?.close()
+        win.close()
+        alert('Could not generate a download link for this file. Please try again or contact support.')
       }
     } finally {
       setDownloading(null)
