@@ -115,7 +115,7 @@ export default function EditCustomerPage() {
     queryFn: async () => {
       const { data } = await supabase.from('products')
         .select('sku, full_name, brand')
-        .eq('product_role', 'original').eq('status', 'active').order('brand')
+        .in('product_role', ['original', 'aged']).eq('status', 'active').order('brand')
       return data ?? []
     }
   })

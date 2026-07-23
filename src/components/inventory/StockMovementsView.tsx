@@ -208,7 +208,7 @@ export default function StockMovementsView() {
       const { data } = await supabase
         .from('products')
         .select('sku, full_name, brand, line, vitola')
-        .eq('product_role', 'original')
+        .in('product_role', ['original', 'aged'])
       return data ?? []
     }
   })
