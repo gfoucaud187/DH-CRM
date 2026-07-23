@@ -282,6 +282,22 @@ export default function NewOrderPage() {
       const getPriceForOcr = (sku: string) =>
         (priceEntries as any[]).find((e: any) => e.sku === sku && e.price_list === ocrPriceList)?.price_per_unit ?? 0
 
+      // Same gap logic as getFrozenGap (manual add-line), but keyed off ocrCustomer instead of
+      // the customerId state — for the same reason as ocrPriceList/getPriceForOcr above: OCR can
+      // match and use a customer within this same call before handleCustomerChange's setState has
+      // actually landed, so reading customerId here would silently price the gap off the wrong
+      // (or no) customer.
+      const getFrozenGapForOcr = (sku: string): number | null => {
+        if (priceIsZero) return null
+        if (!ocrCustomer?.manual_pricing_enabled || !ocrCustomer.reference_price_list) return null
+        const negotiated = (negotiatedPrices as any[]).find((n: any) => n.customer_id === ocrCustomer.id && n.sku === sku)
+        if (!negotiated) return null
+        const referenceEntry = (priceEntries as any[]).find((e: any) => e.sku === sku && e.price_list === ocrCustomer.reference_price_list)
+        if (!referenceEntry) return null
+        const gap = Number(referenceEntry.price_per_unit) - Number(negotiated.price_per_unit)
+        return Math.abs(gap) > 0.0001 ? gap : null
+      }
+
       let matched = 0
       // Keyed by SKU: if the document (or the model) lists the same product on more than
       // one line, merge them into a single line with combined quantity instead of creating
@@ -316,7 +332,7 @@ export default function NewOrderPage() {
             price_per_unit: price,
             line_total: units * price,
             fixmer_reference: product.fixmer_reference ?? null,
-            diff_price_per_unit: null,
+            diff_price_per_unit: getFrozenGapForOcr(product.sku),
             warehouse: isSample ? 'Sample' : (data.warehouse_guess && WAREHOUSES.includes(data.warehouse_guess) ? data.warehouse_guess : warehouse),
           })
         }
