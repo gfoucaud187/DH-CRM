@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/client'
 import { COUNTRIES } from '@/lib/countries'
 import { Check, TrendingUp, TrendingDown, Download, Upload, Plus, Trash2, Search } from 'lucide-react'
 import { useT } from '@/lib/i18n/LanguageProvider'
+import { reportYearStart, reportYearEnd, reportMonthsElapsed } from '@/lib/reportPeriod'
+import FormattedNumberInput from '@/components/ui/FormattedNumberInput'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -46,7 +48,7 @@ export default function TargetsPage() {
   const [addSearch, setAddSearch] = useState('')
 
   const now = new Date()
-  const monthsElapsed = now.getMonth() + (now.getDate() / 31)
+  const monthsElapsed = reportMonthsElapsed(year, now)
 
   const { data: customers = [] } = useQuery({
     queryKey: ['targets-customers'],
@@ -75,8 +77,8 @@ export default function TargetsPage() {
         .eq('document_type', 'invoice')
         .eq('is_foc', false)
         .neq('status', 'cancelled')
-        .gte('order_date', `${year}-01-01`)
-        .lte('order_date', `${year}-12-31`)
+        .gte('order_date', reportYearStart(year))
+        .lte('order_date', reportYearEnd(year))
       return data ?? []
     }
   })
@@ -274,14 +276,21 @@ export default function TargetsPage() {
   const pushTier = computeTier('push_target')
   const stretchTier = computeTier('stretch_target')
 
-  // Axis scale comes from the targets alone (not revenue) so the tick marks stay
-  // legibly spread out — the marker is simply clamped at 100% when revenue exceeds Stretch
-  const gaugeAxisMax = Math.max(standardTier.proratedTarget, pushTier.proratedTarget, stretchTier.proratedTarget, 1)
-  const gaugeStdPct = (standardTier.proratedTarget / gaugeAxisMax) * 100
-  const gaugePushPct = (pushTier.proratedTarget / gaugeAxisMax) * 100
-  const gaugeStretchPct = (stretchTier.proratedTarget / gaugeAxisMax) * 100
-  const gaugeMarkerPct = Math.min((revenueYtdAll / gaugeAxisMax) * 100, 100)
+  // A dollar-linear axis crowds Standard/Push/Stretch together whenever they're close in value
+  // (typical: Push/Stretch are a small % apart) — ticks and labels end up overlapping right at
+  // the edge. Instead each zone (Late/Good/Excellent/Amazing) gets an equal 25%-wide band, and
+  // the marker's position is interpolated within whichever band the actual value falls in — ticks
+  // stay evenly spread regardless of how close together the underlying dollar thresholds are.
+  const zonePosition = (value: number, std: number, push: number, stretch: number) => {
+    if (value < std) return std > 0 ? Math.max((value / std) * 25, 0) : 0
+    if (value < push) return push > std ? 25 + ((value - std) / (push - std)) * 25 : 25
+    if (value < stretch) return stretch > push ? 50 + ((value - push) / (stretch - push)) * 25 : 50
+    const over = stretch > 0 ? (value - stretch) / stretch : 0
+    return Math.min(75 + over * 25, 100)
+  }
+  const gaugeMarkerPct = zonePosition(revenueYtdAll, standardTier.proratedTarget, pushTier.proratedTarget, stretchTier.proratedTarget)
   const gaugeZone = computeZone(revenueYtdAll, standardTier.proratedTarget, pushTier.proratedTarget, stretchTier.proratedTarget)
+  const GAUGE_ZONES: Zone[] = ['late', 'good', 'excellent', 'amazing']
 
   return (
     <div>
@@ -382,22 +391,34 @@ export default function TargetsPage() {
         ))}
       </div>
 
-      {/* Overall position gauge */}
+      {/* Overall position gauge — four equal-width zone bands (Late/Good/Excellent/Amazing)
+          instead of a dollar-linear axis, so ticks stay evenly spread no matter how close
+          together the underlying thresholds are; the marker's position is interpolated within
+          whichever band the actual value falls in (see zonePosition above). */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-        <p className="text-xs text-gray-500 mb-4">{t('targets.overall_position')}</p>
-        <div className="relative h-2 bg-gray-100 rounded-full mb-2">
-          <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 bg-gray-300" style={{ left: `${gaugeStdPct}%` }} />
-          <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 bg-gray-300" style={{ left: `${gaugePushPct}%` }} />
-          <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 bg-gray-300" style={{ left: `${gaugeStretchPct}%` }} />
-          {gaugeZone && (
-            <div className="absolute top-1/2 -translate-y-1/2 w-1.5 h-4 rounded-full" style={{ left: `calc(${gaugeMarkerPct}% - 3px)`, background: ZONE_HEX[gaugeZone] }} />
-          )}
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-gray-500">{t('targets.overall_position')}</p>
+          <p className="text-sm font-bold text-gray-900">{fmt(revenueYtdAll)}</p>
         </div>
-        <div className="relative h-4 text-[11px] text-gray-400 mb-3">
-          <span className="absolute -translate-x-1/2" style={{ left: `${gaugeStdPct}%` }}>{t('targets.col_standard')}</span>
-          <span className="absolute -translate-x-1/2" style={{ left: `${gaugePushPct}%` }}>{t('targets.col_push')}</span>
-          <span className="absolute -translate-x-1/2" style={{ left: `${gaugeStretchPct}%` }}>{t('targets.col_stretch')}</span>
+
+        <div className="flex gap-0.5 h-2.5 rounded-full overflow-hidden">
+          {GAUGE_ZONES.map(z => (
+            <div key={z} className="flex-1" style={{ background: gaugeZone === z ? ZONE_HEX[z] : `${ZONE_HEX[z]}2A` }} />
+          ))}
         </div>
+
+        <div className="relative h-3 mt-0.5">
+          <div className="absolute top-0" style={{ left: `${gaugeMarkerPct}%`, transform: 'translateX(-50%)' }}>
+            <div className="w-2 h-2 rounded-full border-2 border-white shadow" style={{ background: gaugeZone ? ZONE_HEX[gaugeZone] : '#9CA3AF' }} />
+          </div>
+        </div>
+
+        <div className="relative h-3 text-[9px] text-gray-400 mb-3 whitespace-nowrap">
+          <span className="absolute -translate-x-1/2" style={{ left: '25%' }}>{t('targets.col_standard')} {fmt(standardTier.proratedTarget)}</span>
+          <span className="absolute -translate-x-1/2" style={{ left: '50%' }}>{t('targets.col_push')} {fmt(pushTier.proratedTarget)}</span>
+          <span className="absolute -translate-x-1/2" style={{ left: '75%' }}>{t('targets.col_stretch')} {fmt(stretchTier.proratedTarget)}</span>
+        </div>
+
         {gaugeZone && (
           <p className="text-sm font-semibold" style={{ color: ZONE_HEX[gaugeZone] }}>
             {t('targets.status_' + gaugeZone)} — {t('targets.overall_desc_' + gaugeZone)}
@@ -454,31 +475,25 @@ export default function TargetsPage() {
                   </td>
                   {/* Standard */}
                   <td className="px-4 py-3 text-right">
-                    <input
-                      type="number"
+                    <FormattedNumberInput
                       value={getEdit(c.id, 'standard', target?.standard_target ?? 0)}
-                      onChange={e => setEdit(c.id, 'standard', e.target.value)}
-                      placeholder="0"
+                      onChange={v => setEdit(c.id, 'standard', v)}
                       className="w-28 h-8 rounded border border-gray-200 px-2 text-right text-sm focus:outline-none focus:border-blue-400"
                     />
                   </td>
                   {/* Push */}
                   <td className="px-4 py-3 text-right">
-                    <input
-                      type="number"
+                    <FormattedNumberInput
                       value={getEdit(c.id, 'push', target?.push_target ?? 0)}
-                      onChange={e => setEdit(c.id, 'push', e.target.value)}
-                      placeholder="0"
+                      onChange={v => setEdit(c.id, 'push', v)}
                       className="w-28 h-8 rounded border border-gray-200 px-2 text-right text-sm focus:outline-none focus:border-purple-400"
                     />
                   </td>
                   {/* Stretch */}
                   <td className="px-4 py-3 text-right">
-                    <input
-                      type="number"
+                    <FormattedNumberInput
                       value={getEdit(c.id, 'stretch', target?.stretch_target ?? 0)}
-                      onChange={e => setEdit(c.id, 'stretch', e.target.value)}
-                      placeholder="0"
+                      onChange={v => setEdit(c.id, 'stretch', v)}
                       className="w-28 h-8 rounded border border-gray-200 px-2 text-right text-sm focus:outline-none focus:border-gray-400"
                     />
                   </td>
@@ -498,7 +513,7 @@ export default function TargetsPage() {
                             <div className="absolute top-1/2 -translate-y-1/2 w-1.5 h-3.5 rounded-full" style={{ left: `calc(${rowMarkerPct}% - 3px)`, background: ZONE_HEX[zone] }} />
                           )}
                         </div>
-                        <p className="text-xs text-gray-400 mt-1 text-center">{fmt(rev)} / {fmt(rowProratedStd)}</p>
+                        <p className="text-[9px] text-gray-400 mt-1 text-center whitespace-nowrap">{fmt(rev)} / {Math.round(rowProratedStd).toLocaleString('en-US')}</p>
                       </div>
                     ) : <span className="text-gray-300 text-xs">{t('targets.no_target')}</span>}
                   </td>
