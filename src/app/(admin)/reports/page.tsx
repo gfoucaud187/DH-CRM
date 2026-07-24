@@ -527,23 +527,24 @@ export default function ReportsPage() {
           <div className="flex justify-end">
             <ExportButton label={t('reports.export')} onClick={exportProducts} />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-[2fr_3fr] gap-5">
             <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
               <h2 className="font-semibold text-gray-900 mb-4">Revenue by brand</h2>
               {brandList.map(([brand, data]) => (
                 <div key={brand} className="flex items-center gap-3 mb-3">
-                  <span className="text-sm text-gray-700 w-24 md:w-32 truncate">{brand}</span>
+                  <span className="text-sm text-gray-700 w-20 md:w-28 truncate">{brand}</span>
                   <div className="flex-1 h-5 bg-gray-100 rounded-full relative">
-                    <div className="h-full rounded-full"
-                      style={{ width: `${Math.max((data.revenue/maxBrand)*100, 8)}%`, background: '#0F6E56' }} />
-                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 bg-gray-900 text-white px-2 py-0.5 rounded-full whitespace-nowrap" style={{ fontSize: '9px' }}>
-                      {fmt(data.revenue)}
-                    </span>
+                    {/* Light tint (not the saturated brand color) so the black label reads
+                        clearly directly on the fill, no dark badge needed. */}
+                    <div className="h-full rounded-full flex items-center px-2"
+                      style={{ width: `${Math.max((data.revenue/maxBrand)*100, 14)}%`, background: '#0F6E5633' }}>
+                      <span className="text-gray-900 font-medium whitespace-nowrap" style={{ fontSize: '10px' }}>
+                        {data.units ? fmtUnit(data.revenue/data.units) : '—'}/u
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-xs text-gray-400 w-12 md:w-16 text-right">{data.units.toLocaleString()}u</span>
-                  <span className="text-xs text-gray-400 w-16 md:w-20 text-right" title={t('reports.col_avg_unit')}>
-                    {data.units ? fmtUnit(data.revenue/data.units) : '—'}/u
-                  </span>
+                  <span className="text-xs text-gray-400 w-12 md:w-14 text-right whitespace-nowrap">{data.units.toLocaleString()}u</span>
+                  <span className="text-xs text-gray-500 font-medium w-20 md:w-24 text-right whitespace-nowrap">{fmt(data.revenue)}</span>
                 </div>
               ))}
             </div>
@@ -554,14 +555,14 @@ export default function ReportsPage() {
                   <span className="text-xs text-gray-400 w-4 text-right">{i+1}</span>
                   <span className="text-xs text-gray-700 w-36 md:w-44 truncate" title={name}>{name}</span>
                   <div className="flex-1 h-4 bg-gray-100 rounded-full relative">
-                    <div className="h-full rounded-full" style={{ width: `${Math.max((data.units/maxProduct)*100, 8)}%`, background: '#185FA5' }} />
-                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 bg-gray-900 text-white px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ fontSize: '9px' }}>
-                      {data.units.toLocaleString()}u
-                    </span>
+                    <div className="h-full rounded-full flex items-center px-2"
+                      style={{ width: `${Math.max((data.units/maxProduct)*100, 14)}%`, background: '#185FA533' }}>
+                      <span className="text-gray-900 font-medium whitespace-nowrap" style={{ fontSize: '10px' }}>
+                        {data.units ? fmtUnit(data.revenue/data.units) : '—'}/u
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-xs text-gray-400 w-14 md:w-16 text-right" title={t('reports.col_avg_unit')}>
-                    {data.units ? fmtUnit(data.revenue/data.units) : '—'}/u
-                  </span>
+                  <span className="text-xs text-gray-400 w-14 md:w-16 text-right whitespace-nowrap">{data.units.toLocaleString()}u</span>
                 </div>
               ))}
             </div>
