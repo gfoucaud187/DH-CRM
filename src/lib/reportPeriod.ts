@@ -51,13 +51,12 @@ export function reportYearEnd(year: number): string {
   return `${year}-12-31`
 }
 
-// Fractional months elapsed within effective year `year`, for pacing a target/pro-rata against
-// "how far into the year are we" — when `year` is FOLD_INTO_YEAR, the year's real start moved
-// back 3 months (to Oct 1 of the prior year), so 3 extra months have already "elapsed" beyond
-// what `now`'s own month/day would suggest.
-export function reportMonthsElapsed(year: number, now: Date = new Date()): number {
-  const base = now.getMonth() + now.getDate() / 31
-  return year === FOLD_INTO_YEAR ? base + (12 - FOLD_START_MONTH) : base
+// Fractional months elapsed in the calendar year, for pacing a target/pro-rata against "how far
+// into the year are we". The fold only changes which bucket a transaction's REVENUE lands in —
+// annual targets are still ordinary 12-month targets, so pacing stays plain calendar time
+// (Month 7 of 12 in July is still Month 7 of 12) regardless of which year is selected.
+export function reportMonthsElapsed(now: Date = new Date()): number {
+  return now.getMonth() + now.getDate() / 31
 }
 
 // The `n` most recent DISTINCT reporting periods ending at `from` (default: today), oldest

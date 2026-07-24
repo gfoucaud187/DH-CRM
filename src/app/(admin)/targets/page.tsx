@@ -48,7 +48,7 @@ export default function TargetsPage() {
   const [addSearch, setAddSearch] = useState('')
 
   const now = new Date()
-  const monthsElapsed = reportMonthsElapsed(year, now)
+  const monthsElapsed = reportMonthsElapsed(now)
 
   const { data: customers = [] } = useQuery({
     queryKey: ['targets-customers'],
