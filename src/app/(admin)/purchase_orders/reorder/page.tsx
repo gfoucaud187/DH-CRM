@@ -4,9 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useState, useMemo, Fragment } from 'react'
-import { ArrowLeft, Sparkles, Save, AlertTriangle, Info, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { ArrowLeft, Sparkles, Save, AlertTriangle, Info } from 'lucide-react'
 import Link from 'next/link'
 import { logActivity } from '@/lib/log-activity'
+import SortableHeader from '@/components/ui/SortableHeader'
 
 const REORDER_WAREHOUSES = ['T1', 'Central'] // Aged excluded on purpose — not part of the regular replenishment cycle
 
@@ -17,22 +18,6 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 
 function monthsBetween(a: Date, b: Date): number {
   return Math.max(1, (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()))
-}
-
-function SortableHeader<T extends string>({ label, col, sortCol, sortDir, onSort, align = 'right' }: {
-  label: string; col: T; sortCol: T; sortDir: 'asc' | 'desc'; onSort: (col: T) => void; align?: 'left' | 'right'
-}) {
-  const active = sortCol === col
-  const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
-  return (
-    <th className={`px-3 py-3 font-medium ${align === 'left' ? 'text-left px-4' : 'text-right'}`}>
-      <button onClick={() => onSort(col)}
-        className={`flex items-center gap-1 hover:text-gray-900 transition-colors ${align === 'left' ? '' : 'ml-auto'} ${active ? 'text-gray-900' : 'text-gray-600'}`}>
-        {label}
-        <Icon size={12} className={active ? 'text-gray-700' : 'text-gray-300'} />
-      </button>
-    </th>
-  )
 }
 
 export default function ReorderAnalysisPage() {

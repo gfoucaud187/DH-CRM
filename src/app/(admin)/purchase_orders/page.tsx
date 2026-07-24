@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Plus, Package, Wrench, Box, Trash2, Sparkles, XCircle, RotateCcw } from 'lucide-react'
 import { useT } from '@/lib/i18n/LanguageProvider'
+import { useState, useMemo } from 'react'
+import SortableHeader from '@/components/ui/SortableHeader'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:     'bg-gray-100 text-gray-600',
@@ -30,6 +32,12 @@ export default function PurchaseOrdersPage() {
   const t = useT()
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const [sortCol, setSortCol] = useState<'date' | 'delivery' | 'total' | 'status'>('date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const toggleSort = (col: typeof sortCol) => {
+    if (col === sortCol) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('desc') }
+  }
 
   const { data: pos, isLoading } = useQuery({
     queryKey: ['purchase_orders'],
@@ -41,6 +49,21 @@ export default function PurchaseOrdersPage() {
       return data ?? []
     }
   })
+
+  const sortedPos = useMemo(() => {
+    if (!pos) return pos
+    const dir = sortDir === 'asc' ? 1 : -1
+    const getVal = (po: any): number | string => {
+      if (sortCol === 'delivery') return po.expected_delivery ? new Date(po.expected_delivery).getTime() : 0
+      if (sortCol === 'total') return po.total_amount ?? 0
+      if (sortCol === 'status') return po.status ?? ''
+      return new Date(po.order_date ?? po.created_at).getTime()
+    }
+    return [...pos].sort((a, b) => {
+      const va = getVal(a), vb = getVal(b)
+      return typeof va === 'string' ? va.localeCompare(vb as string) * dir : ((va as number) - (vb as number)) * dir
+    })
+  }, [pos, sortCol, sortDir])
 
   // Hard delete stays available only for drafts — nothing has ever touched stock at that point,
   // so there's nothing to lose. Anything past draft goes through Cancel/Restore instead, so a
@@ -107,15 +130,15 @@ export default function PurchaseOrdersPage() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">{t('purchase_orders.col_po_number')}</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Type</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">{t('purchase_orders.col_partner')}</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">{t('purchase_orders.col_delivery')}</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">{t('purchase_orders.col_total')}</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+                <SortableHeader label="Date" col="date" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} align="left" />
+                <SortableHeader label={t('purchase_orders.col_delivery')} col="delivery" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} align="left" />
+                <SortableHeader label={t('purchase_orders.col_total')} col="total" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Status" col="status" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} align="left" />
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
-              {pos?.map((po: any) => {
+              {sortedPos?.map((po: any) => {
                 const Icon = TYPE_ICONS[po.po_type] ?? Package
                 return (
                   <tr key={po.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">

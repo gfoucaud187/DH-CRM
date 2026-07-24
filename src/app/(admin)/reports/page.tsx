@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { COUNTRIES } from '@/lib/countries'
 import { reportPeriod, reportYearStart, trailingReportPeriods } from '@/lib/reportPeriod'
 import { fetchAllRows } from '@/lib/fetchAllRows'
+import SortableHeader from '@/components/ui/SortableHeader'
 import { BarChart3, Globe, Package, Users, Target, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, Clock, XCircle, Calendar, Download, DollarSign } from 'lucide-react'
 import FinanceMarginsTab from '@/components/reports/FinanceMarginsTab'
 
@@ -112,6 +113,12 @@ export default function ReportsPage() {
   const [period, setPeriod] = useState('ytd')
   const [activityFilter, setActivityFilter] = useState<'all'|'active'|'at_risk'|'dormant'|'lost'>('all')
   const [expandedCountry, setExpandedCountry] = useState<string | null>(null)
+  const [clientSortCol, setClientSortCol] = useState<'revenue' | 'units' | 'orders' | 'vs'>('revenue')
+  const [clientSortDir, setClientSortDir] = useState<'asc' | 'desc'>('desc')
+  const toggleClientSort = (col: typeof clientSortCol) => {
+    if (col === clientSortCol) setClientSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setClientSortCol(col); setClientSortDir('desc') }
+  }
   const [geoTypeFilter, setGeoTypeFilter] = useState<'all'|'distributor'|'private'>('all')
 
   const t = useT()
@@ -245,6 +252,17 @@ export default function ReportsPage() {
     orders: periodInvoices.filter((o: any) => o.customer_id === c.id).length,
   })).filter((c: any) => c.revenue > 0).sort((a: any, b: any) => b.revenue - a.revenue)
   const maxClientRev = Math.max(...clientRevenue.map((c: any) => c.revenue), 1)
+
+  const sortedClientRevenue = useMemo(() => {
+    const dir = clientSortDir === 'asc' ? 1 : -1
+    const getVal = (c: any) => {
+      if (clientSortCol === 'units') return c.units
+      if (clientSortCol === 'orders') return c.orders
+      if (clientSortCol === 'vs') return c.prevRevenue ? (c.revenue - c.prevRevenue) / c.prevRevenue : 0
+      return c.revenue
+    }
+    return [...clientRevenue].sort((a, b) => (getVal(a) - getVal(b)) * dir)
+  }, [clientRevenue, clientSortCol, clientSortDir])
 
   const activityData = customers.map((c: any) => {
     const cOrders = invoices.filter((o: any) => o.customer_id === c.id)
@@ -608,15 +626,15 @@ export default function ReportsPage() {
                   <th className="text-left px-5 py-3 font-medium text-gray-600">#</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">{t('reports.col_country')}</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">{t('reports.col_revenue')}</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">{t('reports.col_units')}</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">{t('reports.col_orders')}</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">{currentPeriod.vsLabel}</th>
+                  <SortableHeader label={t('reports.col_revenue')} col="revenue" sortCol={clientSortCol} sortDir={clientSortDir} onSort={toggleClientSort} />
+                  <SortableHeader label={t('reports.col_units')} col="units" sortCol={clientSortCol} sortDir={clientSortDir} onSort={toggleClientSort} />
+                  <SortableHeader label={t('reports.col_orders')} col="orders" sortCol={clientSortCol} sortDir={clientSortDir} onSort={toggleClientSort} />
+                  <SortableHeader label={currentPeriod.vsLabel} col="vs" sortCol={clientSortCol} sortDir={clientSortDir} onSort={toggleClientSort} />
                   <th className="px-4 py-3 w-20" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {clientRevenue.map((c: any, i: number) => (
+                {sortedClientRevenue.map((c: any, i: number) => (
                   <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push('/reports/client/' + c.id)}>
                     <td className="px-5 py-3 text-gray-400 text-xs">{i+1}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{c.legal_name}</td>

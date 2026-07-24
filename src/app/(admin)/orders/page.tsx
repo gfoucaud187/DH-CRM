@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useMemo } from 'react'
 import { useT } from '@/lib/i18n/LanguageProvider'
 import { warehouseLabel } from '@/lib/warehouse'
+import SortableHeader from '@/components/ui/SortableHeader'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:                'bg-gray-100 text-gray-500',
@@ -97,6 +98,12 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('')
   const [showCancelled, setShowCancelled] = useState(false)
   const [hoveredComment, setHoveredComment] = useState<string | null>(null)
+  const [sortCol, setSortCol] = useState<'units' | 'amount' | 'status' | 'date'>('date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const toggleSort = (col: typeof sortCol) => {
+    if (col === sortCol) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('desc') }
+  }
 
   const { data: allOrders = [], isLoading } = useQuery({
     queryKey: ['orders'],
@@ -204,6 +211,23 @@ export default function OrdersPage() {
 
     return groups
   }, [allOrders, docFilter, search])
+
+  // Sorting reorders whole chains by their root document (an SO's promoted invoice/credit-note/
+  // return always stays right after it, indented) rather than flattening rows — otherwise a child
+  // document could end up sorted away from the parent it only makes sense alongside.
+  const sortedGroups = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    const getVal = (root: any): number | string => {
+      if (sortCol === 'units') return root.total_units ?? 0
+      if (sortCol === 'amount') return root.total_amount ?? 0
+      if (sortCol === 'status') return root.status ?? ''
+      return new Date(root.order_date ?? root.created_at).getTime()
+    }
+    return [...groupedOrders].sort((a, b) => {
+      const va = getVal(a[0].doc), vb = getVal(b[0].doc)
+      return typeof va === 'string' ? va.localeCompare(vb as string) * dir : ((va as number) - (vb as number)) * dir
+    })
+  }, [groupedOrders, sortCol, sortDir])
 
   const handleCancel = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
@@ -325,10 +349,10 @@ export default function OrdersPage() {
         <th className="text-left px-4 py-3 font-medium text-gray-600">{t('orders.col_customer')}</th>
         <th className="text-left px-4 py-3 font-medium text-gray-600">{t('common.type')}</th>
         <th className="text-left px-4 py-3 font-medium text-gray-600">{t('orders.col_warehouse')}</th>
-        <th className="text-right px-4 py-3 font-medium text-gray-600">Units</th>
-        <th className="text-right px-4 py-3 font-medium text-gray-600">{t('common.amount')}</th>
-        <th className="text-left px-4 py-3 font-medium text-gray-600">{t('orders.col_status')}</th>
-        <th className="text-left px-4 py-3 font-medium text-gray-600">{t('orders.col_date')}</th>
+        <SortableHeader label="Units" col="units" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+        <SortableHeader label={t('common.amount')} col="amount" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+        <SortableHeader label={t('orders.col_status')} col="status" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} align="left" />
+        <SortableHeader label={t('orders.col_date')} col="date" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} align="left" />
         <th className="px-4 py-3" />
       </tr>
     </thead>
@@ -453,12 +477,12 @@ export default function OrdersPage() {
           <table className="w-full text-sm">
             <TableHead />
             <tbody>
-              {groupedOrders.map((group, gi) => (
+              {sortedGroups.map((group, gi) => (
                 <>
                   {group.map(({ doc: o, depth }, idx) => (
                     <OrderRow key={o.id} o={o} depth={depth} isLast={idx === group.length - 1} />
                   ))}
-                  {gi < groupedOrders.length - 1 && <GroupSeparator key={`sep-${gi}`} />}
+                  {gi < sortedGroups.length - 1 && <GroupSeparator key={`sep-${gi}`} />}
                 </>
               ))}
             </tbody>
