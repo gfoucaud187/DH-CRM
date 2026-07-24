@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { COUNTRIES } from '@/lib/countries'
+import { reportPeriod, reportYearStart, trailingReportPeriods } from '@/lib/reportPeriod'
 import { BarChart3, Globe, Package, Users, Target, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, Clock, XCircle, Calendar, Download } from 'lucide-react'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -73,7 +74,9 @@ function getPeriodDates(period: string) {
 
   switch (period) {
     case 'ytd':
-      start = new Date(now.getFullYear(), 0, 1)
+      // Oct/Nov/Dec 2025 are folded into "2026" for reporting — YTD for 2026 has to reach back
+      // to Oct 1, 2025 to actually include that folded quarter, instead of starting Jan 1.
+      start = new Date(reportYearStart(now.getFullYear()))
       prevStart = new Date(now.getFullYear() - 1, 0, 1)
       prevEnd = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
       break
@@ -176,14 +179,13 @@ export default function ReportsPage() {
   const activeClients = new Set(periodInvoices.map((o: any) => o.customer_id)).size
   const prevClients   = new Set(prevInvoices.map((o: any) => o.customer_id)).size
 
-  const monthlyRevenue = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date(); d.setMonth(d.getMonth() - 11 + i)
-    const key = `${d.getFullYear()}-${d.getMonth()}`
+  const trailing12 = trailingReportPeriods(12)
+  const monthlyRevenue = trailing12.map(({ year, month }) => {
     const val = invoices.filter((o: any) => {
-      const od = new Date(o.order_date ?? o.created_at)
-      return `${od.getFullYear()}-${od.getMonth()}` === key
+      const p = reportPeriod(o.order_date ?? o.created_at)
+      return p.year === year && p.month === month
     }).reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
-    return { label: MONTHS[d.getMonth()], value: val, year: d.getFullYear() }
+    return { label: MONTHS[month], value: val, year }
   })
   const maxMonthly = Math.max(...monthlyRevenue.map(m => m.value), 1)
 
@@ -250,10 +252,12 @@ export default function ReportsPage() {
     const cut24 = new Date(); cut24.setFullYear(cut24.getFullYear() - 2)
     const o12 = cOrders.filter((o: any) => new Date(o.order_date ?? o.created_at) > cut12)
     const o24 = cOrders.filter((o: any) => { const d = new Date(o.order_date ?? o.created_at); return d > cut24 && d <= cut12 })
-    const heatmap = Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(); d.setMonth(d.getMonth() - 11 + i)
-      return cOrders.filter((o: any) => { const od = new Date(o.order_date ?? o.created_at); return od.getFullYear() === d.getFullYear() && od.getMonth() === d.getMonth() }).length
-    })
+    const heatmap = trailing12.map(({ year, month }) =>
+      cOrders.filter((o: any) => {
+        const p = reportPeriod(o.order_date ?? o.created_at)
+        return p.year === year && p.month === month
+      }).length
+    )
     return {
       ...c, lastOrderDate: lastDate, lastOrderDays,
       freqPerMonth: o12.length / 12,
@@ -529,11 +533,12 @@ export default function ReportsPage() {
               {brandList.map(([brand, data]) => (
                 <div key={brand} className="flex items-center gap-3 mb-3">
                   <span className="text-sm text-gray-700 w-24 md:w-32 truncate">{brand}</span>
-                  <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full flex items-center px-2"
-                      style={{ width: `${Math.max((data.revenue/maxBrand)*100, 8)}%`, background: '#0F6E56' }}>
-                      <span className="text-white" style={{ fontSize: '9px' }}>{fmt(data.revenue)}</span>
-                    </div>
+                  <div className="flex-1 h-5 bg-gray-100 rounded-full relative">
+                    <div className="h-full rounded-full"
+                      style={{ width: `${Math.max((data.revenue/maxBrand)*100, 8)}%`, background: '#0F6E56' }} />
+                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 bg-gray-900 text-white px-2 py-0.5 rounded-full whitespace-nowrap" style={{ fontSize: '9px' }}>
+                      {fmt(data.revenue)}
+                    </span>
                   </div>
                   <span className="text-xs text-gray-400 w-12 md:w-16 text-right">{data.units.toLocaleString()}u</span>
                   <span className="text-xs text-gray-400 w-16 md:w-20 text-right" title={t('reports.col_avg_unit')}>
@@ -548,10 +553,12 @@ export default function ReportsPage() {
                 <div key={name} className="flex items-center gap-2 mb-2.5">
                   <span className="text-xs text-gray-400 w-4 text-right">{i+1}</span>
                   <span className="text-xs text-gray-700 w-36 md:w-44 truncate" title={name}>{name}</span>
-                  <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${(data.units/maxProduct)*100}%`, background: '#185FA5' }} />
+                  <div className="flex-1 h-4 bg-gray-100 rounded-full relative">
+                    <div className="h-full rounded-full" style={{ width: `${Math.max((data.units/maxProduct)*100, 8)}%`, background: '#185FA5' }} />
+                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 bg-gray-900 text-white px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ fontSize: '9px' }}>
+                      {data.units.toLocaleString()}u
+                    </span>
                   </div>
-                  <span className="text-xs font-semibold text-gray-900 w-10 md:w-12 text-right">{data.units.toLocaleString()}</span>
                   <span className="text-xs text-gray-400 w-14 md:w-16 text-right" title={t('reports.col_avg_unit')}>
                     {data.units ? fmtUnit(data.revenue/data.units) : '—'}/u
                   </span>
@@ -746,7 +753,7 @@ export default function ReportsPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-0.5 justify-center">
                           {(c.heatmap ?? []).map((count: number, i: number) => (
-                            <div key={i} title={`${MONTHS[(new Date().getMonth() - 11 + i + 12) % 12]}: ${count}`}
+                            <div key={i} title={`${MONTHS[trailing12[i]?.month ?? 0]} ${trailing12[i]?.year ?? ''}: ${count}`}
                               className="w-3.5 h-3.5 rounded-sm flex-shrink-0"
                               style={{ background: count === 0 ? '#F3F4F6' : count === 1 ? '#BFDBFE' : count === 2 ? '#60A5FA' : '#1D4ED8' }} />
                           ))}

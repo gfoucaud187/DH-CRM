@@ -7,6 +7,7 @@ import { ArrowLeft, Download, TrendingUp, Package, Users, Warehouse } from 'luci
 import Link from 'next/link'
 import { useMemo, useRef } from 'react'
 import { warehouseLabel } from '@/lib/warehouse'
+import { reportMonthKey, trailingReportPeriods } from '@/lib/reportPeriod'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const WH = ['T1','Central','Aged','Sample','Private']
@@ -85,17 +86,13 @@ export default function ProductReportPage() {
     ;(lines as any[]).forEach((l: any) => {
       const o = orders.find((o: any) => o.id === l.order_id)
       if (!o || !['shipped','completed'].includes(o.status)) return
-      const d = new Date(o.order_date ?? o.created_at)
-      const key = `${d.getFullYear()}-${d.getMonth()}`
+      const key = reportMonthKey(o.order_date ?? o.created_at)
       map[key] = (map[key] ?? 0) + (l.quantity_units ?? 0)
     })
-    const result = []
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(); d.setMonth(d.getMonth()-i)
-      const key = `${d.getFullYear()}-${d.getMonth()}`
-      result.push({ label: MONTHS[d.getMonth()], value: map[key] ?? 0 })
-    }
-    return result
+    return trailingReportPeriods(12).map(({ year, month }) => ({
+      label: MONTHS[month],
+      value: map[`${year}-${month}`] ?? 0,
+    }))
   }, [lines, orders])
   const maxMonthly = Math.max(...monthlyUnits.map(m => m.value), 1)
 

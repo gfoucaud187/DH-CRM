@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { TrendingUp, Package, ShoppingCart, AlertCircle, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { warehouseLabel } from '@/lib/warehouse'
+import { reportYear } from '@/lib/reportPeriod'
 
 const STATUS_COLORS: Record<string, string> = {
   draft:                'bg-gray-100 text-gray-500',
@@ -70,7 +71,7 @@ export default function DashboardPage() {
 
   // Revenue: invoices issued (created_at) this year — not order_date, which for re-entered
   // historical orders reflects the original document's date, not when it entered the system.
-  const invoicesYTD    = allInvoices.filter((o: any) => new Date(o.created_at).getFullYear() === currentYear)
+  const invoicesYTD    = allInvoices.filter((o: any) => reportYear(o.created_at) === currentYear)
   const revenueYTD     = invoicesYTD.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
   const totalReceived  = allInvoices.reduce((s: number, o: any) => s + (o.amount_received ?? 0), 0)
   const totalCredited  = allCreditNotes.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)

@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, TrendingUp, Package, Clock, ShoppingCart, Download } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo, useRef } from 'react'
+import { reportMonthKey, trailingReportPeriods } from '@/lib/reportPeriod'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 function fmt(n: number) { return `USD ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}` }
@@ -63,17 +64,13 @@ export default function ClientReportPage() {
   const monthlyRevenue = useMemo(() => {
     const map: Record<string,number> = {}
     invoices.forEach((o: any) => {
-      const d = new Date(o.order_date ?? o.created_at)
-      const key = `${d.getFullYear()}-${d.getMonth()}`
+      const key = reportMonthKey(o.order_date ?? o.created_at)
       map[key] = (map[key] ?? 0) + (o.total_amount ?? 0)
     })
-    const result = []
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(); d.setMonth(d.getMonth()-i)
-      const key = `${d.getFullYear()}-${d.getMonth()}`
-      result.push({ label: MONTHS[d.getMonth()], value: map[key] ?? 0 })
-    }
-    return result
+    return trailingReportPeriods(12).map(({ year, month }) => ({
+      label: MONTHS[month],
+      value: map[`${year}-${month}`] ?? 0,
+    }))
   }, [invoices])
   const maxMonthly = Math.max(...monthlyRevenue.map(m => m.value), 1)
 

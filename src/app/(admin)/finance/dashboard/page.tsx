@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { TrendingUp, TrendingDown, DollarSign, Users2, Receipt, BookOpen } from 'lucide-react'
 import Link from 'next/link'
+import { reportYearStart } from '@/lib/reportPeriod'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-SG', { style: 'currency', currency: 'SGD', maximumFractionDigits: 0 }).format(n)
@@ -27,7 +28,7 @@ export default function FinanceDashboardPage() {
   const supabase = createClient()
 
   const now = new Date()
-  const yearStart = `${now.getFullYear()}-01-01`
+  const yearStart = reportYearStart(now.getFullYear())
 
   const { data: kpis, isLoading } = useQuery({
     queryKey: ['finance-kpis', now.getFullYear()],
