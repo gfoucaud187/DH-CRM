@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useState, useMemo, Fragment } from 'react'
-import { ArrowLeft, Sparkles, Save, AlertTriangle, Info } from 'lucide-react'
+import { ArrowLeft, Sparkles, Save, AlertTriangle, Info, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import Link from 'next/link'
 import { logActivity } from '@/lib/log-activity'
 
@@ -17,6 +17,22 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 
 function monthsBetween(a: Date, b: Date): number {
   return Math.max(1, (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()))
+}
+
+function SortableHeader<T extends string>({ label, col, sortCol, sortDir, onSort, align = 'right' }: {
+  label: string; col: T; sortCol: T; sortDir: 'asc' | 'desc'; onSort: (col: T) => void; align?: 'left' | 'right'
+}) {
+  const active = sortCol === col
+  const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+  return (
+    <th className={`px-3 py-3 font-medium ${align === 'left' ? 'text-left px-4' : 'text-right'}`}>
+      <button onClick={() => onSort(col)}
+        className={`flex items-center gap-1 hover:text-gray-900 transition-colors ${align === 'left' ? '' : 'ml-auto'} ${active ? 'text-gray-900' : 'text-gray-600'}`}>
+        {label}
+        <Icon size={12} className={active ? 'text-gray-700' : 'text-gray-300'} />
+      </button>
+    </th>
+  )
 }
 
 export default function ReorderAnalysisPage() {
@@ -38,6 +54,8 @@ export default function ReorderAnalysisPage() {
   const [creating, setCreating] = useState(false)
   const [expandedSku, setExpandedSku] = useState<string | null>(null)
   const [showFormulaInfo, setShowFormulaInfo] = useState(false)
+  const [sortCol, setSortCol] = useState<'product' | 'avgMonthly' | 'currentStock' | 'onOrder' | 'recommendedQty'>('onOrder')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const { data: earliestSoDate } = useQuery({
     queryKey: ['reorder-earliest-so'],
@@ -186,6 +204,19 @@ export default function ReorderAnalysisPage() {
       .filter(r => r.totalSold > 0 || r.currentStock > 0 || r.recommendedQty > 0)
       .sort((a, b) => b.onOrder - a.onOrder)
   }, [products, salesLines, inventory, openPoLines, factors, windowMonths])
+
+  const toggleSort = (col: typeof sortCol) => {
+    if (col === sortCol) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir(col === 'product' ? 'asc' : 'desc') }
+  }
+
+  const sortedRows = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    return [...rows].sort((a, b) => {
+      if (sortCol === 'product') return a.full_name.localeCompare(b.full_name) * dir
+      return (a[sortCol] - b[sortCol]) * dir
+    })
+  }, [rows, sortCol, sortDir])
 
   const getQty = (sku: string, defaultQty: number) => {
     const ov = overrides[sku]
@@ -352,17 +383,17 @@ export default function ReorderAnalysisPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
-              <th className="text-right px-3 py-3 font-medium text-gray-600">Avg/Month (boxes)</th>
-              <th className="text-right px-3 py-3 font-medium text-gray-600">Current Stock</th>
-              <th className="text-right px-3 py-3 font-medium text-gray-600">On Order</th>
-              <th className="text-right px-3 py-3 font-medium text-gray-600">Recommended Qty</th>
+              <SortableHeader label="Product" col="product" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} align="left" />
+              <SortableHeader label="Avg/Month (boxes)" col="avgMonthly" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Current Stock" col="currentStock" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="On Order" col="onOrder" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Recommended Qty" col="recommendedQty" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
               <th className="px-3 py-3" />
               <th className="px-3 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {rows.map(r => {
+            {sortedRows.map(r => {
               const isExcluded = excluded.has(r.sku)
               const insight = insights[r.sku]
               const isExpanded = expandedSku === r.sku
