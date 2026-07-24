@@ -7,7 +7,9 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { COUNTRIES } from '@/lib/countries'
 import { reportPeriod, reportYearStart, trailingReportPeriods } from '@/lib/reportPeriod'
-import { BarChart3, Globe, Package, Users, Target, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, Clock, XCircle, Calendar, Download } from 'lucide-react'
+import { fetchAllRows } from '@/lib/fetchAllRows'
+import { BarChart3, Globe, Package, Users, Target, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, Clock, XCircle, Calendar, Download, DollarSign } from 'lucide-react'
+import FinanceMarginsTab from '@/components/reports/FinanceMarginsTab'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -120,6 +122,7 @@ export default function ReportsPage() {
     { id: 'products',  label: t('reports.tab_products'),  icon: Package },
     { id: 'clients',   label: t('reports.tab_clients'),   icon: Users },
     { id: 'activity',  label: t('reports.tab_activity'),  icon: Target },
+    { id: 'finance',   label: 'Margins',                  icon: DollarSign },
   ]
 
   const currentPeriod = PERIODS.find(p => p.id === period) ?? PERIODS[0]
@@ -147,12 +150,12 @@ export default function ReportsPage() {
 
   const { data: lines = [] } = useQuery({
     queryKey: ['report-lines'],
-    queryFn: async () => {
-      const { data } = await supabase.from('sales_order_lines')
-        .select('order_id, sku, product_name, brand, quantity_units, quantity_packs, line_total, line_type')
-        .eq('line_type', 'commercial')
-      return data ?? []
-    }
+    // sales_order_lines is already past Supabase/PostgREST's 1000-row unpaginated cap — without
+    // fetchAllRows this silently dropped whatever fell past the first page.
+    queryFn: () => fetchAllRows((from, to) => supabase.from('sales_order_lines')
+      .select('order_id, sku, product_name, brand, quantity_units, quantity_packs, line_total, line_type')
+      .eq('line_type', 'commercial')
+      .range(from, to))
   })
 
   const now = new Date()
@@ -171,6 +174,7 @@ export default function ReportsPage() {
 
   const periodInvoices = invoices.filter(inPeriod)
   const prevInvoices   = invoices.filter(inPrev)
+  const periodInvoiceIds = useMemo(() => new Set(periodInvoices.map((o: any) => o.id)), [periodInvoices])
 
   const periodRevenue = periodInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
   const prevRevenue   = prevInvoices.reduce((s: number, o: any) => s + (o.total_amount ?? 0), 0)
@@ -775,6 +779,9 @@ export default function ReportsPage() {
           </div>
         </div>
       )}
+
+      {/* ── FINANCE / MARGINS ── */}
+      {tab === 'finance' && <FinanceMarginsTab periodInvoiceIds={periodInvoiceIds} />}
     </div>
   )
 }

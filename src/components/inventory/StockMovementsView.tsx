@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useState, useMemo } from 'react'
 import { Download, Package, Search } from 'lucide-react'
 import { useT } from '@/lib/i18n/LanguageProvider'
+import { fetchAllRows } from '@/lib/fetchAllRows'
 
 const WAREHOUSES = ['All', 'T1', 'Central', 'Aged', 'Sample', 'Private']
 // "Aged" stays the DB/data key — only the on-screen label changes
@@ -64,23 +65,6 @@ const getDocColor = (o: any, direction?: 'in' | 'out') => {
   if (o.document_type === 'invoice') return '#7c3aed'
   if (o.is_sample) return '#d97706'
   return '#2563eb'
-}
-
-// Supabase/PostgREST caps any unpaginated response at 1000 rows — with 1000+ movements logged
-// this year alone, an unfiltered ("All" warehouse) query silently lost everything past the first
-// page. This walks .range() until a page comes back short, so every row is always fetched
-// regardless of how large the table grows.
-async function fetchAllRows(build: (from: number, to: number) => any): Promise<any[]> {
-  const pageSize = 1000
-  let from = 0
-  let all: any[] = []
-  while (true) {
-    const { data } = await build(from, from + pageSize - 1)
-    all = all.concat(data ?? [])
-    if (!data || data.length < pageSize) break
-    from += pageSize
-  }
-  return all
 }
 
 export default function StockMovementsView() {
