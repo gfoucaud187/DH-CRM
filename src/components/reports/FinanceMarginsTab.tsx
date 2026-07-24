@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useMemo, useState } from 'react'
-import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Info } from 'lucide-react'
+import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Info, ChevronRight, ChevronDown } from 'lucide-react'
 import { fetchAllRows } from '@/lib/fetchAllRows'
 
 function fmt(n: number) {
@@ -24,16 +24,37 @@ function marginColor(pct: number) {
 
 interface Row { key: string; label: string; sub?: string; revenue: number; cost: number; units?: number }
 
-function MarginBar({ row, maxProfit }: { row: Row & { profit: number; marginPct: number }; maxProfit: number }) {
+// products.line ("Clasico", "Reserva", "Especial", ...) is the closest existing data to a
+// sub-brand, but the raw values don't always match how these are actually talked about — Furia's
+// "Reserva" line is entirely the Inanna vitolas, and La Ley's base "Clasico" line is just called
+// "La Ley" (only the Reserva line gets a qualifier). Blank/unmapped lines fall back to "<brand>
+// (other)" rather than being silently dropped from the brand's total.
+const LINE_LABEL_OVERRIDES: Record<string, Record<string, string>> = {
+  Furia:   { Clasico: 'Furia Clasico', Reserva: 'Furia Inanna' },
+  'La Ley': { Clasico: 'La Ley', Reserva: 'La Ley Reserva' },
+  Nicarao: { 'Clasico Anno VI': 'Nicarao Clasico', Especial: 'Nicarao Especial', Exclusivo: 'Nicarao Exclusivo', Reserva: 'Nicarao Reserva' },
+}
+function subBrandLabel(brand: string, line: string) {
+  return LINE_LABEL_OVERRIDES[brand]?.[line] ?? (line ? `${brand} ${line}` : `${brand} (other)`)
+}
+
+function MarginBar({ row, maxProfit, indent, onToggle, isOpen }: {
+  row: Row & { profit: number; marginPct: number }; maxProfit: number; indent?: boolean
+  onToggle?: () => void; isOpen?: boolean
+}) {
   const color = marginColor(row.marginPct)
   const widthPct = Math.max((Math.abs(row.profit) / maxProfit) * 100, 10)
   return (
-    <div className="flex items-center gap-3 mb-3">
-      <div className="w-28 md:w-36 flex-shrink-0">
-        <p className="text-sm text-gray-700 truncate" title={row.label}>{row.label}</p>
-        {row.sub && <p className="text-xs text-gray-400 truncate">{row.sub}</p>}
+    <div className={`flex items-center gap-3 mb-3 ${indent ? 'pl-6' : ''} ${onToggle ? 'cursor-pointer' : ''}`}
+      onClick={onToggle}>
+      <div className={`${indent ? 'w-24 md:w-32' : 'w-28 md:w-36'} flex-shrink-0 flex items-center gap-1`}>
+        {onToggle && (isOpen ? <ChevronDown size={13} className="text-gray-400 flex-shrink-0" /> : <ChevronRight size={13} className="text-gray-400 flex-shrink-0" />)}
+        <div className="min-w-0">
+          <p className={`truncate ${indent ? 'text-xs text-gray-500' : 'text-sm text-gray-700'}`} title={row.label}>{row.label}</p>
+          {row.sub && <p className="text-xs text-gray-400 truncate">{row.sub}</p>}
+        </div>
       </div>
-      <div className="flex-1 h-5 bg-gray-100 rounded-full relative">
+      <div className={`flex-1 ${indent ? 'h-4' : 'h-5'} bg-gray-100 rounded-full relative`}>
         <div className="h-full rounded-full flex items-center px-2"
           style={{ width: `${widthPct}%`, background: `${color}33` }}>
           <span className="text-gray-900 font-semibold whitespace-nowrap" style={{ fontSize: '10px' }}>
@@ -50,6 +71,22 @@ function MarginBar({ row, maxProfit }: { row: Row & { profit: number; marginPct:
 export default function FinanceMarginsTab({ periodInvoiceIds }: { periodInvoiceIds: Set<string> }) {
   const supabase = createClient()
   const [productSort, setProductSort] = useState<'profit' | 'margin_desc' | 'margin_asc'>('profit')
+  const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set())
+  const toggleBrand = (brand: string) => setExpandedBrands(prev => {
+    const next = new Set(prev)
+    if (next.has(brand)) next.delete(brand); else next.add(brand)
+    return next
+  })
+
+  // sales_order_lines only carries the product's brand, not its line/sub-brand — needed to break
+  // "Margin by brand" down further (e.g. Furia into Clasico vs. Inanna).
+  const { data: products = [] } = useQuery({
+    queryKey: ['margins-products'],
+    queryFn: async () => {
+      const { data } = await supabase.from('products').select('sku, line').eq('product_role', 'original')
+      return data ?? []
+    }
+  })
 
   // Same query key as the Overview/Products tabs (reports/page.tsx) — react-query dedupes this
   // against whatever's already cached there, no extra network round-trip in the common case of
@@ -110,6 +147,12 @@ export default function FinanceMarginsTab({ periodInvoiceIds }: { periodInvoiceI
     return map
   }, [cogsRows])
 
+  const lineBySku = useMemo(() => {
+    const map: Record<string, string> = {}
+    ;(products as any[]).forEach(p => { map[p.sku] = p.line ?? '' })
+    return map
+  }, [products])
+
   const supplierBySku = useMemo(() => {
     const poMap: Record<string, { partner_name: string; order_date: string }> = {}
     ;(purchaseOrders as any[]).forEach(po => { poMap[po.id] = po })
@@ -126,7 +169,7 @@ export default function FinanceMarginsTab({ periodInvoiceIds }: { periodInvoiceI
   }, [poLines, purchaseOrders])
 
   const {
-    productMargins, brandMargins, supplierMargins,
+    productMargins, brandMargins, supplierMargins, subBrandsByBrand,
     totalRevenue, coveredRevenue, totalCost, totalProfit, overallMarginPct, costCoveragePct, skusMissingCost,
   } = useMemo(() => {
     const productMap: Record<string, { name: string; brand: string; revenue: number; cost: number; units: number }> = {}
@@ -175,16 +218,37 @@ export default function FinanceMarginsTab({ periodInvoiceIds }: { periodInvoiceI
     const brandMargins = rollup(p => productMap[p.sub as string]?.brand ?? 'Unknown')
     const supplierMargins = rollup(p => supplierBySku[p.sub as string] ?? 'Unknown supplier')
 
+    // Sub-brand breakdown within each brand (e.g. Furia -> Clasico vs. Inanna), from
+    // products.line via subBrandLabel's naming overrides.
+    const subBrandMap: Record<string, Record<string, { revenue: number; cost: number }>> = {}
+    productMargins.forEach(p => {
+      const brand = productMap[p.sub as string]?.brand ?? 'Unknown'
+      const label = subBrandLabel(brand, lineBySku[p.sub as string] ?? '')
+      if (!subBrandMap[brand]) subBrandMap[brand] = {}
+      if (!subBrandMap[brand][label]) subBrandMap[brand][label] = { revenue: 0, cost: 0 }
+      subBrandMap[brand][label].revenue += p.revenue
+      subBrandMap[brand][label].cost += p.cost
+    })
+    const subBrandsByBrand: Record<string, { key: string; label: string; revenue: number; cost: number; profit: number; marginPct: number }[]> = {}
+    Object.entries(subBrandMap).forEach(([brand, group]) => {
+      subBrandsByBrand[brand] = Object.entries(group)
+        .map(([key, v]) => ({
+          key, label: key, revenue: v.revenue, cost: v.cost, profit: v.revenue - v.cost,
+          marginPct: v.revenue > 0 ? ((v.revenue - v.cost) / v.revenue) * 100 : 0,
+        }))
+        .sort((a, b) => b.profit - a.profit)
+    })
+
     const totalProfit = coveredRevenue - totalCost
     const overallMarginPct = coveredRevenue > 0 ? (totalProfit / coveredRevenue) * 100 : 0
     const costCoveragePct = totalRevenue > 0 ? (coveredRevenue / totalRevenue) * 100 : 0
 
     return {
-      productMargins, brandMargins, supplierMargins,
+      productMargins, brandMargins, supplierMargins, subBrandsByBrand,
       totalRevenue, coveredRevenue, totalCost, totalProfit, overallMarginPct, costCoveragePct,
       skusMissingCost: missingSkus.size,
     }
-  }, [lines, periodInvoiceIds, costBySku, supplierBySku])
+  }, [lines, periodInvoiceIds, costBySku, supplierBySku, lineBySku])
 
   const sortedProducts = useMemo(() => {
     const list = [...productMargins]
@@ -233,10 +297,22 @@ export default function FinanceMarginsTab({ periodInvoiceIds }: { periodInvoiceI
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
           <h2 className="font-semibold text-gray-900 mb-1">Margin by brand</h2>
-          <p className="text-xs text-gray-400 mb-4">Bar length = profit contribution · color = margin tier</p>
+          <p className="text-xs text-gray-400 mb-4">Bar length = profit contribution · color = margin tier · click a brand for its sub-brands</p>
           {brandMargins.length === 0
             ? <p className="text-sm text-gray-400">No data yet</p>
-            : brandMargins.map(b => <MarginBar key={b.key} row={b} maxProfit={maxBrandProfit} />)}
+            : brandMargins.map(b => {
+                const subs = subBrandsByBrand[b.key] ?? []
+                const hasSubs = subs.length > 1
+                const isOpen = expandedBrands.has(b.key)
+                return (
+                  <div key={b.key}>
+                    <MarginBar row={b} maxProfit={maxBrandProfit} onToggle={hasSubs ? () => toggleBrand(b.key) : undefined} isOpen={isOpen} />
+                    {hasSubs && isOpen && subs.map(s => (
+                      <MarginBar key={s.key} row={s} maxProfit={maxBrandProfit} indent />
+                    ))}
+                  </div>
+                )
+              })}
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-5">
           <div className="flex items-center justify-between mb-1">
