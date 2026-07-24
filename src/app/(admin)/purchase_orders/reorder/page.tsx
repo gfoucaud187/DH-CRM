@@ -8,6 +8,8 @@ import { ArrowLeft, Sparkles, Save, AlertTriangle, Info } from 'lucide-react'
 import Link from 'next/link'
 import { logActivity } from '@/lib/log-activity'
 import SortableHeader from '@/components/ui/SortableHeader'
+import { fetchAllRows } from '@/lib/fetchAllRows'
+import { INBOUND_MOVEMENT_TYPES } from '@/lib/stockMovementTypes'
 
 const REORDER_WAREHOUSES = ['T1', 'Central'] // Aged excluded on purpose — not part of the regular replenishment cycle
 
@@ -18,6 +20,30 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 
 function monthsBetween(a: Date, b: Date): number {
   return Math.max(1, (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()))
+}
+
+// Counts a calendar month as "available" if the running stock balance was > 0 at any point during
+// it (at the start, or after some inbound movement mid-month) — a month spent entirely at 0 stock
+// couldn't have generated sales no matter how strong underlying demand was, so it shouldn't drag
+// the average down. `movements` must already be sorted ascending by date.
+function computeAvailableMonths(movements: { date: number; delta: number }[], windowStart: Date, today: Date): number {
+  let idx = 0
+  let balance = 0
+  let cursor = new Date(windowStart.getFullYear(), windowStart.getMonth(), 1)
+  while (idx < movements.length && movements[idx].date < cursor.getTime()) { balance += movements[idx].delta; idx++ }
+  let available = 0
+  while (cursor <= today) {
+    const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
+    let hadStock = balance > 0
+    while (idx < movements.length && movements[idx].date < monthEnd.getTime()) {
+      balance += movements[idx].delta
+      if (balance > 0) hadStock = true
+      idx++
+    }
+    if (hadStock) available++
+    cursor = monthEnd
+  }
+  return available
 }
 
 export default function ReorderAnalysisPage() {
@@ -39,7 +65,7 @@ export default function ReorderAnalysisPage() {
   const [creating, setCreating] = useState(false)
   const [expandedSku, setExpandedSku] = useState<string | null>(null)
   const [showFormulaInfo, setShowFormulaInfo] = useState(false)
-  const [sortCol, setSortCol] = useState<'product' | 'avgMonthly' | 'currentStock' | 'onOrder' | 'recommendedQty'>('onOrder')
+  const [sortCol, setSortCol] = useState<'product' | 'avgMonthly' | 'currentStock' | 'onOrder' | 'recommendedQty' | 'status'>('onOrder')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const { data: earliestSoDate } = useQuery({
@@ -92,17 +118,34 @@ export default function ReorderAnalysisPage() {
   // Orders already placed but not yet received are still "in the pipeline" — with a lead time
   // longer than the interval between orders, there's always one in transit, and it must be
   // netted against demand or every new order double-counts stock that's already on its way.
+  // expected_delivery is also what lets the stockout projection know WHEN that stock actually
+  // lands, instead of just netting its quantity in as if it arrived today.
   const { data: openPoLines = [] } = useQuery({
     queryKey: ['reorder-open-po-lines'],
     queryFn: async () => {
       const { data } = await supabase
         .from('purchase_order_lines')
-        .select('sku, quantity, purchase_orders!inner(po_type, status, warehouse)')
+        .select('sku, quantity, purchase_orders!inner(po_type, status, warehouse, expected_delivery, delivery_tba)')
         .eq('purchase_orders.po_type', 'cigars')
         .in('purchase_orders.status', ['draft', 'sent', 'confirmed'])
         .in('purchase_orders.warehouse', REORDER_WAREHOUSES)
       return data ?? []
     }
+  })
+
+  // Full stock-history reconstruction (T1+Central, matching REORDER_WAREHOUSES) so the sales
+  // baseline can divide by the months a SKU actually HAD stock to sell, not a fixed calendar
+  // window shared by every SKU — a 7-month-old SKU that stocked out after 3 months undercounts
+  // its true monthly rate by more than half if divided by 7. Also doubles as the basis for the
+  // forward stockout projection below.
+  const { data: stockMovements = [] } = useQuery({
+    queryKey: ['reorder-stock-movements'],
+    queryFn: () => fetchAllRows((from, to) => supabase
+      .from('stock_movements')
+      .select('sku, movement_type, quantity_packs, created_at')
+      .in('warehouse', REORDER_WAREHOUSES)
+      .order('created_at', { ascending: true })
+      .range(from, to))
   })
 
   const { data: products = [] } = useQuery({
@@ -124,6 +167,37 @@ export default function ReorderAnalysisPage() {
       return data ?? []
     }
   })
+
+  const availableMonthsBySku = useMemo(() => {
+    const bySku: Record<string, { date: number; delta: number }[]> = {}
+    // stockMovements is already ordered by created_at ascending from the query.
+    ;(stockMovements as any[]).forEach(m => {
+      const qty = m.quantity_packs ?? 0
+      const delta = INBOUND_MOVEMENT_TYPES.has(m.movement_type) ? qty : -qty
+      if (!bySku[m.sku]) bySku[m.sku] = []
+      bySku[m.sku].push({ date: new Date(m.created_at).getTime(), delta })
+    })
+    const windowStartDate = new Date(windowStart)
+    const out: Record<string, number> = {}
+    Object.entries(bySku).forEach(([sku, list]) => { out[sku] = computeAvailableMonths(list, windowStartDate, today) })
+    return out
+  }, [stockMovements, windowStart])
+
+  // Every already-scheduled PO arrival, bucketed by how many months out it lands (0 = this
+  // calendar month) — netted into the forward stockout projection below month by month, instead
+  // of just adding the total onOrder quantity in as if it all arrived today.
+  const arrivalsBySku = useMemo(() => {
+    const out: Record<string, Record<number, number>> = {}
+    ;(openPoLines as any[]).forEach((l: any) => {
+      const po = l.purchase_orders
+      if (!po || po.delivery_tba || !po.expected_delivery) return
+      const arrival = new Date(po.expected_delivery)
+      const offset = Math.max(0, (arrival.getFullYear() - today.getFullYear()) * 12 + (arrival.getMonth() - today.getMonth()))
+      if (!out[l.sku]) out[l.sku] = {}
+      out[l.sku][offset] = (out[l.sku][offset] ?? 0) + (l.quantity ?? 0)
+    })
+    return out
+  }, [openPoLines])
 
   const factors = useMemo(() => {
     const growth = (parseFloat(annualGrowth) || 0) / 100
@@ -165,7 +239,12 @@ export default function ReorderAnalysisPage() {
     return (products as any[])
       .map(p => {
         const totalSold = totalSoldBySku[p.sku] ?? 0
-        const baselineAvgMonthly = (deseasonalizedTotalBySku[p.sku] ?? 0) / windowMonths
+        // Divide by the months this SKU actually had stock to sell, not a fixed calendar window
+        // shared by every SKU — a SKU that stocked out partway through the window would otherwise
+        // have its true monthly rate diluted by the months it had nothing available to sell.
+        // Falls back to the shared window for a brand-new SKU with no movement history yet.
+        const availableMonths = availableMonthsBySku[p.sku] ?? 0
+        const baselineAvgMonthly = (deseasonalizedTotalBySku[p.sku] ?? 0) / (availableMonths > 0 ? availableMonths : windowMonths)
         const currentStock = stockBySku[p.sku] ?? 0
         const onOrder = onOrderBySku[p.sku] ?? 0
         // A negative stock balance isn't real available stock to net against demand —
@@ -180,25 +259,49 @@ export default function ReorderAnalysisPage() {
         const targetDemand = monthlyBreakdown.reduce((s, m) => s + m.contribution, 0)
         const rawQty = targetDemand - netPosition
         const recommendedQty = Math.max(0, Math.ceil(rawQty))
+
+        // Forward stockout projection: walk the same covered-months window month by month,
+        // netting in already-scheduled PO arrivals as they land instead of assuming onOrder
+        // stock is available immediately — the first month balance goes negative is the
+        // projected stockout, and if that happens within this window (which already spans
+        // lead time + review period), a newly-placed order wouldn't arrive in time either.
+        const arrivals = arrivalsBySku[p.sku] ?? {}
+        let balance = Math.max(0, currentStock)
+        let stockoutOffset: number | null = null
+        for (const m of monthlyBreakdown) {
+          balance += arrivals[m.offset] ?? 0
+          balance -= m.contribution
+          if (balance < 0 && stockoutOffset === null) stockoutOffset = m.offset
+        }
+        const stockoutDate = stockoutOffset !== null
+          ? new Date(today.getFullYear(), today.getMonth() + stockoutOffset, 1)
+          : null
+        const stockStatus: 'red' | 'orange' | 'green' =
+          currentStock <= 0 ? 'red' : stockoutOffset !== null ? 'orange' : 'green'
+
         return {
           sku: p.sku, full_name: p.full_name, brand: p.brand, units_per_pack: p.units_per_pack ?? 1,
-          totalSold, avgMonthly: baselineAvgMonthly, currentStock, onOrder, netPosition,
-          monthlyBreakdown, targetDemand, rawQty, recommendedQty,
+          totalSold, avgMonthly: baselineAvgMonthly, availableMonths, currentStock, onOrder, netPosition,
+          monthlyBreakdown, targetDemand, rawQty, recommendedQty, stockoutDate, stockStatus,
         }
       })
       .filter(r => r.totalSold > 0 || r.currentStock > 0 || r.recommendedQty > 0)
       .sort((a, b) => b.onOrder - a.onOrder)
-  }, [products, salesLines, inventory, openPoLines, factors, windowMonths])
+  }, [products, salesLines, inventory, openPoLines, factors, windowMonths, availableMonthsBySku, arrivalsBySku])
 
   const toggleSort = (col: typeof sortCol) => {
     if (col === sortCol) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortCol(col); setSortDir(col === 'product' ? 'asc' : 'desc') }
+    // Status defaults ascending too — red/orange first (STATUS_RANK below), i.e. most urgent on top.
+    else { setSortCol(col); setSortDir(col === 'product' || col === 'status' ? 'asc' : 'desc') }
   }
+
+  const STATUS_RANK: Record<string, number> = { red: 0, orange: 1, green: 2 }
 
   const sortedRows = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
     return [...rows].sort((a, b) => {
       if (sortCol === 'product') return a.full_name.localeCompare(b.full_name) * dir
+      if (sortCol === 'status') return (STATUS_RANK[a.stockStatus] - STATUS_RANK[b.stockStatus]) * dir
       return (a[sortCol] - b[sortCol]) * dir
     })
   }, [rows, sortCol, sortDir])
@@ -371,6 +474,7 @@ export default function ReorderAnalysisPage() {
               <SortableHeader label="Product" col="product" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} align="left" />
               <SortableHeader label="Avg/Month (boxes)" col="avgMonthly" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
               <SortableHeader label="Current Stock" col="currentStock" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Status" col="status" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} align="left" />
               <SortableHeader label="On Order" col="onOrder" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
               <SortableHeader label="Recommended Qty" col="recommendedQty" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
               <th className="px-3 py-3" />
@@ -396,6 +500,25 @@ export default function ReorderAnalysisPage() {
                   </td>
                   <td className="px-3 py-3 text-right text-gray-500">{r.avgMonthly.toFixed(1)}</td>
                   <td className="px-3 py-3 text-right text-gray-500">{r.currentStock}</td>
+                  <td className="px-3 py-3">
+                    <span className={
+                      'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ' +
+                      (r.stockStatus === 'red' ? 'bg-red-100 text-red-700'
+                        : r.stockStatus === 'orange' ? 'bg-orange-100 text-orange-700'
+                        : 'bg-green-100 text-green-700')
+                    }>
+                      <span className={
+                        'w-1.5 h-1.5 rounded-full ' +
+                        (r.stockStatus === 'red' ? 'bg-red-500' : r.stockStatus === 'orange' ? 'bg-orange-500' : 'bg-green-500')
+                      } />
+                      {r.stockStatus === 'red' ? 'Out of stock' : r.stockStatus === 'orange' ? 'Reorder now' : 'Covered'}
+                    </span>
+                    {r.stockoutDate && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {r.currentStock <= 0 ? 'since' : 'est.'} {r.stockoutDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+                      </p>
+                    )}
+                  </td>
                   <td className="px-3 py-3 text-right text-gray-500">{r.onOrder > 0 ? r.onOrder : '—'}</td>
                   <td className="px-3 py-3 text-right">
                     <input type="number" min={0} disabled={isExcluded}
@@ -418,11 +541,16 @@ export default function ReorderAnalysisPage() {
                 </tr>
                 {isExpanded && (
                   <tr className="bg-gray-50">
-                    <td colSpan={7} className="px-4 py-3">
+                    <td colSpan={8} className="px-4 py-3">
                       <div className="text-xs text-gray-600 font-mono space-y-1">
-                        <div>baseline_avg_monthly (deseasonalized) = {r.totalSold} boxes sold over {windowMonths} months, each divided by that month's seasonality → {r.avgMonthly.toFixed(2)}/month</div>
+                        <div>baseline_avg_monthly (deseasonalized) = {r.totalSold} boxes sold over {r.availableMonths > 0 ? r.availableMonths : windowMonths} month(s){r.availableMonths > 0 ? ' this SKU actually had stock' : ' (no stock history yet, using the full window)'}, each divided by that month's seasonality → {r.avgMonthly.toFixed(2)}/month</div>
                         {r.currentStock < 0 && (
                           <div className="text-amber-600">current_stock is negative ({r.currentStock}) → treated as 0, not subtracted as-is</div>
+                        )}
+                        {r.stockoutDate && (
+                          <div className={r.stockStatus === 'red' ? 'text-red-600' : 'text-orange-600'}>
+                            projected stockout: {r.stockoutDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} — {r.stockStatus === 'red' ? 'already out of stock' : 'will run out before a new order (placed today) would arrive'}
+                          </div>
                         )}
                         {r.monthlyBreakdown.map((m: any) => (
                           <div key={m.offset}>{m.monthName}: {r.avgMonthly.toFixed(2)} × {m.growthFactor.toFixed(3)} growth × {SEASONALITY[m.monthIdx].toFixed(1)} seasonality = {m.contribution.toFixed(2)}</div>
@@ -438,7 +566,7 @@ export default function ReorderAnalysisPage() {
               )
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No sales history or stock found for active original products</td></tr>
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">No sales history or stock found for active original products</td></tr>
             )}
           </tbody>
         </table>

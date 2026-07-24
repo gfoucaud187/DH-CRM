@@ -6,6 +6,7 @@ import { useState, useMemo } from 'react'
 import { Download, Package, Search } from 'lucide-react'
 import { useT } from '@/lib/i18n/LanguageProvider'
 import { fetchAllRows } from '@/lib/fetchAllRows'
+import { INBOUND_MOVEMENT_TYPES } from '@/lib/stockMovementTypes'
 
 const WAREHOUSES = ['All', 'T1', 'Central', 'Aged', 'Sample', 'Private']
 // "Aged" stays the DB/data key — only the on-screen label changes
@@ -50,10 +51,6 @@ const getDocLabel = (o: any, direction?: 'in' | 'out') => {
   return o.document_type?.toUpperCase()
 }
 
-// Movement types that INCREASE stock — everything else (out, transfer_out, *_reversed) decreases it.
-// Used to sign the pivot so the Opening/Closing stock math (opening = current + net change) stays correct
-// now that inbound movements (Stock Inbound, Client Return, Stocktake surplus) show up alongside sales.
-const INBOUND_MOVEMENT_TYPES = new Set(['in', 'stock_inbound', 'client_return_in', 'stocktake_in', 'transformation_in', 'transfer_in'])
 
 const getDocColor = (o: any, direction?: 'in' | 'out') => {
   if (o.document_type === 'stock_inbound') return '#0891b2'
